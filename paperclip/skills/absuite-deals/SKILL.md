@@ -134,7 +134,7 @@ absuite deals create unit-flow-stage --TenantId $TENANT_ID --DealUnitFlowId <flo
 }'
 ```
 
-**REST API equivalent:**
+**REST API equivalent (for each stage creation above):**
 
 ```bash
 curl -X POST "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/$DEAL_UNIT_FLOW_ID/Stages" \
@@ -143,8 +143,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/$DEAL_UNIT_FLO
   -d '{
     "name": "Qualification",
     "order": 1,
-    "description": "Initial lead qualification",
-    "dealUnitFlowId": "<flow-guid>"
+    "description": "Initial lead qualification"
   }'
 ```
 
@@ -200,11 +199,21 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits" \
     "currencyId": "<currency-guid>",
     "individualId": "<contact-guid>",
     "organizationId": "<organization-guid>",
+    "firstName": "Jane",
+    "lastName": "Smith",
+    "companyName": "Acme Corp",
+    "billingEmail": "jane@acme.com",
     "dealUnitFlowId": "<flow-guid>",
-    "dealUnitFlowStageId": "<stage-guid>",
+    "dealUnitFlowStageId": "<qualification-stage-guid>",
     "dealUnitStatus": "Open",
     "dealUnitForecastCategory": "Pipeline",
-    "expectedCloseDate": "2026-06-30T00:00:00Z"
+    "dealUnitPurchaseProcess": "Committee",
+    "expectedCloseDate": "2026-06-30T00:00:00Z",
+    "currentSituation": "Prospect using competitor product with expiring contract",
+    "customerNeed": "Unified platform for CRM, invoicing, and inventory",
+    "proposedSolution": "ABS Enterprise with Premium Support",
+    "costCalculationMethod": "PerLine",
+    "taxCalculationMethod": "PerLine"
   }'
 ```
 
@@ -253,10 +262,11 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/$DEAL_UNIT_ID/Line
   -d '{
     "itemId": "<item-guid>",
     "itemTitle": "ABS Enterprise License",
+    "itemShortDescription": "Annual enterprise platform license",
     "quantity": 10,
     "currencyId": "<currency-guid>",
     "itemPriceId": "<price-guid>",
-    "dealUnitId": "<deal-guid>"
+    "description": "10 seats of ABS Enterprise"
   }'
 ```
 
@@ -829,28 +839,25 @@ absuite deals get unit --DealUnitId <deal-id>
 | Create deal unit | `POST /api/v2/DealsService/DealUnits` |
 | List deal units | `GET /api/v2/DealsService/DealUnits` |
 | Count deal units | `GET /api/v2/DealsService/DealUnits/Count` |
-| Extended deal units | `GET /api/v2/DealsService/DealUnits/Extended` |
+| List extended deal units | `GET /api/v2/DealsService/DealUnits/Extended` |
 | Get deal unit | `GET /api/v2/DealsService/DealUnits/:dealUnitId` |
-| Get extended deal unit | `GET /api/v2/DealsService/DealUnits/:dealUnitId/Extended` |
 | Update deal unit | `PUT /api/v2/DealsService/DealUnits/:dealUnitId` |
 | Delete deal unit | `DELETE /api/v2/DealsService/DealUnits/:dealUnitId` |
-| Calculate deal unit | `PUT /api/v2/DealsService/DealUnits/:dealUnitId/Calculate` |
-| Create line | `POST /api/v2/DealsService/DealUnits/:dealUnitId/Lines` |
-| List lines | `GET /api/v2/DealsService/DealUnits/:dealUnitId/Lines` |
-| Count lines | `GET /api/v2/DealsService/DealUnits/:dealUnitId/Lines/Count` |
-| Get line | `GET /api/v2/DealsService/DealUnits/:dealUnitId/Lines/:dealUnitLineId` |
-| Update line | `PUT /api/v2/DealsService/DealUnits/:dealUnitId/Lines/:dealUnitLineId` |
-| Delete line | `DELETE /api/v2/DealsService/DealUnits/:dealUnitId/Lines/:dealUnitLineId` |
-| Calculate line | `PUT /api/v2/DealsService/DealUnits/:dealUnitId/Lines/:dealUnitLineId/Calculate` |
+| Create deal unit line | `POST /api/v2/DealsService/DealUnits/:dealUnitId/Lines` |
+| List deal unit lines | `GET /api/v2/DealsService/DealUnits/:dealUnitId/Lines` |
+| Count deal unit lines | `GET /api/v2/DealsService/DealUnits/:dealUnitId/Lines/Count` |
+| Get deal unit line | `GET /api/v2/DealsService/DealUnits/:dealUnitId/Lines/:dealUnitLineId` |
+| Update deal unit line | `PUT /api/v2/DealsService/DealUnits/:dealUnitId/Lines/:dealUnitLineId` |
+| Delete deal unit line | `DELETE /api/v2/DealsService/DealUnits/:dealUnitId/Lines/:dealUnitLineId` |
 | Create flow | `POST /api/v2/DealsService/DealUnitFlows` |
 | List flows | `GET /api/v2/DealsService/DealUnitFlows` |
 | Count flows | `GET /api/v2/DealsService/DealUnitFlows/Count` |
 | Get flow | `GET /api/v2/DealsService/DealUnitFlows/:dealUnitFlowId` |
 | Update flow | `PUT /api/v2/DealsService/DealUnitFlows/:dealUnitFlowId` |
 | Delete flow | `DELETE /api/v2/DealsService/DealUnitFlows/:dealUnitFlowId` |
-| Create stage | `POST /api/v2/DealsService/DealUnitFlows/:dealUnitFlowId/Stages` |
-| List stages | `GET /api/v2/DealsService/DealUnitFlows/:dealUnitFlowId/Stages` |
-| Count stages | `GET /api/v2/DealsService/DealUnitFlows/:dealUnitFlowId/Stages/Count` |
-| Get stage | `GET /api/v2/DealsService/DealUnitFlows/:dealUnitFlowId/Stages/:dealUnitFlowStageId` |
-| Update stage | `PUT /api/v2/DealsService/DealUnitFlows/:dealUnitFlowId/Stages/:dealUnitFlowStageId` |
-| Delete stage | `DELETE /api/v2/DealsService/DealUnitFlows/:dealUnitFlowId/Stages/:dealUnitFlowStageId` |
+| Create flow stage | `POST /api/v2/DealsService/DealUnitFlows/:dealUnitFlowId/Stages` |
+| List flow stages | `GET /api/v2/DealsService/DealUnitFlows/:dealUnitFlowId/Stages` |
+| Count flow stages | `GET /api/v2/DealsService/DealUnitFlows/:dealUnitFlowId/Stages/Count` |
+| Get flow stage | `GET /api/v2/DealsService/DealUnitFlows/:dealUnitFlowId/Stages/:dealUnitFlowStageId` |
+| Update flow stage | `PUT /api/v2/DealsService/DealUnitFlows/:dealUnitFlowId/Stages/:dealUnitFlowStageId` |
+| Delete flow stage | `DELETE /api/v2/DealsService/DealUnitFlows/:dealUnitFlowId/Stages/:dealUnitFlowStageId` |

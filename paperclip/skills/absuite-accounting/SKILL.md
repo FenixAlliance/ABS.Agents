@@ -2,12 +2,13 @@
 name: absuite-accounting
 description: >
   Manage the full accounting system in the Alliance Business Suite (ABS) using the
-  `absuite` CLI. Covers chart of accounts, account entries (debits/credits), journals
-  and journal entries, ledgers, financial books, tax policies and rates, fiscal
+  `absuite` CLI or the REST API. Covers chart of accounts, account entries (debits/credits),
+  journals and journal entries, ledgers, financial books, tax policies and rates, fiscal
   authorities/years/periods/regimes, billing profiles, banks and bank accounts,
   transactions, budgets, cost centres, commissions, receipts, grants, loans, shares,
-  and invoice enumeration ranges. Requires an authenticated CLI session (use the
-  `absuite-login` skill to authenticate first).
+  and invoice enumeration ranges. Each section shows both CLI commands and REST API
+  equivalents. Requires an authenticated CLI session (use the `absuite-login` skill)
+  or a valid bearer token for REST calls.
 ---
 
 # Alliance Business Suite — Accounting Skill
@@ -23,6 +24,25 @@ Manage accounting through the `absuite` CLI's `accounting` service. All operatio
    ```
    Or pass `--TenantId <guid>` on each call.
 3. **Discover commands** — run `absuite accounting list-commands` to see all 170+ accounting commands, or use `--help` on any command for full parameter and output schemas.
+
+## REST API Authentication
+
+To call the API directly via REST instead of the CLI:
+
+1. **Obtain a bearer token:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/login" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "'$ABSUITE_USER_EMAIL'", "password": "'$ABSUITE_USER_PASSWORD'"}'
+```
+Extract the `accessToken` from the JSON response.
+
+2. **Use the token in all subsequent requests:**
+```bash
+-H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+3. **All REST endpoints use the base path:** `$ABSUITE_HOST_URL/api/v2/`
 
 ## Command Discovery
 
@@ -72,10 +92,22 @@ absuite accounting create account --help
 absuite accounting list accounts --TenantId $TENANT_ID
 ```
 
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### List Root Accounts (top-level)
 
 ```bash
 absuite accounting list root-accounts --TenantId $TENANT_ID
+```
+
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/Root" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ### List Child Accounts
@@ -84,10 +116,22 @@ absuite accounting list root-accounts --TenantId $TENANT_ID
 absuite accounting list child-accounts --TenantId $TENANT_ID --AccountId <parent-account-guid>
 ```
 
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<parent-account-guid>/Children" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### Count Accounts
 
 ```bash
 absuite accounting count accounts --TenantId $TENANT_ID
+```
+
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ### Get Account Details
@@ -96,10 +140,27 @@ absuite accounting count accounts --TenantId $TENANT_ID
 absuite accounting list account-details --TenantId $TENANT_ID --AccountId <account-guid>
 ```
 
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### Get Account Aggregate (Balance Summary)
 
 ```bash
 absuite accounting get account-aggregate --TenantId $TENANT_ID --AccountId <account-guid>
+```
+
+**REST API equivalent:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/Aggregate" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json"
+
+# Get aggregate balance
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/Aggregate/Balance" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ### Balance an Account
@@ -108,10 +169,22 @@ absuite accounting get account-aggregate --TenantId $TENANT_ID --AccountId <acco
 absuite accounting balance account --TenantId $TENANT_ID --AccountId <account-guid>
 ```
 
+**REST API equivalent:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>/Balance" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### Balance a Root Account (cascading)
 
 ```bash
 absuite accounting balance root-account --TenantId $TENANT_ID --AccountId <root-account-guid>
+```
+
+**REST API equivalent:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/Root/Balance" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ### Create Account
@@ -125,6 +198,21 @@ absuite accounting create account --TenantId $TENANT_ID --AccountCreateDto '{
   "CurrencyId": "<currency-guid>",
   "ParentAccountId": "<parent-account-guid>"
 }'
+```
+
+**REST API equivalent:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "Name": "Accounts Receivable",
+    "Code": "1200",
+    "AccountCategory": "Asset",
+    "AccountTypeId": "<account-type-guid>",
+    "CurrencyId": "<currency-guid>",
+    "ParentAccountId": "<parent-account-guid>"
+  }'
 ```
 
 **Key fields:**
@@ -146,6 +234,14 @@ absuite accounting update account --TenantId $TENANT_ID --AccountId <account-gui
 }'
 ```
 
+**REST API equivalent:**
+```bash
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"Name": "Trade Receivables", "Frozen": false}'
+```
+
 ### Patch Account (Partial Update)
 
 ```bash
@@ -154,10 +250,24 @@ absuite accounting patch account --TenantId $TENANT_ID --AccountId <account-guid
 ]'
 ```
 
+**REST API equivalent:**
+```bash
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json-patch+json" \
+  -d '[{"op": "replace", "path": "/Name", "value": "Updated Name"}]'
+```
+
 ### Delete Account
 
 ```bash
 absuite accounting delete account --TenantId $TENANT_ID --AccountId <account-guid>
+```
+
+**REST API equivalent:**
+```bash
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ## Account Types
@@ -182,6 +292,37 @@ absuite accounting update account-type --TenantId $TENANT_ID --AccountTypeId <ty
 
 # Delete
 absuite accounting delete account-type --TenantId $TENANT_ID --AccountTypeId <type-guid>
+```
+
+**REST API equivalent:**
+```bash
+# List types
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/Types" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count types
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/Types/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get type by ID
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/Types/<type-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create type
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/Types" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"Name": "Current Asset", "Description": "Short-term assets expected to be converted to cash within one year"}'
+
+# Update type
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/Types/<type-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"Name": "Current Asset (Updated)"}'
+
+# Delete type
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/Types/<type-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ## Account Groups
@@ -211,6 +352,37 @@ absuite accounting update account-group --TenantId $TENANT_ID --AccountGroupId <
 absuite accounting delete account-group --TenantId $TENANT_ID --AccountGroupId <group-guid>
 ```
 
+**REST API equivalent:**
+```bash
+# List
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/AccountGroups" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/AccountGroups/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get by ID
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/AccountGroups/<group-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/AccountGroups" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"Title": "Operating Expenses", "Description": "Day-to-day business expenses"}'
+
+# Update
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/AccountGroups/<group-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"Title": "OpEx"}'
+
+# Delete
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/AccountGroups/<group-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ## Account Entries (Debits & Credits)
 
 ### Create an Account Entry
@@ -225,6 +397,22 @@ absuite accounting create account-entry --TenantId $TENANT_ID --AccountId <accou
   "CreditAccountId": "<receivables-account-guid>",
   "AccountingEntryType": "Debit"
 }'
+```
+
+**REST API equivalent:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>/Entries" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "Description": "Client payment received",
+    "Date": "2026-04-19T00:00:00Z",
+    "Amount": 5000.00,
+    "CurrencyId": "<currency-guid>",
+    "DebitAccountId": "<bank-account-guid>",
+    "CreditAccountId": "<receivables-account-guid>",
+    "AccountingEntryType": "Debit"
+  }'
 ```
 
 **Key fields:**
@@ -243,6 +431,27 @@ absuite accounting list account-entries --TenantId $TENANT_ID --AccountId <accou
 absuite accounting get account-entry --TenantId $TENANT_ID --AccountId <account-guid> --AccountEntryId <entry-guid>
 absuite accounting update account-entry --TenantId $TENANT_ID --AccountId <account-guid> --AccountEntryId <entry-guid> --AccountingEntryUpdateDto '{...}'
 absuite accounting delete account-entry --TenantId $TENANT_ID --AccountId <account-guid> --AccountEntryId <entry-guid>
+```
+
+**REST API equivalent:**
+```bash
+# List entries
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>/Entries" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get entry
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>/Entries/<entry-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Update entry
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>/Entries/<entry-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete entry
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>/Entries/<entry-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ### Debit / Credit Specific Views
@@ -279,6 +488,45 @@ absuite accounting create account-credit --TenantId $TENANT_ID --AccountId <acco
 }'
 ```
 
+**REST API equivalent:**
+```bash
+# List debits for an account
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>/Debits" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count debits
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>/Debits/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# List credits for an account
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>/Credits" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count credits
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>/Credits/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# List debit entries
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>/Entries/Debit" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# List credit entries
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>/Entries/Credit" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create debit
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>/Debits" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"Description": "Office supplies purchase", "Date": "2026-04-19T00:00:00Z", "Amount": 250.00, "CurrencyId": "<currency-guid>"}'
+
+# Create credit
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>/Credits" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"Description": "Vendor refund received", "Date": "2026-04-19T00:00:00Z", "Amount": 100.00, "CurrencyId": "<currency-guid>"}'
+```
+
 ### Account Relations
 
 ```bash
@@ -287,6 +535,47 @@ absuite accounting count account-relations --TenantId $TENANT_ID --AccountId <ac
 absuite accounting create account-relation --TenantId $TENANT_ID --AccountId <account-guid> --AccountRelationCreateDto '{...}'
 absuite accounting update account-relation --TenantId $TENANT_ID --AccountRelationId <relation-guid> --AccountRelationUpdateDto '{...}'
 absuite accounting delete account-relation --TenantId $TENANT_ID --AccountRelationId <relation-guid>
+```
+
+**REST API equivalent:**
+```bash
+# List relations
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/Relations" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count relations
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/Relations/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create relation
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/Relations" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Update relation
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/Relations/<relation-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete relation
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/Relations/<relation-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+### Charts of Accounts & Seeding
+
+**REST API only:**
+```bash
+# List charts of accounts
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/ChartsOfAccounts" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Seed a chart of accounts
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/ChartsOfAccounts/Seed" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json"
 ```
 
 ---
@@ -305,6 +594,20 @@ absuite accounting create journal --TenantId $TENANT_ID --JournalCreateDto '{
 }'
 ```
 
+**REST API equivalent:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Journals" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "Name": "General Journal - April 2026",
+    "Description": "Monthly general journal entries",
+    "DateTime": "2026-04-01T00:00:00Z",
+    "JournalTypeID": "<journal-type-guid>",
+    "LedgerID": "<ledger-guid>"
+  }'
+```
+
 ### List / Get / Update / Delete Journals
 
 ```bash
@@ -313,6 +616,31 @@ absuite accounting count journals --TenantId $TENANT_ID
 absuite accounting list journal-details --TenantId $TENANT_ID --JournalId <journal-guid>
 absuite accounting update journal --TenantId $TENANT_ID --JournalId <journal-guid> --JournalUpdateDto '{...}'
 absuite accounting delete journal --TenantId $TENANT_ID --JournalId <journal-guid>
+```
+
+**REST API equivalent:**
+```bash
+# List journals
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Journals" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count journals
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Journals/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get journal details
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Journals/<journal-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Update journal
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Journals/<journal-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete journal
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/Journals/<journal-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ### Create a Journal Entry (Double-Entry)
@@ -330,6 +658,23 @@ absuite accounting create journal-entry --TenantId $TENANT_ID --JournalId <journ
 }'
 ```
 
+**REST API equivalent:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Journals/<journal-guid>/Entries" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "Description": "Record client payment",
+    "Date": "2026-04-19T00:00:00Z",
+    "Debit": 5000.00,
+    "Credit": 5000.00,
+    "CurrencyId": "<currency-guid>",
+    "DebitAccountId": "<cash-account-guid>",
+    "CreditAccountId": "<receivables-account-guid>",
+    "InvoiceCode": "INV-1042"
+  }'
+```
+
 **Key fields:**
 - `Date` — entry date (required)
 - `Debit` / `Credit` — amounts (must balance for double-entry)
@@ -345,6 +690,35 @@ absuite accounting list journal-entries --TenantId $TENANT_ID --JournalId <journ
 absuite accounting count journal-entries --TenantId $TENANT_ID --JournalId <journal-guid>
 absuite accounting update journal-entry --TenantId $TENANT_ID --JournalId <journal-guid> --JournalEntryId <entry-guid> --JournalEntryUpdateDto '{...}'
 absuite accounting delete journal-entry --TenantId $TENANT_ID --JournalId <journal-guid> --JournalEntryId <entry-guid>
+```
+
+**REST API equivalent:**
+```bash
+# List journal entries
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Journals/<journal-guid>/Entries" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count journal entries
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Journals/<journal-guid>/Entries/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Aggregate credits
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Journals/<journal-guid>/Entries/Aggregate/Credits" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Aggregate debits
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Journals/<journal-guid>/Entries/Aggregate/Debits" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Update journal entry
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Journals/<journal-guid>/Entries/<entry-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete journal entry
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/Journals/<journal-guid>/Entries/<entry-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ### Journal Types
