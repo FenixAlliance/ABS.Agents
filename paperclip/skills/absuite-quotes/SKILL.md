@@ -17,6 +17,25 @@ Manage quotes through the `absuite` CLI's `quotes` service. All operations are t
 2. **Set your tenant**: `absuite config set --tenant-id <tenant-guid>` or pass `--TenantId` on each call.
 3. **Discover commands**: `absuite quotes list-commands`
 
+## REST API Authentication
+
+To call the API directly via REST instead of the CLI:
+
+1. **Obtain a bearer token:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/login" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "'$ABSUITE_USER_EMAIL'", "password": "'$ABSUITE_USER_PASSWORD'"}'
+```
+Extract the `accessToken` from the JSON response.
+
+2. **Use the token in all subsequent requests:**
+```bash
+-H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+3. **All REST endpoints use the base path:** `$ABSUITE_HOST_URL/api/v2/`
+
 ## Quotes
 
 ### List Quotes
@@ -25,10 +44,22 @@ Manage quotes through the `absuite` CLI's `quotes` service. All operations are t
 absuite quotes list --TenantId $TENANT_ID
 ```
 
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/QuotesService/Quotes" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### List Extended Quotes (with related data)
 
 ```bash
 absuite quotes list extended --TenantId $TENANT_ID
+```
+
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/QuotesService/Quotes/Extended" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ### Count Quotes
@@ -37,10 +68,22 @@ absuite quotes list extended --TenantId $TENANT_ID
 absuite quotes count --TenantId $TENANT_ID
 ```
 
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/QuotesService/Quotes/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### Get Quote by ID
 
 ```bash
 absuite quotes get --TenantId $TENANT_ID --QuoteId <quote-guid>
+```
+
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/QuotesService/Quotes/$QUOTE_ID" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ### Create Quote
@@ -61,6 +104,28 @@ absuite quotes create --TenantId $TENANT_ID --QuoteCreateDto '{
   "BillingEmail": "jane.doe@acme.com",
   "CountryId": "USA"
 }'
+```
+
+**REST API equivalent:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/QuotesService/Quotes" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Q-2026-042: Website Redesign",
+    "description": "Quote for complete website redesign project",
+    "individualId": "<contact-guid>",
+    "currencyId": "<currency-guid>",
+    "priceListId": "<price-list-guid>",
+    "paymentTermId": "<payment-term-guid>",
+    "effectiveFrom": "2026-04-19T00:00:00Z",
+    "effectiveTo": "2026-05-19T00:00:00Z",
+    "firstName": "Jane",
+    "lastName": "Doe",
+    "companyName": "Acme Corp",
+    "billingEmail": "jane.doe@acme.com",
+    "countryId": "USA"
+  }'
 ```
 
 **Key QuoteCreateDto fields:**
@@ -88,10 +153,24 @@ absuite quotes create --TenantId $TENANT_ID --QuoteCreateDto '{
 absuite quotes update --TenantId $TENANT_ID --QuoteId <quote-guid> --QuoteUpdateDto '{...}'
 ```
 
+**REST API equivalent:**
+```bash
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/QuotesService/Quotes/$QUOTE_ID" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+```
+
 ### Delete Quote
 
 ```bash
 absuite quotes delete --TenantId $TENANT_ID --QuoteId <quote-guid>
+```
+
+**REST API equivalent:**
+```bash
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/QuotesService/Quotes/$QUOTE_ID" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ## Quote Lines
@@ -102,16 +181,34 @@ absuite quotes delete --TenantId $TENANT_ID --QuoteId <quote-guid>
 absuite quotes list lines --TenantId $TENANT_ID --QuoteId <quote-guid>
 ```
 
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/QuotesService/Quotes/$QUOTE_ID/Lines" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### Count Quote Lines
 
 ```bash
 absuite quotes count lines --TenantId $TENANT_ID --QuoteId <quote-guid>
 ```
 
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/QuotesService/Quotes/$QUOTE_ID/Lines/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### Get Quote Line
 
 ```bash
 absuite quotes get line --TenantId $TENANT_ID --QuoteLineId <line-guid>
+```
+
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/QuotesService/Quotes/$QUOTE_ID/Lines/$QUOTE_LINE_ID" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ### Create Quote Line
@@ -126,6 +223,19 @@ absuite quotes create line --TenantId $TENANT_ID --QuoteLineCreateDto '{
 }'
 ```
 
+**REST API equivalent:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/QuotesService/Quotes/$QUOTE_ID/Lines" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "quoteId": "<quote-guid>",
+    "itemId": "<item-guid>",
+    "quantity": 5,
+    "description": "Design consultation hours"
+  }'
+```
+
 ### Upsert Quote Line (Create or Update)
 
 ```bash
@@ -136,10 +246,30 @@ absuite quotes upsert line --TenantId $TENANT_ID --QuoteLineUpsertDto '{
 }'
 ```
 
+**REST API equivalent:**
+```bash
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/QuotesService/Quotes/$QUOTE_ID/Lines/$QUOTE_LINE_ID/Upsert" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "quoteId": "<quote-guid>",
+    "itemId": "<item-guid>",
+    "quantity": 10
+  }'
+```
+
 ### Update Quote Line
 
 ```bash
 absuite quotes update line --TenantId $TENANT_ID --QuoteLineId <line-guid> --QuoteLineUpdateDto '{...}'
+```
+
+**REST API equivalent:**
+```bash
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/QuotesService/Quotes/$QUOTE_ID/Lines/$QUOTE_LINE_ID" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
 ```
 
 ### Delete Quote Line
@@ -148,10 +278,22 @@ absuite quotes update line --TenantId $TENANT_ID --QuoteLineId <line-guid> --Quo
 absuite quotes delete line --TenantId $TENANT_ID --QuoteLineId <line-guid>
 ```
 
+**REST API equivalent:**
+```bash
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/QuotesService/Quotes/$QUOTE_ID/Lines/$QUOTE_LINE_ID" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### Check if Quote Line Exists
 
 ```bash
 absuite quotes line-exists --TenantId $TENANT_ID --QuoteLineId <line-guid>
+```
+
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/QuotesService/Quotes/$QUOTE_ID/Lines/Exists" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ## Calculations
@@ -162,10 +304,22 @@ absuite quotes line-exists --TenantId $TENANT_ID --QuoteLineId <line-guid>
 absuite quotes calculate --TenantId $TENANT_ID --QuoteId <quote-guid>
 ```
 
+**REST API equivalent:**
+```bash
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/QuotesService/Quotes/$QUOTE_ID/Calculate" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### Calculate a Single Line
 
 ```bash
 absuite quotes calculate line --TenantId $TENANT_ID --QuoteLineId <line-guid>
+```
+
+**REST API equivalent:**
+```bash
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/QuotesService/Quotes/$QUOTE_ID/Lines/$QUOTE_LINE_ID/Calculate" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ## Quote Lifecycle
@@ -176,16 +330,34 @@ absuite quotes calculate line --TenantId $TENANT_ID --QuoteLineId <line-guid>
 absuite quotes close --TenantId $TENANT_ID --QuoteId <quote-guid>
 ```
 
+**REST API equivalent:**
+```bash
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/QuotesService/Quotes/$QUOTE_ID/Close" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### Reopen Quote
 
 ```bash
 absuite quotes reopen --TenantId $TENANT_ID --QuoteId <quote-guid>
 ```
 
+**REST API equivalent:**
+```bash
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/QuotesService/Quotes/$QUOTE_ID/Reopen" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### Create Order from Quote
 
 ```bash
 absuite quotes create order-from --TenantId $TENANT_ID --QuoteId <quote-guid>
+```
+
+**REST API equivalent:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/QuotesService/Quotes/$QUOTE_ID/Orders" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ## Email
@@ -196,6 +368,14 @@ absuite quotes create order-from --TenantId $TENANT_ID --QuoteId <quote-guid>
 absuite quotes preview email-template --TenantId $TENANT_ID --QuoteId <quote-guid>
 ```
 
+**REST API equivalent:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/QuotesService/Quotes/$QUOTE_ID/Emails/Preview" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
 ### Send Quote Email
 
 ```bash
@@ -204,6 +384,38 @@ absuite quotes send email --TenantId $TENANT_ID --QuoteId <quote-guid> --EmailDi
   "message": "Please find your quote attached.",
   "culture": "en-US"
 }'
+```
+
+**REST API equivalent:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/QuotesService/Quotes/$QUOTE_ID/Emails/Send" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Your Quote from Acme Corp",
+    "message": "Please find your quote attached.",
+    "culture": "en-US"
+  }'
+```
+
+## Submit Cart
+
+### Submit Cart as Quote
+
+```bash
+absuite quotes submit-cart --TenantId $TENANT_ID --CartSubmitDto '{
+  "CartId": "<cart-guid>"
+}'
+```
+
+**REST API equivalent:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/QuotesService/Quotes/SubmitCart" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "cartId": "<cart-guid>"
+  }'
 ```
 
 ## Command Quick Reference
@@ -259,3 +471,32 @@ absuite quotes create order-from --QuoteId <quote-guid>
 - **Calculate after adding/modifying lines** to update totals.
 - **Close before converting to order** — use the lifecycle commands in order.
 - **Use `upsert line`** when you want to create-or-update a line in one call.
+
+## API Endpoints Quick Reference
+
+| Action | REST Endpoint |
+|---|---|
+| Create quote | `POST /api/v2/QuotesService/Quotes` |
+| List quotes | `GET /api/v2/QuotesService/Quotes` |
+| Count quotes | `GET /api/v2/QuotesService/Quotes/Count` |
+| List extended quotes | `GET /api/v2/QuotesService/Quotes/Extended` |
+| Count extended quotes | `GET /api/v2/QuotesService/Quotes/Extended/Count` |
+| Get quote | `GET /api/v2/QuotesService/Quotes/:quoteId` |
+| Update quote | `PUT /api/v2/QuotesService/Quotes/:quoteId` |
+| Delete quote | `DELETE /api/v2/QuotesService/Quotes/:quoteId` |
+| Calculate quote | `PUT /api/v2/QuotesService/Quotes/:quoteId/Calculate` |
+| Close quote | `PUT /api/v2/QuotesService/Quotes/:quoteId/Close` |
+| Reopen quote | `PUT /api/v2/QuotesService/Quotes/:quoteId/Reopen` |
+| Create order from quote | `POST /api/v2/QuotesService/Quotes/:quoteId/Orders` |
+| Create line | `POST /api/v2/QuotesService/Quotes/:quoteId/Lines` |
+| List lines | `GET /api/v2/QuotesService/Quotes/:quoteId/Lines` |
+| Count lines | `GET /api/v2/QuotesService/Quotes/:quoteId/Lines/Count` |
+| Check line exists | `GET /api/v2/QuotesService/Quotes/:quoteId/Lines/Exists` |
+| Get line | `GET /api/v2/QuotesService/Quotes/:quoteId/Lines/:quoteLineId` |
+| Update line | `PUT /api/v2/QuotesService/Quotes/:quoteId/Lines/:quoteLineId` |
+| Delete line | `DELETE /api/v2/QuotesService/Quotes/:quoteId/Lines/:quoteLineId` |
+| Calculate line | `PUT /api/v2/QuotesService/Quotes/:quoteId/Lines/:quoteLineId/Calculate` |
+| Upsert line | `PUT /api/v2/QuotesService/Quotes/:quoteId/Lines/:quoteLineId/Upsert` |
+| Preview email | `POST /api/v2/QuotesService/Quotes/:quoteId/Emails/Preview` |
+| Send email | `POST /api/v2/QuotesService/Quotes/:quoteId/Emails/Send` |
+| Submit cart | `POST /api/v2/QuotesService/Quotes/SubmitCart` |
