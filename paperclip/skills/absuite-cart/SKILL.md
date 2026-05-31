@@ -608,6 +608,65 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Compare/<
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
+## Calculate Cart
+
+Calculate cart totals (subtotal, taxes, shipping, discounts) without submitting.
+
+```bash
+absuite cart calculate --CartId <cart-guid>
+```
+
+**REST API equivalent:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Calculate" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+## Checkout Cart
+
+Initiate the checkout flow for a cart.
+
+```bash
+absuite cart checkout --CartId <cart-guid>
+```
+
+**REST API equivalent:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Checkout" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+## Create and Delete Carts
+
+### Create a New Cart
+
+```bash
+absuite cart create --CartCreateDto '{
+  "currencyId": "USD.USA",
+  "countryId": "USA"
+}'
+```
+
+**REST API equivalent:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/CartService/Carts" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "currencyId": "USD.USA", "countryId": "USA" }'
+```
+
+### Delete a Cart
+
+```bash
+absuite cart delete --CartId <cart-guid>
+```
+
+**REST API equivalent:**
+```bash
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ## Command Quick Reference
 
 | Action | CLI Command |
@@ -622,6 +681,10 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Compare/<
 | Set currency | `absuite cart set currency --CartId <guid> --CurrencyId USD.USA` |
 | Create wish list | `absuite cart create wish-list --CartId <guid> --WishListCreateDto '{...}'` |
 | Add to compare | `absuite cart add-item-to-compare-table --CartId <guid> --ItemId <guid>` |
+| Calculate cart | `absuite cart calculate --CartId <guid>` |
+| Checkout cart | `absuite cart checkout --CartId <guid>` |
+| Create cart | `absuite cart create --CartCreateDto '{...}'` |
+| Delete cart | `absuite cart delete --CartId <guid>` |
 
 ## Critical Rules
 
@@ -640,6 +703,10 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Compare/<
 | GET | `/api/v2/CartService/Carts/BusinessCart/:tenantId` | Get tenant cart |
 | GET | `/api/v2/CartService/Carts/:cartId` | Get cart by ID |
 | PUT | `/api/v2/CartService/Carts/:cartId` | Update cart |
+| POST | `/api/v2/CartService/Carts` | Create a new cart |
+| DELETE | `/api/v2/CartService/Carts/:cartId` | Delete a cart |
+| POST | `/api/v2/CartService/Carts/:cartId/Calculate` | Calculate cart totals |
+| POST | `/api/v2/CartService/Carts/:cartId/Checkout` | Initiate checkout |
 | POST | `/api/v2/CartService/Carts/:cartId/Submit` | Submit cart (checkout) |
 | GET | `/api/v2/CartService/Carts/:cartId/Items` | List cart items |
 | DELETE | `/api/v2/CartService/Carts/:cartId/Items` | Clear cart |

@@ -37,7 +37,33 @@ The email system has two layers:
 absuite tenants list tenants
 ```
 
+**REST API equivalent:**
+
+```bash
+curl -s "$ABSUITE_HOST_URL/api/v2/SystemService/Tenants" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 Pick the tenant matching your organization.
+
+## REST API Authentication
+
+To call the API directly via REST instead of the CLI:
+
+1. **Obtain a bearer token:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/login" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "'$ABSUITE_USER_EMAIL'", "password": "'$ABSUITE_USER_PASSWORD'"}'
+```
+Extract the `accessToken` from the JSON response.
+
+2. **Use the token in all subsequent requests:**
+```bash
+-H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+3. **All REST endpoints use the base path:** `$ABSUITE_HOST_URL/api/v2/`
 
 ## Approval Requirement
 
@@ -60,6 +86,13 @@ All emails sent by an agent must be signed. After login, fetch your profile:
 absuite users Get-MeAsync
 ```
 
+**REST API equivalent:**
+
+```bash
+curl -s "$ABSUITE_HOST_URL/api/v2/SystemService/Users/Me" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 Extract `firstName` and `lastName` from the response `result`. Append a signature line to every email message body:
 
 ```
@@ -76,6 +109,8 @@ absuite system list-commands
 absuite system admin-send-basic-email --help
 ```
 
+**REST API equivalent:** Browse the interactive API documentation at `$ABSUITE_HOST_URL/swagger` for all available endpoints and request schemas.
+
 ## Sending Emails
 
 ### Send a Basic Email
@@ -89,6 +124,8 @@ First, check the schema:
 ```bash
 absuite system admin-send-basic-email --help
 ```
+
+**REST API equivalent:** View the request schema at `$ABSUITE_HOST_URL/swagger` under the **SystemService** → **Emails** section.
 
 Then send:
 
@@ -104,6 +141,25 @@ absuite system admin-send-basic-email --ObjectEmailDispatchRequest '{
   "uiCulture": "en",
   "recipients": ["alice@example.com", "bob@example.com"]
 }'
+```
+
+**REST API equivalent:**
+
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SystemService/Emails/SendBasic" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Your Weekly Report is Ready",
+    "message": "Your weekly activity report has been generated and is ready for review.\n\n— Sent by Agent Name",
+    "buttonText": "View Report",
+    "buttonLink": "https://app.example.com/reports/weekly",
+    "alertMessage": "This report expires in 7 days.",
+    "alertType": "3",
+    "culture": "en",
+    "uiCulture": "en",
+    "recipients": ["alice@example.com", "bob@example.com"]
+  }'
 ```
 
 ### ObjectEmailDispatchRequest Fields
@@ -158,6 +214,21 @@ absuite system admin-send-tenant-email --TenantId $TENANT_ID --ObjectEmailDispat
 }'
 ```
 
+**REST API equivalent:**
+
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SystemService/Tenants/$TENANT_ID/Emails/Send" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Important Update",
+    "message": "Your organization settings have been updated.\n\n— Sent by Agent Name",
+    "culture": "en",
+    "uiCulture": "en",
+    "recipients": []
+  }'
+```
+
 ### Send Email to a User
 
 ```bash
@@ -170,6 +241,21 @@ absuite system admin-send-user-email --UserId $USER_ID --ObjectEmailDispatchRequ
 }'
 ```
 
+**REST API equivalent:**
+
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SystemService/Users/$USER_ID/Emails/Send" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Account Notification",
+    "message": "Your account has been updated.\n\n— Sent by Agent Name",
+    "culture": "en",
+    "uiCulture": "en",
+    "recipients": []
+  }'
+```
+
 ### Send Email to a Contact (via CRM Service)
 
 ```bash
@@ -179,6 +265,20 @@ absuite crm send contact-email --TenantId $TENANT_ID --ContactId $CONTACT_ID --E
   "culture": "en",
   "uiCulture": "en"
 }'
+```
+
+**REST API equivalent:**
+
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/CrmService/Contacts/$CONTACT_ID/Emails/Send" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Hello from ABS",
+    "message": "We have an update for you.\n\n— Sent by Agent Name",
+    "culture": "en",
+    "uiCulture": "en"
+  }'
 ```
 
 ## Previewing Emails
@@ -199,6 +299,23 @@ absuite system admin-preview-basic-email-template --ObjectEmailDispatchRequest '
 }'
 ```
 
+**REST API equivalent:**
+
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SystemService/Emails/Preview" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Your Weekly Report is Ready",
+    "message": "Your weekly activity report has been generated.",
+    "buttonText": "View Report",
+    "buttonLink": "https://app.example.com/reports/weekly",
+    "culture": "en",
+    "uiCulture": "en",
+    "recipients": ["preview@example.com"]
+  }'
+```
+
 Returns rendered HTML.
 
 ### Preview Tenant Email
@@ -207,16 +324,37 @@ Returns rendered HTML.
 absuite system admin-preview-tenant-email --TenantId $TENANT_ID
 ```
 
+**REST API equivalent:**
+
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SystemService/Tenants/$TENANT_ID/Emails/Preview" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### Preview User Email
 
 ```bash
 absuite system admin-preview-user-email-template --UserId $USER_ID
 ```
 
+**REST API equivalent:**
+
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SystemService/Users/$USER_ID/Emails/Preview" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### Preview Contact Email (via CRM Service)
 
 ```bash
 absuite crm preview contact-email-template --TenantId $TENANT_ID --ContactId $CONTACT_ID
+```
+
+**REST API equivalent:**
+
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/CrmService/Contacts/$CONTACT_ID/Emails/Preview" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ## Managing Email Resources (Marketing Service)
@@ -245,6 +383,38 @@ absuite marketing update email-template --TenantId $TENANT_ID --EmailTemplateId 
 absuite marketing delete email-template --TenantId $TENANT_ID --EmailTemplateId $TEMPLATE_ID
 ```
 
+**REST API equivalents:**
+
+```bash
+# List templates
+curl -s "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailTemplates" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count templates
+curl -s "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailTemplates/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get template by ID
+curl -s "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailTemplates/$TEMPLATE_ID" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create template
+curl -X POST "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailTemplates" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Update template
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailTemplates/$TEMPLATE_ID" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete template
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailTemplates/$TEMPLATE_ID" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### Email Groups (Recipient Lists)
 
 ```bash
@@ -267,6 +437,38 @@ absuite marketing update email-group --TenantId $TENANT_ID --EmailGroupId $GROUP
 absuite marketing delete email-group --TenantId $TENANT_ID --EmailGroupId $GROUP_ID
 ```
 
+**REST API equivalents:**
+
+```bash
+# List groups
+curl -s "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailGroups" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count groups
+curl -s "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailGroups/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get group by ID
+curl -s "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailGroups/$GROUP_ID" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create group
+curl -X POST "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailGroups" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Update group
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailGroups/$GROUP_ID" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete group
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailGroups/$GROUP_ID" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### Email Signatures
 
 ```bash
@@ -287,6 +489,38 @@ absuite marketing update email-signature --TenantId $TENANT_ID --EmailSignatureI
 
 # Delete signature
 absuite marketing delete email-signature --TenantId $TENANT_ID --EmailSignatureId $SIG_ID
+```
+
+**REST API equivalents:**
+
+```bash
+# List signatures
+curl -s "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailSignatures" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count signatures
+curl -s "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailSignatures/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get signature by ID
+curl -s "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailSignatures/$SIG_ID" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create signature
+curl -X POST "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailSignatures" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Update signature
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailSignatures/$SIG_ID" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete signature
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailSignatures/$SIG_ID" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 Use `absuite marketing <command> --help` to see the full DTO schemas for create/update operations.
@@ -355,3 +589,55 @@ absuite system admin-send-basic-email --ObjectEmailDispatchRequest '{
   "userIds": ["user-guid-1"]
 }'
 ```
+
+**REST API equivalent:**
+
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SystemService/Emails/SendBasic" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Monthly Newsletter: April 2026",
+    "message": "Here is your monthly update with the latest news, product updates, and upcoming events.\n\n— Sent by Agent Name",
+    "buttonText": "Read Full Newsletter",
+    "buttonLink": "https://app.example.com/newsletter/april-2026",
+    "alertMessage": "You are receiving this because you are subscribed to our monthly updates.",
+    "alertType": "1",
+    "culture": "en",
+    "uiCulture": "en",
+    "recipients": ["external-partner@example.com"],
+    "contactIds": ["contact-guid-1", "contact-guid-2"],
+    "userIds": ["user-guid-1"]
+  }'
+```
+
+## API Endpoints Quick Reference
+
+| Resource | Method | Endpoint |
+|---|---|---|
+| Send Basic Email | POST | `/api/v2/SystemService/Emails/SendBasic` |
+| Preview Basic Email | POST | `/api/v2/SystemService/Emails/Preview` |
+| Send Tenant Email | POST | `/api/v2/SystemService/Tenants/:tenantId/Emails/Send` |
+| Preview Tenant Email | POST | `/api/v2/SystemService/Tenants/:tenantId/Emails/Preview` |
+| Send User Email | POST | `/api/v2/SystemService/Users/:userId/Emails/Send` |
+| Preview User Email | POST | `/api/v2/SystemService/Users/:userId/Emails/Preview` |
+| Send Contact Email | POST | `/api/v2/CrmService/Contacts/:contactId/Emails/Send` |
+| Preview Contact Email | POST | `/api/v2/CrmService/Contacts/:contactId/Emails/Preview` |
+| Email Templates | GET | `/api/v2/MarketingService/EmailTemplates` |
+| Email Templates | POST | `/api/v2/MarketingService/EmailTemplates` |
+| Email Template by ID | GET | `/api/v2/MarketingService/EmailTemplates/:emailTemplateId` |
+| Email Template by ID | PUT | `/api/v2/MarketingService/EmailTemplates/:emailTemplateId` |
+| Email Template by ID | DELETE | `/api/v2/MarketingService/EmailTemplates/:emailTemplateId` |
+| Email Templates Count | GET | `/api/v2/MarketingService/EmailTemplates/Count` |
+| Email Groups | GET | `/api/v2/MarketingService/EmailGroups` |
+| Email Groups | POST | `/api/v2/MarketingService/EmailGroups` |
+| Email Group by ID | GET | `/api/v2/MarketingService/EmailGroups/:emailgroupId` |
+| Email Group by ID | PUT | `/api/v2/MarketingService/EmailGroups/:emailgroupId` |
+| Email Group by ID | DELETE | `/api/v2/MarketingService/EmailGroups/:emailgroupId` |
+| Email Groups Count | GET | `/api/v2/MarketingService/EmailGroups/Count` |
+| Email Signatures | GET | `/api/v2/MarketingService/EmailSignatures` |
+| Email Signatures | POST | `/api/v2/MarketingService/EmailSignatures` |
+| Email Signature by ID | GET | `/api/v2/MarketingService/EmailSignatures/:emailsignatureId` |
+| Email Signature by ID | PUT | `/api/v2/MarketingService/EmailSignatures/:emailsignatureId` |
+| Email Signature by ID | DELETE | `/api/v2/MarketingService/EmailSignatures/:emailsignatureId` |
+| Email Signatures Count | GET | `/api/v2/MarketingService/EmailSignatures/Count` |

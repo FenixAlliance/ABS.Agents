@@ -68,6 +68,8 @@ If your ABS instance is not the default (`https://absuite.net`), configure it fi
 absuite config set --base-url $ABSUITE_HOST_URL
 ```
 
+> **Note:** There is no direct REST equivalent for CLI configuration commands — they modify the local CLI state stored in `~/.absuite/config.json`.
+
 ### Set Default Tenant
 
 To avoid passing `--TenantId` on every call:
@@ -81,6 +83,8 @@ absuite config set --tenant-id <tenant-guid>
 ```bash
 absuite config show
 ```
+
+> **Note:** `absuite config show` displays local CLI state. For REST API calls, no configuration step is needed — use `$ABSUITE_HOST_URL` directly in request URLs and pass the bearer token via the `Authorization` header.
 
 ---
 
@@ -98,6 +102,13 @@ If the base URL is not the default, include it:
 
 ```bash
 absuite login --email $ABSUITE_USER_EMAIL --password $ABSUITE_USER_PASSWORD --base-url $ABSUITE_HOST_URL
+```
+
+**REST API equivalent:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/login" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "'$ABSUITE_USER_EMAIL'", "password": "'$ABSUITE_USER_PASSWORD'"}'
 ```
 
 On success, the CLI outputs a JSON object and caches the token locally:
@@ -130,6 +141,12 @@ After login, confirm the authenticated identity using the `identity` service:
 absuite identity Get-WhoAmIAsync
 ```
 
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/OAuth/WhoAmI" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 Expected JSON response:
 
 ```json
@@ -158,10 +175,23 @@ To verify identity in a specific tenant context, pass `--TenantId`:
 absuite identity Get-WhoAmIAsync --TenantId <tenant-guid>
 ```
 
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/OAuth/WhoAmI" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "X-Tenant-ID: <tenant-guid>"
+```
+
 ### List Accessible Tenants
 
 ```bash
 absuite tenants list tenants
+```
+
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/Me/Tenants" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ---
@@ -203,6 +233,34 @@ Once authenticated, use these commands for identity-adjacent context:
 | My notifications | `absuite social list notifications` |
 | My settings | `absuite users Get-UserSettingsAsync` |
 
+**REST API equivalents:**
+
+```bash
+# My profile
+curl -X GET "$ABSUITE_HOST_URL/api/v2/Me" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Check if authenticated
+curl -X GET "$ABSUITE_HOST_URL/api/v2/Auth/Checker/IsAuthenticated" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# My tenants
+curl -X GET "$ABSUITE_HOST_URL/api/v2/Me/Tenants" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# My enrollments
+curl -X GET "$ABSUITE_HOST_URL/api/v2/Me/Enrollments" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# My notifications
+curl -X GET "$ABSUITE_HOST_URL/api/v2/Me/Notifications" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# My settings
+curl -X GET "$ABSUITE_HOST_URL/api/v2/Me/Settings" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 Use `absuite <service> list-commands` to discover available commands, or `absuite <service> <command> --help` for detailed parameter and output schemas.
 
 ---
@@ -215,6 +273,23 @@ Any downstream ABS skill that depends on an authenticated session must:
 - If tenant-scoped behavior is required, either set a default tenant via `absuite config set --tenant-id` or pass `--TenantId` on each call
 
 ---
+
+## API Endpoints Quick Reference
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/login` | Authenticate and obtain tokens |
+| GET | `/api/v2/OAuth/WhoAmI` | Verify current identity |
+| POST | `/api/v2/OAuth/SignIn` | OAuth sign-in |
+| GET | `/api/v2/OAuth/SignIn` | Check/validate sign-in |
+| POST | `/api/v2/OAuth/Token` | Get OAuth token |
+| GET | `/api/v2/Auth/Checker/IsAuthenticated` | Check authentication status |
+| GET | `/api/v2/Me` | Current user profile |
+| GET | `/api/v2/Me/Tenants` | List accessible tenants |
+| GET | `/api/v2/Me/Tenants/Count` | Count accessible tenants |
+| GET | `/api/v2/Me/Enrollments` | List user enrollments |
+| GET | `/api/v2/Me/Settings` | Get user settings |
+| GET | `/api/v2/Me/Notifications` | Get user notifications |
 
 ## Critical Rules
 

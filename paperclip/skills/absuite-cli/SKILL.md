@@ -331,6 +331,47 @@ absuite crm delete contact --TenantId $TENANT_ID --ContactId <contact-guid>
 
 ---
 
+## REST API Alternative
+
+Every operation available through the CLI has a corresponding REST API endpoint. If you prefer or need to use HTTP directly:
+
+1. **Authenticate** via `POST $ABSUITE_HOST_URL/login` to obtain a bearer token.
+2. **Use the base path** `$ABSUITE_HOST_URL/api/v2/{ServiceName}/{Resource}` for all calls.
+3. **Pass the token** via `-H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"` on every request.
+
+### CLI Service → REST API Mapping
+
+| CLI Service | REST Service Prefix | Example Endpoint |
+|---|---|---|
+| `absuite accounting` | AccountingService | `/api/v2/AccountingService/JournalEntries` |
+| `absuite assets` | AssetsService | `/api/v2/AssetsService/Assets` |
+| `absuite billing` | BillingService | `/api/v2/BillingService/Invoices` |
+| `absuite catalog` | CatalogService | `/api/v2/CatalogService/Items` |
+| `absuite contacts` | ContactsService | `/api/v2/ContactsService/Contacts` |
+| `absuite content` | ContentService | `/api/v2/ContentService/Posts` |
+| `absuite crm` | CRMService | `/api/v2/CRMService/Leads` |
+| `absuite education` | EducationService | `/api/v2/EducationService/Courses` |
+| `absuite forex` | ForexService | `/api/v2/ForexService/CurrencyPairRates` |
+| `absuite globe` | GlobeService | `/api/v2/GlobeService/Countries` |
+| `absuite hr` | HRService | `/api/v2/HRService/Employees` |
+| `absuite inventory` | InventoryService | `/api/v2/InventoryService/Inventory/:stockItemId/Details` |
+| `absuite locations` | LocationsService | `/api/v2/LocationsService/Countries` |
+| `absuite logistics` | LogisticsService | `/api/v2/LogisticsService/Warehouses` |
+| `absuite marketplace` | MarketplaceService | `/api/v2/MarketplaceService/Listings` |
+| `absuite orders` | OrdersService | `/api/v2/OrdersService/Orders` |
+| `absuite pricing` | PricingService | `/api/v2/PricingService/PriceLists` |
+| `absuite quotes` | QuotesService | `/api/v2/QuotesService/Quotes` |
+| `absuite sales` | SalesService | `/api/v2/SalesService/Stores` |
+| `absuite shipments` | ShipmentsService | `/api/v2/ShipmentsService/Shipments` |
+| `absuite subscriptions` | SubscriptionsService | `/api/v2/SubscriptionsService/SubscriptionPlans` |
+| `absuite support` | SupportService | `/api/v2/SupportService/SupportTickets` |
+| `absuite system` | SystemService | `/api/v2/SystemService/Health` |
+| `absuite wallets` | WalletsService | `/api/v2/WalletsService/Wallets` |
+
+For full endpoint listings per service, see the corresponding skill documentation (e.g., `absuite-globe`, `absuite-support`, `absuite-assets`, etc.).
+
+---
+
 ## Critical Rules
 
 - **Always authenticate first.** Use the `absuite-login` skill if no valid session exists.

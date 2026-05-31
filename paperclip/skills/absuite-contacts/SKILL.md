@@ -676,6 +676,98 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/CrmService/Contacts/Organizations/Upsert"
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
+## Contact Profiles
+
+Manage contact profiles as standalone resources.
+
+### List Contact Profiles
+
+```bash
+absuite crm list contact-profiles-query --TenantId $TENANT_ID
+```
+
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CrmService/ContactProfiles" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+### Count Contact Profiles
+
+```bash
+absuite crm count contact-profiles --TenantId $TENANT_ID
+```
+
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CrmService/ContactProfiles/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+### Get Contact Profile by ID
+
+```bash
+absuite crm get contact-profile-by-id --TenantId $TENANT_ID --ContactProfileId <profile-guid>
+```
+
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CrmService/ContactProfiles/<profile-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+### Create Contact Profile
+
+```bash
+absuite crm create contact-profile --TenantId $TENANT_ID --ContactProfileCreateDto '{
+  "contactId": "<contact-guid>",
+  "type": "LinkedIn",
+  "url": "https://linkedin.com/in/janedoe"
+}'
+```
+
+**REST API equivalent:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/CrmService/ContactProfiles" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "contactId": "<contact-guid>",
+    "type": "LinkedIn",
+    "url": "https://linkedin.com/in/janedoe"
+  }'
+```
+
+### Update Contact Profile
+
+```bash
+absuite crm update contact-profile --TenantId $TENANT_ID --ContactProfileId <profile-guid> --ContactProfileUpdateDto '{
+  "url": "https://linkedin.com/in/janesmith"
+}'
+```
+
+**REST API equivalent:**
+```bash
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/CrmService/ContactProfiles/<profile-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://linkedin.com/in/janesmith"
+  }'
+```
+
+### Delete Contact Profile
+
+```bash
+absuite crm delete contact-profile --TenantId $TENANT_ID --ContactProfileId <profile-guid>
+```
+
+**REST API equivalent:**
+```bash
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CrmService/ContactProfiles/<profile-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ## Command Quick Reference
 
 | Action | CLI Command |
@@ -700,6 +792,12 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/CrmService/Contacts/Organizations/Upsert"
 | Upsert option | `absuite crm upsert contact-option --TenantId <guid> --ContactId <guid> --ContactOptionKey <key> --ContactOptionUpdateDto '{...}'` |
 | Send email | `absuite crm send contact-email --TenantId <guid> --ContactId <guid> --EmailDispatchRequest '{...}'` |
 | Sync user | `absuite crm sync-holder-to-tenant --TenantId <guid> --UserId <guid>` |
+| List profiles | `absuite crm list contact-profiles-query --TenantId <guid>` |
+| Count profiles | `absuite crm count contact-profiles --TenantId <guid>` |
+| Get profile | `absuite crm get contact-profile-by-id --TenantId <guid> --ContactProfileId <guid>` |
+| Create profile | `absuite crm create contact-profile --TenantId <guid> --ContactProfileCreateDto '{...}'` |
+| Update profile | `absuite crm update contact-profile --TenantId <guid> --ContactProfileId <guid> --ContactProfileUpdateDto '{...}'` |
+| Delete profile | `absuite crm delete contact-profile --TenantId <guid> --ContactProfileId <guid>` |
 
 ## Full Example: End-to-End Contact Management
 
@@ -817,3 +915,9 @@ absuite crm get contact --ContactId <jane-id>
 | POST | `/api/v2/CrmService/Sync/Me` | Sync current user to tenant |
 | POST | `/api/v2/CrmService/Sync/User` | Sync user to tenant |
 | POST | `/api/v2/CrmService/Sync/Tenant` | Sync tenant to tenant |
+| POST | `/api/v2/CrmService/ContactProfiles` | Create contact profile |
+| GET | `/api/v2/CrmService/ContactProfiles` | List contact profiles |
+| GET | `/api/v2/CrmService/ContactProfiles/Count` | Count contact profiles |
+| DELETE | `/api/v2/CrmService/ContactProfiles/:contactProfileId` | Delete contact profile |
+| GET | `/api/v2/CrmService/ContactProfiles/:contactProfileId` | Get contact profile |
+| PUT | `/api/v2/CrmService/ContactProfiles/:contactProfileId` | Update contact profile |

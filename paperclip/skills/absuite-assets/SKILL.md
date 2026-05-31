@@ -17,6 +17,25 @@ Manage assets through the `absuite` CLI's `assets` service. All operations are t
 2. **Set your tenant**: `absuite config set --tenant-id <tenant-guid>` or pass `--TenantId` on each call.
 3. **Discover commands**: `absuite assets list-commands`
 
+## REST API Authentication
+
+To call the API directly via REST instead of the CLI:
+
+1. **Obtain a bearer token:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/login" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "'$ABSUITE_USER_EMAIL'", "password": "'$ABSUITE_USER_PASSWORD'"}'
+```
+Extract the `accessToken` from the JSON response.
+
+2. **Use the token in all subsequent requests:**
+```bash
+-H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+3. **All REST endpoints use the base path:** `$ABSUITE_HOST_URL/api/v2/`
+
 ## Asset CRUD
 
 ### List Assets
@@ -93,6 +112,37 @@ absuite assets update --TenantId $TENANT_ID --AssetId <asset-guid> --AssetUpdate
 absuite assets delete --TenantId $TENANT_ID --AssetId <asset-guid>
 ```
 
+**REST API equivalents:**
+```bash
+# List assets
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count assets
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get asset by ID
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/<asset-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create asset
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Office Laptop","assetClass":"Equipment","purchasePrice":2500.00}'
+
+# Update asset
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/<asset-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Office Laptop (Upgraded)"}'
+
+# Delete asset
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/<asset-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ## Asset Categories
 
 ```bash
@@ -118,6 +168,42 @@ absuite assets update category --TenantId $TENANT_ID --AssetCategoryId <category
 absuite assets delete category --TenantId $TENANT_ID --AssetCategoryId <category-guid>
 ```
 
+**REST API equivalents:**
+```bash
+# List / Count / Get / Create / Update / Delete asset categories
+# Primary nested path: /Assets/Categories
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/Categories" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/Categories/count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/Categories/<category-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/Categories" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" -d '{"name":"IT Equipment"}'
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/Categories/<category-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" -d '{...}'
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/Categories/<category-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Alternate top-level path (same data): /AssetCategories
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AssetsService/AssetCategories" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AssetsService/AssetCategories/count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AssetsService/AssetCategories/<category-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AssetsService/AssetCategories" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" -d '{"name":"IT Equipment"}'
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AssetsService/AssetCategories/<category-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" -d '{...}'
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AssetsService/AssetCategories/<category-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ## Asset Types
 
 ```bash
@@ -140,6 +226,25 @@ absuite assets update type --TenantId $TENANT_ID --AssetTypeId <type-guid> --Ass
 
 # Delete
 absuite assets delete type --TenantId $TENANT_ID --AssetTypeId <type-guid>
+```
+
+**REST API equivalents:**
+```bash
+# List / Count / Get / Create / Update / Delete asset types
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AssetsService/AssetTypes" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AssetsService/AssetTypes/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AssetsService/AssetTypes/<type-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AssetsService/AssetTypes" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" -d '{"name":"Tangible Fixed Asset"}'
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AssetsService/AssetTypes/<type-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" -d '{...}'
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AssetsService/AssetTypes/<type-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ## Depreciation Records
@@ -170,6 +275,25 @@ absuite assets update depreciation-record --TenantId $TENANT_ID --AssetId <asset
 absuite assets delete depreciation-record --TenantId $TENANT_ID --AssetId <asset-guid> --DepreciationRecordId <record-guid>
 ```
 
+**REST API equivalents:**
+```bash
+# Depreciation records are nested under a specific asset
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/<asset-guid>/DepreciationRecords" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/<asset-guid>/DepreciationRecords/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/<asset-guid>/DepreciationRecords/<record-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/<asset-guid>/DepreciationRecords" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" -d '{"description":"Annual 2026","amount":500.00}'
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/<asset-guid>/DepreciationRecords/<record-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" -d '{...}'
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/<asset-guid>/DepreciationRecords/<record-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ## Repairs
 
 Track maintenance and repair history for an asset.
@@ -196,6 +320,25 @@ absuite assets update repair --TenantId $TENANT_ID --AssetId <asset-guid> --Repa
 
 # Delete
 absuite assets delete repair --TenantId $TENANT_ID --AssetId <asset-guid> --RepairId <repair-guid>
+```
+
+**REST API equivalents:**
+```bash
+# Repairs are nested under a specific asset
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/<asset-guid>/Repairs" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/<asset-guid>/Repairs/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/<asset-guid>/Repairs/<repair-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/<asset-guid>/Repairs" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" -d '{"description":"Screen replacement","cost":350.00}'
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/<asset-guid>/Repairs/<repair-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" -d '{...}'
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/<asset-guid>/Repairs/<repair-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ## Value Amendments
@@ -226,6 +369,25 @@ absuite assets update value-amend --TenantId $TENANT_ID --AssetId <asset-guid> -
 absuite assets delete value-amend --TenantId $TENANT_ID --AssetId <asset-guid> --ValueAmendId <amend-guid>
 ```
 
+**REST API equivalents:**
+```bash
+# Value amendments are nested under a specific asset
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/<asset-guid>/ValueAmends" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/<asset-guid>/ValueAmends/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/<asset-guid>/ValueAmends/<amend-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/<asset-guid>/ValueAmends" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" -d '{"description":"Market revaluation","amount":-200.00}'
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/<asset-guid>/ValueAmends/<amend-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" -d '{...}'
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/<asset-guid>/ValueAmends/<amend-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ## Asset Transfers
 
 Transfer assets between locations, departments, or owners.
@@ -253,6 +415,41 @@ absuite assets update transfer --TenantId $TENANT_ID --AssetTransferId <transfer
 absuite assets delete transfer --TenantId $TENANT_ID --AssetTransferId <transfer-guid>
 ```
 
+**REST API equivalents:**
+```bash
+# Asset transfers (top-level, not nested)
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AssetsService/AssetTransfers" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AssetsService/AssetTransfers/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AssetsService/AssetTransfers/<transfer-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AssetsService/AssetTransfers" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" -d '{"assetId":"<asset-guid>","description":"Transfer to marketing"}'
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AssetsService/AssetTransfers/<transfer-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" -d '{...}'
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AssetsService/AssetTransfers/<transfer-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Transfers nested under a specific asset (full CRUD)
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/<asset-guid>/Transfers" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/<asset-guid>/Transfers/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/<asset-guid>/Transfers/<transfer-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/<asset-guid>/Transfers" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" -d '{"description":"Transfer to marketing"}'
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/<asset-guid>/Transfers/<transfer-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" -d '{...}'
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/<asset-guid>/Transfers/<transfer-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ## Command Quick Reference
 
 | Action | CLI Command |
@@ -269,6 +466,76 @@ absuite assets delete transfer --TenantId $TENANT_ID --AssetTransferId <transfer
 | List repairs | `absuite assets list repairs --TenantId <guid> --AssetId <guid>` |
 | List value amends | `absuite assets list value-amends --TenantId <guid> --AssetId <guid>` |
 | List transfers | `absuite assets list transfers --TenantId <guid>` |
+
+## API Endpoints Quick Reference
+
+54 endpoints total across the AssetsService.
+
+| Method | Endpoint | Description |
+|---|---|---|
+| **Assets** | | |
+| POST | `/api/v2/AssetsService/Assets` | Create an asset |
+| GET | `/api/v2/AssetsService/Assets` | List assets |
+| DELETE | `/api/v2/AssetsService/Assets/:assetId` | Delete an asset |
+| GET | `/api/v2/AssetsService/Assets/:assetId` | Get asset by ID |
+| PUT | `/api/v2/AssetsService/Assets/:assetId` | Update an asset |
+| GET | `/api/v2/AssetsService/Assets/count` | Count assets |
+| **Assets/Categories** | | |
+| POST | `/api/v2/AssetsService/Assets/Categories` | Create a category |
+| GET | `/api/v2/AssetsService/Assets/Categories` | List categories |
+| DELETE | `/api/v2/AssetsService/Assets/Categories/:categoryId` | Delete a category |
+| GET | `/api/v2/AssetsService/Assets/Categories/:categoryId` | Get category by ID |
+| PUT | `/api/v2/AssetsService/Assets/Categories/:categoryId` | Update a category |
+| GET | `/api/v2/AssetsService/Assets/Categories/count` | Count categories |
+| **AssetCategories (alternate path)** | | |
+| POST | `/api/v2/AssetsService/AssetCategories` | Create a category |
+| GET | `/api/v2/AssetsService/AssetCategories` | List categories |
+| DELETE | `/api/v2/AssetsService/AssetCategories/:categoryId` | Delete a category |
+| GET | `/api/v2/AssetsService/AssetCategories/:categoryId` | Get category by ID |
+| PUT | `/api/v2/AssetsService/AssetCategories/:categoryId` | Update a category |
+| GET | `/api/v2/AssetsService/AssetCategories/count` | Count categories |
+| **AssetTypes** | | |
+| POST | `/api/v2/AssetsService/AssetTypes` | Create a type |
+| GET | `/api/v2/AssetsService/AssetTypes` | List types |
+| DELETE | `/api/v2/AssetsService/AssetTypes/:typeId` | Delete a type |
+| GET | `/api/v2/AssetsService/AssetTypes/:typeId` | Get type by ID |
+| PUT | `/api/v2/AssetsService/AssetTypes/:typeId` | Update a type |
+| GET | `/api/v2/AssetsService/AssetTypes/count` | Count types |
+| **AssetTransfers (top-level)** | | |
+| POST | `/api/v2/AssetsService/AssetTransfers` | Create a transfer |
+| GET | `/api/v2/AssetsService/AssetTransfers` | List transfers |
+| DELETE | `/api/v2/AssetsService/AssetTransfers/:transferId` | Delete a transfer |
+| GET | `/api/v2/AssetsService/AssetTransfers/:transferId` | Get transfer by ID |
+| PUT | `/api/v2/AssetsService/AssetTransfers/:transferId` | Update a transfer |
+| GET | `/api/v2/AssetsService/AssetTransfers/Count` | Count transfers |
+| **DepreciationRecords (per asset)** | | |
+| POST | `/api/v2/AssetsService/Assets/:assetId/DepreciationRecords` | Create depreciation record |
+| GET | `/api/v2/AssetsService/Assets/:assetId/DepreciationRecords` | List depreciation records |
+| DELETE | `/api/v2/AssetsService/Assets/:assetId/DepreciationRecords/:recordId` | Delete depreciation record |
+| GET | `/api/v2/AssetsService/Assets/:assetId/DepreciationRecords/:recordId` | Get depreciation record |
+| PUT | `/api/v2/AssetsService/Assets/:assetId/DepreciationRecords/:recordId` | Update depreciation record |
+| GET | `/api/v2/AssetsService/Assets/:assetId/DepreciationRecords/Count` | Count depreciation records |
+| **Repairs (per asset)** | | |
+| POST | `/api/v2/AssetsService/Assets/:assetId/Repairs` | Create repair |
+| GET | `/api/v2/AssetsService/Assets/:assetId/Repairs` | List repairs |
+| DELETE | `/api/v2/AssetsService/Assets/:assetId/Repairs/:repairId` | Delete repair |
+| GET | `/api/v2/AssetsService/Assets/:assetId/Repairs/:repairId` | Get repair by ID |
+| PUT | `/api/v2/AssetsService/Assets/:assetId/Repairs/:repairId` | Update repair |
+| GET | `/api/v2/AssetsService/Assets/:assetId/Repairs/Count` | Count repairs |
+| **Transfers (per asset)** | | |
+| POST | `/api/v2/AssetsService/Assets/:assetId/Transfers` | Create transfer for asset |
+| GET | `/api/v2/AssetsService/Assets/:assetId/Transfers` | List transfers for asset |
+| DELETE | `/api/v2/AssetsService/Assets/:assetId/Transfers/:transferId` | Delete transfer for asset |
+| GET | `/api/v2/AssetsService/Assets/:assetId/Transfers/:transferId` | Get transfer for asset |
+| PUT | `/api/v2/AssetsService/Assets/:assetId/Transfers/:transferId` | Update transfer for asset |
+| GET | `/api/v2/AssetsService/Assets/:assetId/Transfers/Count` | Count transfers for asset |
+| **ValueAmends (per asset)** | | |
+| POST | `/api/v2/AssetsService/Assets/:assetId/ValueAmends` | Create value amendment |
+| GET | `/api/v2/AssetsService/Assets/:assetId/ValueAmends` | List value amendments |
+| DELETE | `/api/v2/AssetsService/Assets/:assetId/ValueAmends/:amendId` | Delete value amendment |
+| GET | `/api/v2/AssetsService/Assets/:assetId/ValueAmends/:amendId` | Get value amendment |
+| PUT | `/api/v2/AssetsService/Assets/:assetId/ValueAmends/:amendId` | Update value amendment |
+| GET | `/api/v2/AssetsService/Assets/:assetId/ValueAmends/Count` | Count value amendments |
 
 ## Critical Rules
 
