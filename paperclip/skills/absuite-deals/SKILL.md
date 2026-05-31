@@ -79,6 +79,7 @@ absuite deals list unit-flows --TenantId $TENANT_ID
 ```
 
 **REST API equivalent:**
+
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
@@ -94,6 +95,7 @@ absuite deals create unit-flow --TenantId $TENANT_ID --DealUnitFlowCreateDto '{
 ```
 
 **REST API equivalent:**
+
 ```bash
 curl -X POST "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
@@ -133,8 +135,9 @@ absuite deals create unit-flow-stage --TenantId $TENANT_ID --DealUnitFlowId <flo
 ```
 
 **REST API equivalent:**
+
 ```bash
-curl -X POST "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/$FLOW_ID/Stages" \
+curl -X POST "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/$DEAL_UNIT_FLOW_ID/Stages" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -152,8 +155,9 @@ absuite deals list unit-flow-stages --TenantId $TENANT_ID --DealUnitFlowId <flow
 ```
 
 **REST API equivalent:**
+
 ```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/$FLOW_ID/Stages" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/$DEAL_UNIT_FLOW_ID/Stages" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
@@ -185,6 +189,7 @@ absuite deals create unit --TenantId $TENANT_ID --DealUnitCreateDto '{
 ```
 
 **REST API equivalent:**
+
 ```bash
 curl -X POST "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
@@ -240,6 +245,7 @@ absuite deals create get-deal-unit-lines --TenantId $TENANT_ID --DealUnitId <dea
 ```
 
 **REST API equivalent:**
+
 ```bash
 curl -X POST "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/$DEAL_UNIT_ID/Lines" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
@@ -261,6 +267,7 @@ absuite deals calculate unit --TenantId $TENANT_ID --DealUnitId <deal-guid>
 ```
 
 **REST API equivalent:**
+
 ```bash
 curl -X PUT "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/$DEAL_UNIT_ID/Calculate" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
@@ -275,6 +282,7 @@ absuite deals update unit --TenantId $TENANT_ID --DealUnitId <deal-guid> --DealU
 ```
 
 **REST API equivalent:**
+
 ```bash
 curl -X PUT "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/$DEAL_UNIT_ID" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
@@ -291,6 +299,7 @@ absuite deals list units --TenantId $TENANT_ID
 ```
 
 **REST API equivalent:**
+
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
@@ -303,6 +312,7 @@ absuite deals list extended-deal-units --TenantId $TENANT_ID
 ```
 
 **REST API equivalent:**
+
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/Extended" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
@@ -315,6 +325,7 @@ absuite deals count units --TenantId $TENANT_ID
 ```
 
 **REST API equivalent:**
+
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/Count" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
@@ -327,6 +338,7 @@ absuite deals get unit --TenantId $TENANT_ID --DealUnitId <deal-guid>
 ```
 
 **REST API equivalent:**
+
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/$DEAL_UNIT_ID" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
@@ -339,6 +351,7 @@ absuite deals get extended-deal-unit --TenantId $TENANT_ID --DealUnitId <deal-gu
 ```
 
 **REST API equivalent:**
+
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/$DEAL_UNIT_ID/Extended" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
@@ -357,6 +370,7 @@ absuite deals update unit --TenantId $TENANT_ID --DealUnitId <deal-guid> --DealU
 ```
 
 **REST API equivalent:**
+
 ```bash
 curl -X PUT "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/$DEAL_UNIT_ID" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
@@ -377,6 +391,7 @@ absuite deals delete unit --TenantId $TENANT_ID --DealUnitId <deal-guid>
 ```
 
 **REST API equivalent:**
+
 ```bash
 curl -X DELETE "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/$DEAL_UNIT_ID" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
@@ -391,6 +406,7 @@ absuite deals list unit-lines --TenantId $TENANT_ID --DealUnitId <deal-guid>
 ```
 
 **REST API equivalent:**
+
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/$DEAL_UNIT_ID/Lines" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
@@ -403,6 +419,7 @@ absuite deals count unit-lines --TenantId $TENANT_ID --DealUnitId <deal-guid>
 ```
 
 **REST API equivalent:**
+
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/$DEAL_UNIT_ID/Lines/Count" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
@@ -415,6 +432,7 @@ absuite deals get unit-price --TenantId $TENANT_ID --DealUnitId <deal-guid> --De
 ```
 
 **REST API equivalent:**
+
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/$DEAL_UNIT_ID/Lines/$DEAL_UNIT_LINE_ID" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
@@ -430,6 +448,7 @@ absuite deals update unit-price --TenantId $TENANT_ID --DealUnitId <deal-guid> -
 ```
 
 **REST API equivalent:**
+
 ```bash
 curl -X PUT "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/$DEAL_UNIT_ID/Lines/$DEAL_UNIT_LINE_ID" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
@@ -447,6 +466,7 @@ absuite deals delete unit-price --TenantId $TENANT_ID --DealUnitId <deal-guid> -
 ```
 
 **REST API equivalent:**
+
 ```bash
 curl -X DELETE "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/$DEAL_UNIT_ID/Lines/$DEAL_UNIT_LINE_ID" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
@@ -459,6 +479,7 @@ absuite deals calculate unit-line --TenantId $TENANT_ID --DealUnitId <deal-guid>
 ```
 
 **REST API equivalent:**
+
 ```bash
 curl -X PUT "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/$DEAL_UNIT_ID/Lines/$DEAL_UNIT_LINE_ID/Calculate" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
@@ -473,6 +494,7 @@ absuite deals list unit-flows --TenantId $TENANT_ID
 ```
 
 **REST API equivalent:**
+
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
@@ -485,8 +507,9 @@ absuite deals get unit-flow --TenantId $TENANT_ID --DealUnitFlowId <flow-guid>
 ```
 
 **REST API equivalent:**
+
 ```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/$FLOW_ID" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/$DEAL_UNIT_FLOW_ID" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
@@ -500,8 +523,9 @@ absuite deals update unit-flow --TenantId $TENANT_ID --DealUnitFlowId <flow-guid
 ```
 
 **REST API equivalent:**
+
 ```bash
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/$FLOW_ID" \
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/$DEAL_UNIT_FLOW_ID" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -517,8 +541,9 @@ absuite deals delete unit-flow --TenantId $TENANT_ID --DealUnitFlowId <flow-guid
 ```
 
 **REST API equivalent:**
+
 ```bash
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/$FLOW_ID" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/$DEAL_UNIT_FLOW_ID" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
@@ -529,6 +554,7 @@ absuite deals count unit-flows --TenantId $TENANT_ID
 ```
 
 **REST API equivalent:**
+
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/Count" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
@@ -543,8 +569,9 @@ absuite deals list unit-flow-stages --TenantId $TENANT_ID --DealUnitFlowId <flow
 ```
 
 **REST API equivalent:**
+
 ```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/$FLOW_ID/Stages" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/$DEAL_UNIT_FLOW_ID/Stages" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
@@ -555,8 +582,9 @@ absuite deals get unit-flow-stage --TenantId $TENANT_ID --DealUnitFlowStageId <s
 ```
 
 **REST API equivalent:**
+
 ```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/$FLOW_ID/Stages/$STAGE_ID" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/$DEAL_UNIT_FLOW_ID/Stages/$DEAL_UNIT_FLOW_STAGE_ID" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
@@ -571,8 +599,9 @@ absuite deals update unit-flow-stage --TenantId $TENANT_ID --DealUnitFlowStageId
 ```
 
 **REST API equivalent:**
+
 ```bash
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/$FLOW_ID/Stages/$STAGE_ID" \
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/$DEAL_UNIT_FLOW_ID/Stages/$DEAL_UNIT_FLOW_STAGE_ID" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -589,8 +618,9 @@ absuite deals delete unit-flow-stage --TenantId $TENANT_ID --DealUnitFlowStageId
 ```
 
 **REST API equivalent:**
+
 ```bash
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/$FLOW_ID/Stages/$STAGE_ID" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/$DEAL_UNIT_FLOW_ID/Stages/$DEAL_UNIT_FLOW_STAGE_ID" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
@@ -601,8 +631,9 @@ absuite deals count unit-flow-stages --TenantId $TENANT_ID --DealUnitFlowId <flo
 ```
 
 **REST API equivalent:**
+
 ```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/$FLOW_ID/Stages/Count" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/$DEAL_UNIT_FLOW_ID/Stages/Count" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
@@ -687,6 +718,7 @@ absuite deals update unit --TenantId $TENANT_ID --DealUnitId <deal-guid> --DealU
 ```
 
 **REST API equivalent:**
+
 ```bash
 curl -X PUT "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/$DEAL_UNIT_ID" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
@@ -710,6 +742,7 @@ absuite deals update unit --TenantId $TENANT_ID --DealUnitId <deal-guid> --DealU
 ```
 
 **REST API equivalent:**
+
 ```bash
 curl -X PUT "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/$DEAL_UNIT_ID" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
