@@ -333,42 +333,119 @@ absuite crm delete contact --TenantId $TENANT_ID --ContactId <contact-guid>
 
 ## REST API Alternative
 
-Every operation available through the CLI has a corresponding REST API endpoint. If you prefer or need to use HTTP directly:
+Everything the CLI does can also be accomplished via direct REST API calls. The CLI is a convenience wrapper around the same HTTP API.
 
-1. **Authenticate** via `POST $ABSUITE_HOST_URL/login` to obtain a bearer token.
-2. **Use the base path** `$ABSUITE_HOST_URL/api/v2/{ServiceName}/{Resource}` for all calls.
-3. **Pass the token** via `-H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"` on every request.
+### Authentication
 
-### CLI Service → REST API Mapping
+To call the API directly via REST instead of the CLI:
 
-| CLI Service | REST Service Prefix | Example Endpoint |
+1. **Obtain a bearer token:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/login" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "'$ABSUITE_USER_EMAIL'", "password": "'$ABSUITE_USER_PASSWORD'"}'
+```
+Extract the `accessToken` from the JSON response.
+
+2. **Use the token in all subsequent requests:**
+```bash
+-H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+### URL Pattern
+
+All REST endpoints follow the pattern:
+
+```
+$ABSUITE_HOST_URL/api/v2/{ServiceName}/{Resource}
+```
+
+For example:
+- List contacts: `GET $ABSUITE_HOST_URL/api/v2/CrmService/Contacts`
+- Create invoice: `POST $ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices`
+
+### Response Envelope
+
+The response envelope pattern is identical for both CLI and REST:
+
+```json
+{
+  "isSuccess": true,
+  "errorMessage": null,
+  "correlationId": "<guid>",
+  "timestamp": "2026-04-18T12:00:00Z",
+  "activityId": "<guid>",
+  "result": <actual-data>
+}
+```
+
+### CLI Verb → HTTP Method Mapping
+
+| CLI Verb | HTTP Method | REST Example |
 |---|---|---|
-| `absuite accounting` | AccountingService | `/api/v2/AccountingService/JournalEntries` |
-| `absuite assets` | AssetsService | `/api/v2/AssetsService/Assets` |
-| `absuite billing` | BillingService | `/api/v2/BillingService/Invoices` |
-| `absuite catalog` | CatalogService | `/api/v2/CatalogService/Items` |
-| `absuite contacts` | ContactsService | `/api/v2/ContactsService/Contacts` |
-| `absuite content` | ContentService | `/api/v2/ContentService/Posts` |
-| `absuite crm` | CRMService | `/api/v2/CRMService/Leads` |
-| `absuite education` | EducationService | `/api/v2/EducationService/Courses` |
-| `absuite forex` | ForexService | `/api/v2/ForexService/CurrencyPairRates` |
-| `absuite globe` | GlobeService | `/api/v2/GlobeService/Countries` |
-| `absuite hr` | HRService | `/api/v2/HRService/Employees` |
-| `absuite inventory` | InventoryService | `/api/v2/InventoryService/Inventory/:stockItemId/Details` |
-| `absuite locations` | LocationsService | `/api/v2/LocationsService/Countries` |
-| `absuite logistics` | LogisticsService | `/api/v2/LogisticsService/Warehouses` |
-| `absuite marketplace` | MarketplaceService | `/api/v2/MarketplaceService/Listings` |
-| `absuite orders` | OrdersService | `/api/v2/OrdersService/Orders` |
-| `absuite pricing` | PricingService | `/api/v2/PricingService/PriceLists` |
-| `absuite quotes` | QuotesService | `/api/v2/QuotesService/Quotes` |
-| `absuite sales` | SalesService | `/api/v2/SalesService/Stores` |
-| `absuite shipments` | ShipmentsService | `/api/v2/ShipmentsService/Shipments` |
-| `absuite subscriptions` | SubscriptionsService | `/api/v2/SubscriptionsService/SubscriptionPlans` |
-| `absuite support` | SupportService | `/api/v2/SupportService/SupportTickets` |
-| `absuite system` | SystemService | `/api/v2/SystemService/Health` |
-| `absuite wallets` | WalletsService | `/api/v2/WalletsService/Wallets` |
+| `list` | GET | `GET /api/v2/CrmService/Contacts` |
+| `count` | GET | `GET /api/v2/CrmService/Contacts/Count` |
+| `get` | GET | `GET /api/v2/CrmService/Contacts/:contactId` |
+| `create` | POST | `POST /api/v2/CrmService/Contacts` |
+| `update` | PUT | `PUT /api/v2/CrmService/Contacts/:contactId` |
+| `delete` | DELETE | `DELETE /api/v2/CrmService/Contacts/:contactId` |
 
-For full endpoint listings per service, see the corresponding skill documentation (e.g., `absuite-globe`, `absuite-support`, `absuite-assets`, etc.).
+### CLI Service → REST Service Name Mapping
+
+| CLI Service | REST Service Name |
+|---|---|
+| `accounting` | AccountingService |
+| `assets` | AssetsService |
+| `cart` | CartService |
+| `catalog` | CatalogService |
+| `content` | ContentService |
+| `crm` | CrmService |
+| `deals` | DealsService |
+| `forex` | ForexService |
+| `globe` | GlobeService |
+| `hrms` | HrmsService |
+| `identity` | OAuth |
+| `inventory` | InventoryService |
+| `invoicing` | InvoicingService |
+| `learning` | LearningService |
+| `locations` | LocationsService |
+| `logistics` | LogisticsService |
+| `marketing` | MarketingService |
+| `orders` | OrdersService |
+| `payments` | PaymentsService |
+| `pricing` | PricingService |
+| `projects` | ProjectsService |
+| `quotes` | QuotesService |
+| `sales` | SalesService |
+| `security` | SecurityService |
+| `services` | ServicesService |
+| `shipments` | ShipmentsService |
+| `social` | SocialService |
+| `storage` | StorageService |
+| `subscriptions` | SubscriptionsService |
+| `support` | SupportService |
+| `system` | SystemService |
+| `tenants` | TenantsService |
+| `timetracker` | TimeTrackerService |
+| `users` | UsersService |
+| `wallets` | WalletsService |
+
+### Example: CLI vs REST
+
+**CLI:**
+```bash
+absuite crm create contact --TenantId $TENANT_ID --ContactCreateDto '{"firstName":"Alice","lastName":"Smith"}'
+```
+
+**REST equivalent:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/CrmService/Contacts" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"firstName":"Alice","lastName":"Smith"}'
+```
+
+Both return the same envelope response. The CLI handles token management automatically; with REST you manage the bearer token yourself.
 
 ---
 
