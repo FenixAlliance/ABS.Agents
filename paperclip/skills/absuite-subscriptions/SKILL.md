@@ -16,6 +16,25 @@ Manage subscriptions through the `absuite` CLI's `subscriptions` service. All op
 2. **Set your tenant**: `absuite config set --tenant-id <tenant-guid>` or pass `--TenantId` on each call.
 3. **Discover commands**: `absuite subscriptions list-commands`
 
+## REST API Authentication
+
+To call the API directly via REST instead of the CLI:
+
+1. **Obtain a bearer token:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/login" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "'$ABSUITE_USER_EMAIL'", "password": "'$ABSUITE_USER_PASSWORD'"}'
+```
+Extract the `accessToken` from the JSON response.
+
+2. **Use the token in all subsequent requests:**
+```bash
+-H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+3. **All REST endpoints use the base path:** `$ABSUITE_HOST_URL/api/v2/`
+
 ## Subscription Plans
 
 Define the plans that customers can subscribe to.
@@ -43,6 +62,37 @@ absuite subscriptions update plan --TenantId $TENANT_ID --SubscriptionPlanId <pl
 
 # Delete
 absuite subscriptions delete plan --TenantId $TENANT_ID --SubscriptionPlanId <plan-guid>
+```
+
+**REST API equivalents:**
+```bash
+# List subscription plans
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SubscriptionsService/SubscriptionPlans" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count subscription plans
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SubscriptionsService/SubscriptionPlans/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get subscription plan by ID
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SubscriptionsService/SubscriptionPlans/<plan-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create subscription plan
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SubscriptionsService/SubscriptionPlans" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Professional Monthly","description":"Professional tier","price":49.99,"billingInterval":"Monthly"}'
+
+# Update subscription plan
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/SubscriptionsService/SubscriptionPlans/<plan-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete subscription plan
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SubscriptionsService/SubscriptionPlans/<plan-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ## Subscriptions
@@ -82,6 +132,37 @@ absuite subscriptions delete --TenantId $TENANT_ID --SubscriptionId <sub-guid>
 | `SubscriptionPlanId` | String | Plan to subscribe to |
 | `SubscriptionClass` | String | `Individual` or `Organization` |
 
+**REST API equivalents:**
+```bash
+# List subscriptions
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SubscriptionsService/Subscriptions" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count subscriptions
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SubscriptionsService/Subscriptions/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get subscription by ID
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SubscriptionsService/Subscriptions/<sub-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create subscription
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SubscriptionsService/Subscriptions" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"individualId":"<contact-guid>","subscriptionPlanId":"<plan-guid>","subscriptionClass":"Individual"}'
+
+# Update subscription
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/SubscriptionsService/Subscriptions/<sub-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete subscription
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SubscriptionsService/Subscriptions/<sub-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ## Command Quick Reference
 
 | Action | CLI Command |
@@ -113,6 +194,42 @@ absuite subscriptions create --SubscriptionCreateDto '{
 # 3. Check subscriptions
 absuite subscriptions list
 ```
+
+**REST API equivalents:**
+```bash
+# 1. Create a plan
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SubscriptionsService/SubscriptionPlans" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Starter Monthly","price":19.99,"billingInterval":"Monthly"}'
+
+# 2. Subscribe a customer
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SubscriptionsService/Subscriptions" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"individualId":"<contact-guid>","subscriptionPlanId":"<plan-guid>","subscriptionClass":"Individual"}'
+
+# 3. Check subscriptions
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SubscriptionsService/Subscriptions" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+## API Endpoints Quick Reference
+
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/api/v2/SubscriptionsService/Subscriptions` | Create a subscription |
+| GET | `/api/v2/SubscriptionsService/Subscriptions` | List subscriptions |
+| DELETE | `/api/v2/SubscriptionsService/Subscriptions/:subscriptionId` | Delete a subscription |
+| GET | `/api/v2/SubscriptionsService/Subscriptions/:subscriptionId` | Get subscription by ID |
+| PUT | `/api/v2/SubscriptionsService/Subscriptions/:subscriptionId` | Update a subscription |
+| GET | `/api/v2/SubscriptionsService/Subscriptions/Count` | Count subscriptions |
+| POST | `/api/v2/SubscriptionsService/SubscriptionPlans` | Create a subscription plan |
+| GET | `/api/v2/SubscriptionsService/SubscriptionPlans` | List subscription plans |
+| DELETE | `/api/v2/SubscriptionsService/SubscriptionPlans/:subscriptionPlanId` | Delete a subscription plan |
+| GET | `/api/v2/SubscriptionsService/SubscriptionPlans/:subscriptionPlanId` | Get subscription plan by ID |
+| PUT | `/api/v2/SubscriptionsService/SubscriptionPlans/:subscriptionPlanId` | Update a subscription plan |
+| GET | `/api/v2/SubscriptionsService/SubscriptionPlans/Count` | Count subscription plans |
 
 ## Critical Rules
 

@@ -22,6 +22,25 @@ Manage invoices through the `absuite` CLI's `invoicing` service. All invoicing o
    Or pass `--TenantId <guid>` on each call.
 3. **Discover commands** — run `absuite invoicing list-commands` to see all invoicing commands, or use `--help` on any command for full parameter and output schemas.
 
+## REST API Authentication
+
+To call the API directly via REST instead of the CLI:
+
+1. **Obtain a bearer token:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/login" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "'$ABSUITE_USER_EMAIL'", "password": "'$ABSUITE_USER_PASSWORD'"}'
+```
+Extract the `accessToken` from the JSON response.
+
+2. **Use the token in all subsequent requests:**
+```bash
+-H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+3. **All REST endpoints use the base path:** `$ABSUITE_HOST_URL/api/v2/`
+
 ## Command Discovery
 
 ```bash
@@ -85,6 +104,38 @@ absuite invoicing create invoice --TenantId $TENANT_ID --InvoiceCreateDto '{
   "Notes": "Net 30 payment terms apply.",
   "OrderId": "<order-guid>"
 }'
+```
+
+**REST API equivalent:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Invoice - Acme Corp Q2 2026",
+    "description": "Enterprise license and support services",
+    "currencyId": "<currency-guid>",
+    "individualId": "<contact-guid>",
+    "organizationId": "<organization-guid>",
+    "firstName": "John",
+    "lastName": "Doe",
+    "companyName": "Acme Corp",
+    "billingEmail": "billing@acme.com",
+    "addressLine1": "123 Main St",
+    "postalCode": "10001",
+    "countryId": "<country-guid>",
+    "stateId": "<state-guid>",
+    "cityId": "<city-guid>",
+    "invoiceType": "Standard",
+    "invoiceStatus": "Draft",
+    "costCalculationMethod": "PerLine",
+    "taxCalculationMethod": "PerLine",
+    "paymentDue": "2026-07-15T00:00:00Z",
+    "validFrom": "2026-04-19T00:00:00Z",
+    "validTo": "2026-07-15T00:00:00Z",
+    "notes": "Net 30 payment terms apply.",
+    "orderId": "<order-guid>"
+  }'
 ```
 
 **Required fields:**
@@ -157,10 +208,58 @@ absuite invoicing create invoice --TenantId $TENANT_ID --InvoiceCreateDto '{
 }'
 ```
 
+**REST API equivalent:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Invoice #1042 - Acme Corp",
+    "currencyId": "<currency-guid>",
+    "individualId": "<contact-guid>",
+    "invoiceType": "Standard",
+    "invoiceStatus": "Draft",
+    "paymentDue": "2026-07-15T00:00:00Z",
+    "costCalculationMethod": "PerLine",
+    "taxCalculationMethod": "PerLine",
+    "invoiceLines": [
+      {
+        "itemId": "<item-guid-1>",
+        "quantity": 5,
+        "currencyId": "<currency-guid>",
+        "itemPriceId": "<price-guid-1>",
+        "title": "ABS Enterprise License",
+        "description": "5 seats, annual"
+      },
+      {
+        "itemId": "<item-guid-2>",
+        "quantity": 1,
+        "currencyId": "<currency-guid>",
+        "itemPriceId": "<price-guid-2>",
+        "title": "Premium Support",
+        "description": "Annual support plan"
+      }
+    ],
+    "invoiceAdjustments": [
+      {
+        "description": "Volume discount",
+        "discountPercent": 10,
+        "type": "Discount"
+      }
+    ]
+  }'
+```
+
 ### List Invoices
 
 ```bash
 absuite invoicing list invoices --TenantId $TENANT_ID
+```
+
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ### List Extended Invoices (with related data)
@@ -169,10 +268,22 @@ absuite invoicing list invoices --TenantId $TENANT_ID
 absuite invoicing list extended-invoices --TenantId $TENANT_ID
 ```
 
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/Extended" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### Count Invoices
 
 ```bash
 absuite invoicing count invoices --TenantId $TENANT_ID
+```
+
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ### Count Extended Invoices
@@ -181,16 +292,34 @@ absuite invoicing count invoices --TenantId $TENANT_ID
 absuite invoicing count extended-invoices --TenantId $TENANT_ID
 ```
 
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/Extended/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### Get Invoice by ID
 
 ```bash
 absuite invoicing get invoice --TenantId $TENANT_ID --InvoiceId <invoice-guid>
 ```
 
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/$INVOICE_ID" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### Get Extended Invoice
 
 ```bash
 absuite invoicing get extended-invoice --TenantId $TENANT_ID --InvoiceId <invoice-guid>
+```
+
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/$INVOICE_ID/Extended" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ### Update Invoice
@@ -202,10 +331,27 @@ absuite invoicing update invoice --TenantId $TENANT_ID --InvoiceId <invoice-guid
 }'
 ```
 
+**REST API equivalent:**
+```bash
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/$INVOICE_ID" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "invoiceStatus": "Sent",
+    "notes": "Sent to client on 2026-04-19"
+  }'
+```
+
 ### Delete Invoice
 
 ```bash
 absuite invoicing delete invoice --TenantId $TENANT_ID --InvoiceId <invoice-guid>
+```
+
+**REST API equivalent:**
+```bash
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/$INVOICE_ID" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ## Invoice Lines
@@ -225,10 +371,33 @@ absuite invoicing create invoice-line --TenantId $TENANT_ID --InvoiceId <invoice
 }'
 ```
 
+**REST API equivalent:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/$INVOICE_ID/Lines" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "ABS Enterprise License",
+    "description": "Annual platform license, 10 seats",
+    "itemId": "<item-guid>",
+    "itemPriceId": "<price-guid>",
+    "quantity": 10,
+    "currencyId": "<currency-guid>",
+    "costCalculationMethod": "PerLine",
+    "taxCalculationMethod": "PerLine"
+  }'
+```
+
 ### List Lines
 
 ```bash
 absuite invoicing list invoice-lines --TenantId $TENANT_ID --InvoiceId <invoice-guid>
+```
+
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/$INVOICE_ID/Lines" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ### Count Lines
@@ -237,10 +406,22 @@ absuite invoicing list invoice-lines --TenantId $TENANT_ID --InvoiceId <invoice-
 absuite invoicing count invoice-lines --TenantId $TENANT_ID --InvoiceId <invoice-guid>
 ```
 
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/$INVOICE_ID/Lines/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### Get Line by ID
 
 ```bash
 absuite invoicing get invoice-line --TenantId $TENANT_ID --InvoiceId <invoice-guid> --InvoiceLineId <line-guid>
+```
+
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/$INVOICE_ID/Lines/$INVOICE_LINE_ID" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ### Update Line
@@ -252,10 +433,27 @@ absuite invoicing update invoice-line --TenantId $TENANT_ID --InvoiceId <invoice
 }'
 ```
 
+**REST API equivalent:**
+```bash
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/$INVOICE_ID/Lines/$INVOICE_LINE_ID" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "quantity": 15,
+    "description": "Increased to 15 seats"
+  }'
+```
+
 ### Delete Line
 
 ```bash
 absuite invoicing delete invoice-line --TenantId $TENANT_ID --InvoiceId <invoice-guid> --InvoiceLineId <line-guid>
+```
+
+**REST API equivalent:**
+```bash
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/$INVOICE_ID/Lines/$INVOICE_LINE_ID" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ## Invoice Line Taxes
@@ -271,16 +469,39 @@ absuite invoicing create invoice-line-tax --TenantId $TENANT_ID --InvoiceId <inv
 }'
 ```
 
+**REST API equivalent:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/$INVOICE_ID/Lines/$INVOICE_LINE_ID/Taxes" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "taxPolicyId": "<tax-policy-guid>",
+    "invoiceId": "<invoice-guid>"
+  }'
+```
+
 ### List Taxes for a Line
 
 ```bash
 absuite invoicing list invoice-line-taxes --TenantId $TENANT_ID --InvoiceId <invoice-guid> --InvoiceLineId <line-guid>
 ```
 
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/$INVOICE_ID/Lines/$INVOICE_LINE_ID/Taxes" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### Count Taxes for a Line
 
 ```bash
 absuite invoicing count invoice-line-taxes --TenantId $TENANT_ID --InvoiceId <invoice-guid> --InvoiceLineId <line-guid>
+```
+
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/$INVOICE_ID/Lines/$INVOICE_LINE_ID/Taxes/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ### Update a Line Tax
@@ -291,10 +512,26 @@ absuite invoicing update invoice-line-tax --TenantId $TENANT_ID --InvoiceId <inv
 }'
 ```
 
+**REST API equivalent:**
+```bash
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/$INVOICE_ID/Lines/$INVOICE_LINE_ID/Taxes/$TAX_ID" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "taxPolicyId": "<new-tax-policy-guid>"
+  }'
+```
+
 ### Remove a Line Tax
 
 ```bash
 absuite invoicing delete invoice-line-tax --TenantId $TENANT_ID --InvoiceId <invoice-guid> --InvoiceLineId <line-guid> --InvoiceLineAppliedTaxId <tax-guid>
+```
+
+**REST API equivalent:**
+```bash
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/$INVOICE_ID/Lines/$INVOICE_LINE_ID/Taxes/$TAX_ID" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ## Adjustments (Discounts / Surcharges)
@@ -321,10 +558,41 @@ absuite invoicing create invoice-adjustment --TenantId $TENANT_ID --InvoiceId <i
 }'
 ```
 
+**REST API equivalent:**
+```bash
+# Percentage discount
+curl -X POST "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/$INVOICE_ID/Adjustments" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "description": "Early payment discount",
+    "discountPercent": 5,
+    "type": "Discount",
+    "currencyId": "<currency-guid>"
+  }'
+
+# Fixed surcharge
+curl -X POST "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/$INVOICE_ID/Adjustments" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "description": "Rush processing fee",
+    "surchargeAmount": 150.00,
+    "type": "Surcharge",
+    "currencyId": "<currency-guid>"
+  }'
+```
+
 ### List Adjustments
 
 ```bash
 absuite invoicing list invoice-adjustments --TenantId $TENANT_ID --InvoiceId <invoice-guid>
+```
+
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/$INVOICE_ID/Adjustments" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ### Count Adjustments
@@ -333,10 +601,22 @@ absuite invoicing list invoice-adjustments --TenantId $TENANT_ID --InvoiceId <in
 absuite invoicing count invoice-adjustments --TenantId $TENANT_ID --InvoiceId <invoice-guid>
 ```
 
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/$INVOICE_ID/Adjustments/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### Get Adjustment by ID
 
 ```bash
 absuite invoicing get invoice-adjustment --TenantId $TENANT_ID --InvoiceId <invoice-guid> --InvoiceAdjustmentId <adjustment-guid>
+```
+
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/$INVOICE_ID/Adjustments/$ADJUSTMENT_ID" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ### Update Adjustment
@@ -348,10 +628,27 @@ absuite invoicing update invoice-adjustment --TenantId $TENANT_ID --InvoiceId <i
 }'
 ```
 
+**REST API equivalent:**
+```bash
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/$INVOICE_ID/Adjustments/$ADJUSTMENT_ID" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "discountPercent": 8,
+    "description": "Loyalty discount increased"
+  }'
+```
+
 ### Delete Adjustment
 
 ```bash
 absuite invoicing delete invoice-adjustment --TenantId $TENANT_ID --InvoiceId <invoice-guid> --InvoiceAdjustmentId <adjustment-guid>
+```
+
+**REST API equivalent:**
+```bash
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/$INVOICE_ID/Adjustments/$ADJUSTMENT_ID" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ## Invoice References
@@ -366,10 +663,26 @@ absuite invoicing create invoice-reference --TenantId $TENANT_ID --InvoiceId <cr
 }'
 ```
 
+**REST API equivalent:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/$INVOICE_ID/References" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "referencedInvoiceId": "<original-invoice-guid>"
+  }'
+```
+
 ### List References
 
 ```bash
 absuite invoicing list invoice-references --TenantId $TENANT_ID --InvoiceId <invoice-guid>
+```
+
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/$INVOICE_ID/References" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ### Count References
@@ -378,10 +691,22 @@ absuite invoicing list invoice-references --TenantId $TENANT_ID --InvoiceId <inv
 absuite invoicing count invoice-references --TenantId $TENANT_ID --InvoiceId <invoice-guid>
 ```
 
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/$INVOICE_ID/References/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### Get Reference by ID
 
 ```bash
 absuite invoicing get invoice-reference --TenantId $TENANT_ID --InvoiceId <invoice-guid> --InvoiceReferenceId <reference-guid>
+```
+
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/$INVOICE_ID/References/$REFERENCE_ID" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ### Update Reference
@@ -392,10 +717,26 @@ absuite invoicing update invoice-reference --TenantId $TENANT_ID --InvoiceId <in
 }'
 ```
 
+**REST API equivalent:**
+```bash
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/$INVOICE_ID/References/$REFERENCE_ID" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "referencedInvoiceId": "<different-invoice-guid>"
+  }'
+```
+
 ### Delete Reference
 
 ```bash
 absuite invoicing delete invoice-reference --TenantId $TENANT_ID --InvoiceId <invoice-guid> --InvoiceReferenceId <reference-guid>
+```
+
+**REST API equivalent:**
+```bash
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/$INVOICE_ID/References/$REFERENCE_ID" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ## Payments
@@ -406,10 +747,22 @@ absuite invoicing delete invoice-reference --TenantId $TENANT_ID --InvoiceId <in
 absuite invoicing list invoice-payments --TenantId $TENANT_ID --InvoiceId <invoice-guid>
 ```
 
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/$INVOICE_ID/Payments" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### Count Payments
 
 ```bash
 absuite invoicing count invoice-payments --TenantId $TENANT_ID --InvoiceId <invoice-guid>
+```
+
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/$INVOICE_ID/Payments/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ## Calculations
@@ -422,10 +775,22 @@ Always recalculate after adding/modifying lines, taxes, or adjustments.
 absuite invoicing calculate invoice --TenantId $TENANT_ID --InvoiceId <invoice-guid>
 ```
 
+**REST API equivalent:**
+```bash
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/$INVOICE_ID/Calculate" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### Calculate a Single Line
 
 ```bash
 absuite invoicing calculate invoice-line --TenantId $TENANT_ID --InvoiceId <invoice-guid> --InvoiceLineId <line-guid>
+```
+
+**REST API equivalent:**
+```bash
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/$INVOICE_ID/Lines/$INVOICE_LINE_ID/Calculate" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ## Aggregations
@@ -449,12 +814,41 @@ absuite invoicing aggregate-invoice-discounts --TenantId $TENANT_ID
 absuite invoicing aggregate-invoice-global-surcharges --TenantId $TENANT_ID
 ```
 
+**REST API equivalents:**
+```bash
+# Aggregate totals
+curl -X GET "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/Aggregate/Totals" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Aggregate taxes
+curl -X GET "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/Aggregate/Taxes" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Aggregate tax bases
+curl -X GET "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/Aggregate/TaxBases" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Aggregate discounts
+curl -X GET "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/Aggregate/Discounts" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Aggregate global surcharges
+curl -X GET "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/Aggregate/GlobalSurcharges" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ## Email Notifications
 
 ### Preview Invoice Email
 
 ```bash
 absuite invoicing preview invoice-email --TenantId $TENANT_ID --InvoiceId <invoice-guid>
+```
+
+**REST API equivalent:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/$INVOICE_ID/Emails/Preview" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ### Send Invoice Email
@@ -466,6 +860,19 @@ absuite invoicing send invoice-email --TenantId $TENANT_ID --InvoiceId <invoice-
   "Recipients": ["billing@acme.com"],
   "Culture": "en-US"
 }'
+```
+
+**REST API equivalent:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/$INVOICE_ID/Emails/Send" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Invoice #1042 - Acme Corp",
+    "message": "Please find your invoice attached. Payment is due by July 15, 2026.",
+    "recipients": ["billing@acme.com"],
+    "culture": "en-US"
+  }'
 ```
 
 **EmailDispatchRequest fields:**
@@ -593,3 +1000,51 @@ absuite invoicing send invoice-email --InvoiceId <invoice-id> --EmailDispatchReq
 # 10. Verify
 absuite invoicing get invoice --InvoiceId <invoice-id>
 ```
+
+## API Endpoints Quick Reference
+
+| Action | REST Endpoint |
+|---|---|
+| Create invoice | `POST /api/v2/InvoicingService/Invoices` |
+| List invoices | `GET /api/v2/InvoicingService/Invoices` |
+| Count invoices | `GET /api/v2/InvoicingService/Invoices/Count` |
+| List extended invoices | `GET /api/v2/InvoicingService/Invoices/Extended` |
+| Count extended invoices | `GET /api/v2/InvoicingService/Invoices/Extended/Count` |
+| Get invoice | `GET /api/v2/InvoicingService/Invoices/:invoiceId` |
+| Get extended invoice | `GET /api/v2/InvoicingService/Invoices/:invoiceId/Extended` |
+| Update invoice | `PUT /api/v2/InvoicingService/Invoices/:invoiceId` |
+| Delete invoice | `DELETE /api/v2/InvoicingService/Invoices/:invoiceId` |
+| Calculate invoice | `PUT /api/v2/InvoicingService/Invoices/:invoiceId/Calculate` |
+| Create line | `POST /api/v2/InvoicingService/Invoices/:invoiceId/Lines` |
+| List lines | `GET /api/v2/InvoicingService/Invoices/:invoiceId/Lines` |
+| Count lines | `GET /api/v2/InvoicingService/Invoices/:invoiceId/Lines/Count` |
+| Get line | `GET /api/v2/InvoicingService/Invoices/:invoiceId/Lines/:invoiceLineId` |
+| Update line | `PUT /api/v2/InvoicingService/Invoices/:invoiceId/Lines/:invoiceLineId` |
+| Delete line | `DELETE /api/v2/InvoicingService/Invoices/:invoiceId/Lines/:invoiceLineId` |
+| Calculate line | `PUT /api/v2/InvoicingService/Invoices/:invoiceId/Lines/:invoiceLineId/Calculate` |
+| Create line tax | `POST /api/v2/InvoicingService/Invoices/:invoiceId/Lines/:invoiceLineId/Taxes` |
+| List line taxes | `GET /api/v2/InvoicingService/Invoices/:invoiceId/Lines/:invoiceLineId/Taxes` |
+| Count line taxes | `GET /api/v2/InvoicingService/Invoices/:invoiceId/Lines/:invoiceLineId/Taxes/Count` |
+| Update line tax | `PUT /api/v2/InvoicingService/Invoices/:invoiceId/Lines/:invoiceLineId/Taxes/:invoiceLineTaxId` |
+| Delete line tax | `DELETE /api/v2/InvoicingService/Invoices/:invoiceId/Lines/:invoiceLineId/Taxes/:invoiceLineTaxId` |
+| Create adjustment | `POST /api/v2/InvoicingService/Invoices/:invoiceId/Adjustments` |
+| List adjustments | `GET /api/v2/InvoicingService/Invoices/:invoiceId/Adjustments` |
+| Count adjustments | `GET /api/v2/InvoicingService/Invoices/:invoiceId/Adjustments/Count` |
+| Get adjustment | `GET /api/v2/InvoicingService/Invoices/:invoiceId/Adjustments/:invoiceAdjustmentId` |
+| Update adjustment | `PUT /api/v2/InvoicingService/Invoices/:invoiceId/Adjustments/:invoiceAdjustmentId` |
+| Delete adjustment | `DELETE /api/v2/InvoicingService/Invoices/:invoiceId/Adjustments/:invoiceAdjustmentId` |
+| Create reference | `POST /api/v2/InvoicingService/Invoices/:invoiceId/References` |
+| List references | `GET /api/v2/InvoicingService/Invoices/:invoiceId/References` |
+| Count references | `GET /api/v2/InvoicingService/Invoices/:invoiceId/References/Count` |
+| Get reference | `GET /api/v2/InvoicingService/Invoices/:invoiceId/References/:invoiceReferenceId` |
+| Update reference | `PUT /api/v2/InvoicingService/Invoices/:invoiceId/References/:invoiceReferenceId` |
+| Delete reference | `DELETE /api/v2/InvoicingService/Invoices/:invoiceId/References/:invoiceReferenceId` |
+| List payments | `GET /api/v2/InvoicingService/Invoices/:invoiceId/Payments` |
+| Count payments | `GET /api/v2/InvoicingService/Invoices/:invoiceId/Payments/Count` |
+| Preview email | `POST /api/v2/InvoicingService/Invoices/:invoiceId/Emails/Preview` |
+| Send email | `POST /api/v2/InvoicingService/Invoices/:invoiceId/Emails/Send` |
+| Aggregate totals | `GET /api/v2/InvoicingService/Invoices/Aggregate/Totals` |
+| Aggregate taxes | `GET /api/v2/InvoicingService/Invoices/Aggregate/Taxes` |
+| Aggregate tax bases | `GET /api/v2/InvoicingService/Invoices/Aggregate/TaxBases` |
+| Aggregate discounts | `GET /api/v2/InvoicingService/Invoices/Aggregate/Discounts` |
+| Aggregate surcharges | `GET /api/v2/InvoicingService/Invoices/Aggregate/GlobalSurcharges` |

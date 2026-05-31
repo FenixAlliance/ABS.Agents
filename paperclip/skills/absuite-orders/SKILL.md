@@ -22,6 +22,25 @@ Manage orders through the `absuite` CLI's `orders` service. All order operations
    Or pass `--TenantId <guid>` on each call.
 3. **Discover commands** — run `absuite orders list-commands` to see all order commands, or use `--help` on any command for full parameter and output schemas.
 
+## REST API Authentication
+
+To call the API directly via REST instead of the CLI:
+
+1. **Obtain a bearer token:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/login" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "'$ABSUITE_USER_EMAIL'", "password": "'$ABSUITE_USER_PASSWORD'"}'
+```
+Extract the `accessToken` from the JSON response.
+
+2. **Use the token in all subsequent requests:**
+```bash
+-H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+3. **All REST endpoints use the base path:** `$ABSUITE_HOST_URL/api/v2/`
+
 ## Command Discovery
 
 ```bash
@@ -59,6 +78,14 @@ absuite orders submit cart --CartId <cart-guid>
 
 This returns the created `OrderDto` with all lines transferred from the cart.
 
+**REST API equivalent:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/OrdersService/Orders/SubmitCart" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"cartId": "<cart-guid>"}'
+```
+
 ## CRUD Operations
 
 ### Create Order
@@ -83,6 +110,32 @@ absuite orders create --TenantId $TENANT_ID --OrderCreateDto '{
   "CostCalculationMethod": "PerLine",
   "TaxCalculationMethod": "PerLine"
 }'
+```
+
+**REST API equivalent:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/OrdersService/Orders" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Order for Acme Corp",
+    "description": "Q2 2026 software licenses",
+    "currencyId": "<currency-guid>",
+    "individualId": "<contact-guid>",
+    "organizationId": "<organization-guid>",
+    "firstName": "John",
+    "lastName": "Doe",
+    "companyName": "Acme Corp",
+    "billingEmail": "billing@acme.com",
+    "addressLine1": "123 Main St",
+    "postalCode": "10001",
+    "countryId": "<country-guid>",
+    "stateId": "<state-guid>",
+    "cityId": "<city-guid>",
+    "orderStatus": "Open",
+    "costCalculationMethod": "PerLine",
+    "taxCalculationMethod": "PerLine"
+  }'
 ```
 
 **Required fields:**
@@ -139,10 +192,18 @@ absuite orders create --TenantId $TENANT_ID --OrderCreateDto '{
 }'
 ```
 
+No separate REST — same POST endpoint, just include `orderLines` array in body.
+
 ### List Orders
 
 ```bash
 absuite orders list --TenantId $TENANT_ID
+```
+
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/OrdersService/Orders" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ### List Extended Orders (with related data)
@@ -151,16 +212,34 @@ absuite orders list --TenantId $TENANT_ID
 absuite orders list extended --TenantId $TENANT_ID
 ```
 
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/OrdersService/Orders/Extended" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### Count Orders
 
 ```bash
 absuite orders count --TenantId $TENANT_ID
 ```
 
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/OrdersService/Orders/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### Get Order by ID
 
 ```bash
 absuite orders get --TenantId $TENANT_ID --OrderId <order-guid>
+```
+
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/OrdersService/Orders/$ORDER_ID" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ### Update Order
@@ -174,10 +253,29 @@ absuite orders update --TenantId $TENANT_ID --OrderId <order-guid> --OrderUpdate
 }'
 ```
 
+**REST API equivalent:**
+```bash
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/OrdersService/Orders/$ORDER_ID" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Updated Order Title",
+    "orderStatus": "Closed",
+    "closed": true,
+    "description": "Fulfilled and closed."
+  }'
+```
+
 ### Delete Order
 
 ```bash
 absuite orders delete --TenantId $TENANT_ID --OrderId <order-guid>
+```
+
+**REST API equivalent:**
+```bash
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/OrdersService/Orders/$ORDER_ID" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ## Order Lines
@@ -196,6 +294,22 @@ absuite orders create line --TenantId $TENANT_ID --OrderId <order-guid> --OrderL
 }'
 ```
 
+**REST API equivalent:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/OrdersService/Orders/$ORDER_ID/Lines" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "itemId": "<catalog-item-guid>",
+    "itemTitle": "ABS Enterprise License",
+    "itemShortDescription": "Annual enterprise license",
+    "quantity": 10,
+    "currencyId": "<currency-guid>",
+    "itemPriceId": "<price-guid>",
+    "description": "10x enterprise seats"
+  }'
+```
+
 **Key line fields:**
 - `ItemId` — catalog item reference
 - `ItemTitle` — display name
@@ -212,16 +326,34 @@ absuite orders create line --TenantId $TENANT_ID --OrderId <order-guid> --OrderL
 absuite orders list lines --TenantId $TENANT_ID --OrderId <order-guid>
 ```
 
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/OrdersService/Orders/$ORDER_ID/Lines" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### Count Order Lines
 
 ```bash
 absuite orders count lines --TenantId $TENANT_ID --OrderId <order-guid>
 ```
 
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/OrdersService/Orders/$ORDER_ID/Lines/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### Get Order Line by ID
 
 ```bash
 absuite orders get line --TenantId $TENANT_ID --OrderId <order-guid> --OrderLineId <line-guid>
+```
+
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/OrdersService/Orders/$ORDER_ID/Lines/$ORDER_LINE_ID" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ### Update Order Line
@@ -233,10 +365,27 @@ absuite orders update line --TenantId $TENANT_ID --OrderId <order-guid> --OrderL
 }'
 ```
 
+**REST API equivalent:**
+```bash
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/OrdersService/Orders/$ORDER_ID/Lines/$ORDER_LINE_ID" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "quantity": 15,
+    "description": "Increased to 15 seats"
+  }'
+```
+
 ### Delete Order Line
 
 ```bash
 absuite orders delete line --TenantId $TENANT_ID --OrderId <order-guid> --OrderLineId <line-guid>
+```
+
+**REST API equivalent:**
+```bash
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/OrdersService/Orders/$ORDER_ID/Lines/$ORDER_LINE_ID" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ## Calculations
@@ -249,12 +398,24 @@ Always recalculate after adding/modifying lines so the server computes accurate 
 absuite orders calculate --TenantId $TENANT_ID --OrderId <order-guid>
 ```
 
+**REST API equivalent:**
+```bash
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/OrdersService/Orders/$ORDER_ID/Calculate" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 This recalculates: `TotalDetail`, `TotalTaxes`, `TotalDiscounts`, `TotalSurcharges`, `TotalShippingCost`, `TotalShippingTax`, `TotalWithheldTax`, `TotalGlobalDiscounts`, `TotalGlobalSurcharges`, `Total`, and all USD equivalents.
 
 ### Calculate a Single Line
 
 ```bash
 absuite orders calculate line --TenantId $TENANT_ID --OrderId <order-guid> --OrderLineId <line-guid>
+```
+
+**REST API equivalent:**
+```bash
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/OrdersService/Orders/$ORDER_ID/Lines/$ORDER_LINE_ID/Calculate" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ## Cart Submission
@@ -266,6 +427,14 @@ absuite orders submit cart --CartId <cart-guid>
 ```
 
 Returns the created `OrderDto`. The cart's items become order lines automatically.
+
+**REST API equivalent:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/OrdersService/Orders/SubmitCart" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"cartId": "<cart-guid>"}'
+```
 
 ## Email Notifications
 
@@ -280,10 +449,31 @@ absuite orders send email --TenantId $TENANT_ID --OrderId <order-guid> --EmailDi
 }'
 ```
 
+**REST API equivalent:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/OrdersService/Orders/$ORDER_ID/Emails/Send" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Your Order Confirmation",
+    "message": "Thank you for your order. Please find the details below.",
+    "recipients": ["customer@example.com"],
+    "culture": "en-US"
+  }'
+```
+
 ### Preview Order Email
 
 ```bash
 absuite orders preview email-template --TenantId $TENANT_ID --OrderId <order-guid>
+```
+
+**REST API equivalent:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/OrdersService/Orders/$ORDER_ID/Emails/Preview" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{}'
 ```
 
 ## Full Example: End-to-End Order Creation
@@ -341,3 +531,26 @@ absuite orders send email --OrderId <order-id> --EmailDispatchRequest '{
 # 7. Verify
 absuite orders get --OrderId <order-id>
 ```
+
+## API Endpoints Quick Reference
+
+| Action | REST Endpoint |
+|---|---|
+| Create order | `POST /api/v2/OrdersService/Orders` |
+| List orders | `GET /api/v2/OrdersService/Orders` |
+| Count orders | `GET /api/v2/OrdersService/Orders/Count` |
+| Extended orders | `GET /api/v2/OrdersService/Orders/Extended` |
+| Get order | `GET /api/v2/OrdersService/Orders/:orderId` |
+| Update order | `PUT /api/v2/OrdersService/Orders/:orderId` |
+| Delete order | `DELETE /api/v2/OrdersService/Orders/:orderId` |
+| Calculate order | `PUT /api/v2/OrdersService/Orders/:orderId/Calculate` |
+| Submit cart | `POST /api/v2/OrdersService/Orders/SubmitCart` |
+| Create line | `POST /api/v2/OrdersService/Orders/:orderId/Lines` |
+| List lines | `GET /api/v2/OrdersService/Orders/:orderId/Lines` |
+| Count lines | `GET /api/v2/OrdersService/Orders/:orderId/Lines/Count` |
+| Get line | `GET /api/v2/OrdersService/Orders/:orderId/Lines/:orderLineId` |
+| Update line | `PUT /api/v2/OrdersService/Orders/:orderId/Lines/:orderLineId` |
+| Delete line | `DELETE /api/v2/OrdersService/Orders/:orderId/Lines/:orderLineId` |
+| Calculate line | `PUT /api/v2/OrdersService/Orders/:orderId/Lines/:orderLineId/Calculate` |
+| Preview email | `POST /api/v2/OrdersService/Orders/:orderId/Emails/Preview` |
+| Send email | `POST /api/v2/OrdersService/Orders/:orderId/Emails/Send` |

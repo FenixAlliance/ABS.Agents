@@ -2,17 +2,18 @@
 name: absuite-accounting
 description: >
   Manage the full accounting system in the Alliance Business Suite (ABS) using the
-  `absuite` CLI. Covers chart of accounts, account entries (debits/credits), journals
-  and journal entries, ledgers, financial books, tax policies and rates, fiscal
+  `absuite` CLI or the REST API. Covers chart of accounts, account entries (debits/credits),
+  journals and journal entries, ledgers, financial books, tax policies and rates, fiscal
   authorities/years/periods/regimes, billing profiles, banks and bank accounts,
   transactions, budgets, cost centres, commissions, receipts, grants, loans, shares,
-  and invoice enumeration ranges. Requires an authenticated CLI session (use the
-  `absuite-login` skill to authenticate first).
+  and invoice enumeration ranges. Each section shows both CLI commands and REST API
+  equivalents. Requires an authenticated CLI session (use the `absuite-login` skill)
+  or a valid bearer token for REST calls.
 ---
 
 # Alliance Business Suite — Accounting Skill
 
-Manage accounting through the `absuite` CLI's `accounting` service. All operations are tenant-scoped and require authentication.
+Manage accounting through the `absuite` CLI's `accounting` service or via the REST API. All operations are tenant-scoped and require authentication.
 
 ## Prerequisites
 
@@ -23,6 +24,25 @@ Manage accounting through the `absuite` CLI's `accounting` service. All operatio
    ```
    Or pass `--TenantId <guid>` on each call.
 3. **Discover commands** — run `absuite accounting list-commands` to see all 170+ accounting commands, or use `--help` on any command for full parameter and output schemas.
+
+## REST API Authentication
+
+To call the API directly via REST instead of the CLI:
+
+1. **Obtain a bearer token:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/login" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "'$ABSUITE_USER_EMAIL'", "password": "'$ABSUITE_USER_PASSWORD'"}'
+```
+Extract the `accessToken` from the JSON response.
+
+2. **Use the token in all subsequent requests:**
+```bash
+-H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+3. **All REST endpoints use the base path:** `$ABSUITE_HOST_URL/api/v2/`
 
 ## Command Discovery
 
@@ -72,10 +92,22 @@ absuite accounting create account --help
 absuite accounting list accounts --TenantId $TENANT_ID
 ```
 
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### List Root Accounts (top-level)
 
 ```bash
 absuite accounting list root-accounts --TenantId $TENANT_ID
+```
+
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/Root" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ### List Child Accounts
@@ -84,10 +116,22 @@ absuite accounting list root-accounts --TenantId $TENANT_ID
 absuite accounting list child-accounts --TenantId $TENANT_ID --AccountId <parent-account-guid>
 ```
 
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<parent-account-guid>/Children" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### Count Accounts
 
 ```bash
 absuite accounting count accounts --TenantId $TENANT_ID
+```
+
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ### Get Account Details
@@ -96,10 +140,27 @@ absuite accounting count accounts --TenantId $TENANT_ID
 absuite accounting list account-details --TenantId $TENANT_ID --AccountId <account-guid>
 ```
 
+**REST API equivalent:**
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### Get Account Aggregate (Balance Summary)
 
 ```bash
 absuite accounting get account-aggregate --TenantId $TENANT_ID --AccountId <account-guid>
+```
+
+**REST API equivalent:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/Aggregate" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json"
+
+# Get aggregate balance
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/Aggregate/Balance" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ### Balance an Account
@@ -108,10 +169,22 @@ absuite accounting get account-aggregate --TenantId $TENANT_ID --AccountId <acco
 absuite accounting balance account --TenantId $TENANT_ID --AccountId <account-guid>
 ```
 
+**REST API equivalent:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>/Balance" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### Balance a Root Account (cascading)
 
 ```bash
 absuite accounting balance root-account --TenantId $TENANT_ID --AccountId <root-account-guid>
+```
+
+**REST API equivalent:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/Root/Balance" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ### Create Account
@@ -125,6 +198,21 @@ absuite accounting create account --TenantId $TENANT_ID --AccountCreateDto '{
   "CurrencyId": "<currency-guid>",
   "ParentAccountId": "<parent-account-guid>"
 }'
+```
+
+**REST API equivalent:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "Name": "Accounts Receivable",
+    "Code": "1200",
+    "AccountCategory": "Asset",
+    "AccountTypeId": "<account-type-guid>",
+    "CurrencyId": "<currency-guid>",
+    "ParentAccountId": "<parent-account-guid>"
+  }'
 ```
 
 **Key fields:**
@@ -146,6 +234,14 @@ absuite accounting update account --TenantId $TENANT_ID --AccountId <account-gui
 }'
 ```
 
+**REST API equivalent:**
+```bash
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"Name": "Trade Receivables", "Frozen": false}'
+```
+
 ### Patch Account (Partial Update)
 
 ```bash
@@ -154,10 +250,24 @@ absuite accounting patch account --TenantId $TENANT_ID --AccountId <account-guid
 ]'
 ```
 
+**REST API equivalent:**
+```bash
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json-patch+json" \
+  -d '[{"op": "replace", "path": "/Name", "value": "Updated Name"}]'
+```
+
 ### Delete Account
 
 ```bash
 absuite accounting delete account --TenantId $TENANT_ID --AccountId <account-guid>
+```
+
+**REST API equivalent:**
+```bash
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ## Account Types
@@ -182,6 +292,37 @@ absuite accounting update account-type --TenantId $TENANT_ID --AccountTypeId <ty
 
 # Delete
 absuite accounting delete account-type --TenantId $TENANT_ID --AccountTypeId <type-guid>
+```
+
+**REST API equivalent:**
+```bash
+# List types
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/Types" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count types
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/Types/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get type by ID
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/Types/<type-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create type
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/Types" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"Name": "Current Asset", "Description": "Short-term assets expected to be converted to cash within one year"}'
+
+# Update type
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/Types/<type-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"Name": "Current Asset (Updated)"}'
+
+# Delete type
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/Types/<type-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ## Account Groups
@@ -211,6 +352,37 @@ absuite accounting update account-group --TenantId $TENANT_ID --AccountGroupId <
 absuite accounting delete account-group --TenantId $TENANT_ID --AccountGroupId <group-guid>
 ```
 
+**REST API equivalent:**
+```bash
+# List
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/AccountGroups" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/AccountGroups/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get by ID
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/AccountGroups/<group-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/AccountGroups" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"Title": "Operating Expenses", "Description": "Day-to-day business expenses"}'
+
+# Update
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/AccountGroups/<group-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"Title": "OpEx"}'
+
+# Delete
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/AccountGroups/<group-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ## Account Entries (Debits & Credits)
 
 ### Create an Account Entry
@@ -225,6 +397,22 @@ absuite accounting create account-entry --TenantId $TENANT_ID --AccountId <accou
   "CreditAccountId": "<receivables-account-guid>",
   "AccountingEntryType": "Debit"
 }'
+```
+
+**REST API equivalent:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>/Entries" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "Description": "Client payment received",
+    "Date": "2026-04-19T00:00:00Z",
+    "Amount": 5000.00,
+    "CurrencyId": "<currency-guid>",
+    "DebitAccountId": "<bank-account-guid>",
+    "CreditAccountId": "<receivables-account-guid>",
+    "AccountingEntryType": "Debit"
+  }'
 ```
 
 **Key fields:**
@@ -243,6 +431,27 @@ absuite accounting list account-entries --TenantId $TENANT_ID --AccountId <accou
 absuite accounting get account-entry --TenantId $TENANT_ID --AccountId <account-guid> --AccountEntryId <entry-guid>
 absuite accounting update account-entry --TenantId $TENANT_ID --AccountId <account-guid> --AccountEntryId <entry-guid> --AccountingEntryUpdateDto '{...}'
 absuite accounting delete account-entry --TenantId $TENANT_ID --AccountId <account-guid> --AccountEntryId <entry-guid>
+```
+
+**REST API equivalent:**
+```bash
+# List entries
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>/Entries" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get entry
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>/Entries/<entry-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Update entry
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>/Entries/<entry-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete entry
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>/Entries/<entry-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ### Debit / Credit Specific Views
@@ -279,6 +488,45 @@ absuite accounting create account-credit --TenantId $TENANT_ID --AccountId <acco
 }'
 ```
 
+**REST API equivalent:**
+```bash
+# List debits for an account
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>/Debits" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count debits
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>/Debits/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# List credits for an account
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>/Credits" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count credits
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>/Credits/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# List debit entries
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>/Entries/Debit" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# List credit entries
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>/Entries/Credit" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create debit
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>/Debits" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"Description": "Office supplies purchase", "Date": "2026-04-19T00:00:00Z", "Amount": 250.00, "CurrencyId": "<currency-guid>"}'
+
+# Create credit
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>/Credits" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"Description": "Vendor refund received", "Date": "2026-04-19T00:00:00Z", "Amount": 100.00, "CurrencyId": "<currency-guid>"}'
+```
+
 ### Account Relations
 
 ```bash
@@ -287,6 +535,47 @@ absuite accounting count account-relations --TenantId $TENANT_ID --AccountId <ac
 absuite accounting create account-relation --TenantId $TENANT_ID --AccountId <account-guid> --AccountRelationCreateDto '{...}'
 absuite accounting update account-relation --TenantId $TENANT_ID --AccountRelationId <relation-guid> --AccountRelationUpdateDto '{...}'
 absuite accounting delete account-relation --TenantId $TENANT_ID --AccountRelationId <relation-guid>
+```
+
+**REST API equivalent:**
+```bash
+# List relations
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/Relations" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count relations
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/Relations/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create relation
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/Relations" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Update relation
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/Relations/<relation-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete relation
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/Relations/<relation-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+### Charts of Accounts & Seeding
+
+**REST API only:**
+```bash
+# List charts of accounts
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/ChartsOfAccounts" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Seed a chart of accounts
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/ChartsOfAccounts/Seed" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json"
 ```
 
 ---
@@ -305,6 +594,20 @@ absuite accounting create journal --TenantId $TENANT_ID --JournalCreateDto '{
 }'
 ```
 
+**REST API equivalent:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Journals" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "Name": "General Journal - April 2026",
+    "Description": "Monthly general journal entries",
+    "DateTime": "2026-04-01T00:00:00Z",
+    "JournalTypeID": "<journal-type-guid>",
+    "LedgerID": "<ledger-guid>"
+  }'
+```
+
 ### List / Get / Update / Delete Journals
 
 ```bash
@@ -313,6 +616,31 @@ absuite accounting count journals --TenantId $TENANT_ID
 absuite accounting list journal-details --TenantId $TENANT_ID --JournalId <journal-guid>
 absuite accounting update journal --TenantId $TENANT_ID --JournalId <journal-guid> --JournalUpdateDto '{...}'
 absuite accounting delete journal --TenantId $TENANT_ID --JournalId <journal-guid>
+```
+
+**REST API equivalent:**
+```bash
+# List journals
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Journals" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count journals
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Journals/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get journal details
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Journals/<journal-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Update journal
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Journals/<journal-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete journal
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/Journals/<journal-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ### Create a Journal Entry (Double-Entry)
@@ -328,6 +656,23 @@ absuite accounting create journal-entry --TenantId $TENANT_ID --JournalId <journ
   "CreditAccountId": "<receivables-account-guid>",
   "InvoiceCode": "INV-1042"
 }'
+```
+
+**REST API equivalent:**
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Journals/<journal-guid>/Entries" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "Description": "Record client payment",
+    "Date": "2026-04-19T00:00:00Z",
+    "Debit": 5000.00,
+    "Credit": 5000.00,
+    "CurrencyId": "<currency-guid>",
+    "DebitAccountId": "<cash-account-guid>",
+    "CreditAccountId": "<receivables-account-guid>",
+    "InvoiceCode": "INV-1042"
+  }'
 ```
 
 **Key fields:**
@@ -347,6 +692,35 @@ absuite accounting update journal-entry --TenantId $TENANT_ID --JournalId <journ
 absuite accounting delete journal-entry --TenantId $TENANT_ID --JournalId <journal-guid> --JournalEntryId <entry-guid>
 ```
 
+**REST API equivalent:**
+```bash
+# List journal entries
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Journals/<journal-guid>/Entries" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count journal entries
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Journals/<journal-guid>/Entries/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Aggregate credits
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Journals/<journal-guid>/Entries/Aggregate/Credits" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Aggregate debits
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Journals/<journal-guid>/Entries/Aggregate/Debits" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Update journal entry
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Journals/<journal-guid>/Entries/<entry-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete journal entry
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/Journals/<journal-guid>/Entries/<entry-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### Journal Types
 
 ```bash
@@ -356,6 +730,37 @@ absuite accounting list journal-type-details --TenantId $TENANT_ID --JournalType
 absuite accounting create journal-type --TenantId $TENANT_ID --JournalTypeCreateDto '{"Name": "Sales Journal", "Description": "Revenue entries"}'
 absuite accounting update journal-type --TenantId $TENANT_ID --JournalTypeId <type-guid> --JournalTypeUpdateDto '{...}'
 absuite accounting delete journal-type --TenantId $TENANT_ID --JournalTypeId <type-guid>
+```
+
+**REST API equivalent:**
+```bash
+# List journal types
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/JournalTypes" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count journal types
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/JournalTypes/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get journal type
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/JournalTypes/<type-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create journal type
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/JournalTypes" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"Name": "Sales Journal", "Description": "Revenue entries"}'
+
+# Update journal type
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/JournalTypes/<type-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete journal type
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/JournalTypes/<type-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ---
@@ -384,6 +789,37 @@ absuite accounting update ledger --TenantId $TENANT_ID --LedgerId <ledger-guid> 
 absuite accounting delete ledger --TenantId $TENANT_ID --LedgerId <ledger-guid>
 ```
 
+**REST API equivalent:**
+```bash
+# List ledgers
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Ledgers" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count ledgers
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Ledgers/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get ledger details
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Ledgers/<ledger-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create ledger
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Ledgers" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"Name": "General Ledger", "Description": "Primary ledger for all business transactions", "LedgerTypeId": "<ledger-type-guid>"}'
+
+# Update ledger
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Ledgers/<ledger-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete ledger
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/Ledgers/<ledger-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### Ledger Types
 
 ```bash
@@ -393,6 +829,37 @@ absuite accounting list ledger-type-details --TenantId $TENANT_ID --LedgerTypeId
 absuite accounting create ledger-type --TenantId $TENANT_ID --CreateLedgerTypeDto '{"Name": "General", "Description": "General purpose ledger"}'
 absuite accounting update ledger-type --TenantId $TENANT_ID --LedgerTypeId <type-guid> --UpdateLedgerTypeDto '{...}'
 absuite accounting delete ledger-type --TenantId $TENANT_ID --LedgerTypeId <type-guid>
+```
+
+**REST API equivalent:**
+```bash
+# List ledger types
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/LedgerTypes" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count ledger types
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/LedgerTypes/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get ledger type
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/LedgerTypes/<type-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create ledger type
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/LedgerTypes" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"Name": "General", "Description": "General purpose ledger"}'
+
+# Update ledger type
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/LedgerTypes/<type-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete ledger type
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/LedgerTypes/<type-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ---
@@ -406,6 +873,37 @@ absuite accounting list financial-book-details --TenantId $TENANT_ID --Financial
 absuite accounting create financial-book --TenantId $TENANT_ID --FinancialBookCreateDto '{"Name": "FY2026 Book", "Description": "Financial records for fiscal year 2026"}'
 absuite accounting update financial-book --TenantId $TENANT_ID --FinancialBookId <book-guid> --FinancialBookUpdateDto '{...}'
 absuite accounting delete financial-book --TenantId $TENANT_ID --FinancialBookId <book-guid>
+```
+
+**REST API equivalent:**
+```bash
+# List financial books
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/FinancialBooks" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count financial books
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/FinancialBooks/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get financial book
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/FinancialBooks/<book-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create financial book
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/FinancialBooks" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"Name": "FY2026 Book", "Description": "Financial records for fiscal year 2026"}'
+
+# Update financial book
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/FinancialBooks/<book-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete financial book
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/FinancialBooks/<book-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ---
@@ -439,6 +937,39 @@ absuite accounting create tax-policy --TenantId $TENANT_ID --TaxPolicyCreateDto 
 }'
 ```
 
+**REST API equivalent:**
+```bash
+# List all tax policies
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/TaxPolicies" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count tax policies
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/TaxPolicies/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get tax policy by ID
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/TaxPolicies/<policy-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get by fiscal authority
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/TaxPolicies/ByAuthority/<authority-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create tax policy
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/TaxPolicies" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "Title": "Standard VAT 19%",
+    "Code": "VAT-19",
+    "Percentage": 19.0,
+    "IsEnabled": true,
+    "FiscalAuthorityId": "<authority-guid>",
+    "CountryId": "<country-guid>",
+    "CurrencyId": "<currency-guid>"
+  }'
+```
+
 **Key fields:**
 - `Title`, `Code` — identification
 - `Percentage` — tax rate percentage
@@ -458,6 +989,19 @@ absuite accounting update tax-policy --TenantId $TENANT_ID --TaxPolicyId <policy
 absuite accounting delete tax-policy --TenantId $TENANT_ID --TaxPolicyId <policy-guid>
 ```
 
+**REST API equivalent:**
+```bash
+# Update tax policy
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/TaxPolicies/<policy-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete tax policy
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/TaxPolicies/<policy-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### Tax Rates
 
 ```bash
@@ -467,6 +1011,79 @@ absuite accounting get tax-rate --TenantId $TENANT_ID --TaxRateId <rate-guid>
 absuite accounting create tax-rate --TenantId $TENANT_ID --TaxRateCreateDto '{...}'
 absuite accounting update tax-rate --TenantId $TENANT_ID --TaxRateId <rate-guid> --TaxRateUpdateDto '{...}'
 absuite accounting delete tax-rate --TenantId $TENANT_ID --TaxRateId <rate-guid>
+```
+
+**REST API equivalent:**
+```bash
+# List tax rates
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/TaxRates" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count tax rates
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/TaxRates/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get tax rate
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/TaxRates/<rate-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create tax rate
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/TaxRates" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Update tax rate
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/TaxRates/<rate-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete tax rate
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/TaxRates/<rate-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+### Tax Classes
+
+```bash
+absuite accounting list tax-classes --TenantId $TENANT_ID
+absuite accounting count tax-classes --TenantId $TENANT_ID
+absuite accounting get tax-class --TenantId $TENANT_ID --TaxClassId <class-guid>
+absuite accounting create tax-class --TenantId $TENANT_ID --TaxClassCreateDto '{"Name": "Standard", "Type": "Product", "FiscalAuthorityId": "<authority-guid>"}'
+absuite accounting update tax-class --TenantId $TENANT_ID --TaxClassId <class-guid> --TaxClassUpdateDto '{...}'
+absuite accounting delete tax-class --TenantId $TENANT_ID --TaxClassId <class-guid>
+```
+
+**REST API equivalent:**
+```bash
+# List tax classes
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/TaxClasses" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count tax classes
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/TaxClasses/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get tax class
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/TaxClasses/<class-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create tax class
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/TaxClasses" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"Name": "Standard", "Type": "Product", "FiscalAuthorityId": "<authority-guid>"}'
+
+# Update tax class
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/TaxClasses/<class-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete tax class
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/TaxClasses/<class-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ### Applied Tax Policy Records & Item Tax Policy Records
@@ -486,6 +1103,52 @@ absuite accounting get item-tax-policy-record --TenantId $TENANT_ID --ItemTaxPol
 absuite accounting create item-tax-policy-record --TenantId $TENANT_ID --ItemTaxPolicyRecordCreateDto '{...}'
 absuite accounting update item-tax-policy-record --TenantId $TENANT_ID --ItemTaxPolicyRecordId <record-guid> --ItemTaxPolicyRecordUpdateDto '{...}'
 absuite accounting delete item-tax-policy-record --TenantId $TENANT_ID --ItemTaxPolicyRecordId <record-guid>
+```
+
+**REST API equivalent:**
+```bash
+# Applied tax policy records
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/TaxPolicies/<policy-guid>/AppliedTaxPolicyRecords" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/TaxPolicies/<policy-guid>/AppliedTaxPolicyRecords/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/TaxPolicies/<policy-guid>/AppliedTaxPolicyRecords/<record-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/TaxPolicies/<policy-guid>/AppliedTaxPolicyRecords" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/TaxPolicies/<policy-guid>/AppliedTaxPolicyRecords/<record-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/TaxPolicies/<policy-guid>/AppliedTaxPolicyRecords/<record-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Item-specific tax policy records
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/TaxPolicies/<policy-guid>/ItemTaxPolicyRecords" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/TaxPolicies/<policy-guid>/ItemTaxPolicyRecords/<record-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/TaxPolicies/<policy-guid>/ItemTaxPolicyRecords" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/TaxPolicies/<policy-guid>/ItemTaxPolicyRecords/<record-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/TaxPolicies/<policy-guid>/ItemTaxPolicyRecords/<record-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ---
@@ -510,6 +1173,42 @@ absuite accounting update fiscal-authority --TenantId $TENANT_ID --FiscalAuthori
 absuite accounting delete fiscal-authority --TenantId $TENANT_ID --FiscalAuthorityId <authority-guid>
 ```
 
+**REST API equivalent:**
+```bash
+# List fiscal authorities
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Fiscals/Authorities" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count fiscal authorities
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Fiscals/Authorities/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get fiscal authority
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Fiscals/Authorities/<authority-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create fiscal authority
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Fiscals/Authorities" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "Name": "DIAN",
+    "Description": "Dirección de Impuestos y Aduanas Nacionales",
+    "CountryId": "COL",
+    "WebUrl": "https://www.dian.gov.co"
+  }'
+
+# Update fiscal authority
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Fiscals/Authorities/<authority-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete fiscal authority
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/Fiscals/Authorities/<authority-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### Fiscal Years
 
 ```bash
@@ -530,6 +1229,43 @@ absuite accounting update fiscal-year --TenantId $TENANT_ID --FiscalYearId <year
 absuite accounting delete fiscal-year --TenantId $TENANT_ID --FiscalYearId <year-guid>
 ```
 
+**REST API equivalent:**
+```bash
+# List fiscal years
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/FiscalYears" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count fiscal years
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/FiscalYears/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get fiscal year
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/FiscalYears/<year-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create fiscal year
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/FiscalYears" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "Name": "FY2026",
+    "Description": "Fiscal Year 2026",
+    "StartDate": "2026-01-01T00:00:00Z",
+    "EndDate": "2026-12-31T23:59:59Z",
+    "Closed": false
+  }'
+
+# Update fiscal year
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/FiscalYears/<year-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete fiscal year
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/FiscalYears/<year-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### Fiscal Periods
 
 ```bash
@@ -541,6 +1277,25 @@ absuite accounting update fiscal-period --TenantId $TENANT_ID --FiscalPeriodId <
 absuite accounting delete fiscal-period --TenantId $TENANT_ID --FiscalPeriodId <period-guid>
 ```
 
+**REST API equivalent:**
+```bash
+# Create fiscal period
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Fiscals/Authorities/FiscalPeriods" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Update fiscal period
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Fiscals/Authorities/FiscalPeriods/<period-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete fiscal period
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/Fiscals/Authorities/FiscalPeriods/<period-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### Fiscal Regimes
 
 ```bash
@@ -550,6 +1305,25 @@ absuite accounting get fiscal-regime --TenantId $TENANT_ID --FiscalRegimeId <reg
 absuite accounting create fiscal-regime --TenantId $TENANT_ID --FiscalRegimeCreateDto '{...}'
 absuite accounting update fiscal-regime --TenantId $TENANT_ID --FiscalRegimeId <regime-guid> --FiscalRegimeUpdateDto '{...}'
 absuite accounting delete fiscal-regime --TenantId $TENANT_ID --FiscalRegimeId <regime-guid>
+```
+
+**REST API equivalent:**
+```bash
+# Create fiscal regime
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Fiscals/Authorities/FiscalRegimes" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Update fiscal regime
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Fiscals/Authorities/FiscalRegimes/<regime-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete fiscal regime
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/Fiscals/Authorities/FiscalRegimes/<regime-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ### Fiscal Responsibilities & Identification Types
@@ -572,6 +1346,53 @@ absuite accounting list fiscal-identification-types --TenantId $TENANT_ID --Fisc
 absuite accounting count fiscal-identification-types --TenantId $TENANT_ID
 absuite accounting get fiscal-identification-type --TenantId $TENANT_ID --FiscalIdentificationTypeId <type-guid>
 absuite accounting create fiscal-identification-type --TenantId $TENANT_ID --FiscalIdentificationTypeCreateDto '{...}'
+```
+
+**REST API equivalent:**
+```bash
+# Create fiscal responsibility
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Fiscals/Authorities/FiscalResponsibilities" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete fiscal responsibility
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/Fiscals/Authorities/FiscalResponsibilities/<resp-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Update fiscal responsibility
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Fiscals/Authorities/FiscalResponsibilities/<resp-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Fiscal responsibility records
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Fiscals/Authorities/FiscalResponsibilityRecords" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/Fiscals/Authorities/FiscalResponsibilityRecords/<record-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Fiscals/Authorities/FiscalResponsibilityRecords/<record-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Fiscal identification types
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Fiscals/Authorities/IdentificationTypes" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/Fiscals/Authorities/IdentificationTypes/<type-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Fiscals/Authorities/IdentificationTypes/<type-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
 ```
 
 ---
@@ -611,6 +1432,48 @@ absuite accounting update billing-profile --TenantId $TENANT_ID --BillingProfile
 absuite accounting delete billing-profile --TenantId $TENANT_ID --BillingProfileId <profile-guid>
 ```
 
+**REST API equivalent:**
+```bash
+# List billing profiles
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/BillingProfiles" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count billing profiles
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/BillingProfiles/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get billing profile
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/BillingProfiles/<profile-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create billing profile
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/BillingProfiles" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "BusinessName": "Acme Corporation",
+    "CommercialName": "Acme Corp",
+    "TaxId": "900123456-7",
+    "Email": "billing@acme.com",
+    "Phone": "+1-555-0100",
+    "Address": "123 Main St",
+    "PostalCode": "10001",
+    "CountryId": "USA",
+    "ContactId": "<contact-guid>",
+    "FiscalAuthorityId": "<authority-guid>"
+  }'
+
+# Update billing profile
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/BillingProfiles/<profile-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete billing profile
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/BillingProfiles/<profile-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ---
 
 ## Banking
@@ -629,6 +1492,37 @@ absuite accounting create bank --TenantId $TENANT_ID --BankCreateDto '{
 
 absuite accounting update bank --TenantId $TENANT_ID --BankId <bank-guid> --BankUpdateDto '{...}'
 absuite accounting delete bank --TenantId $TENANT_ID --BankId <bank-guid>
+```
+
+**REST API equivalent:**
+```bash
+# List banks
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Banking" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count banks
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Banking/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get bank
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Banking/<bank-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create bank
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Banking" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"Name": "First National Bank", "CountryId": "USA"}'
+
+# Update bank
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Banking/<bank-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete bank
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/Banking/<bank-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ### Bank Accounts
@@ -652,6 +1546,43 @@ absuite accounting update bank-account --TenantId $TENANT_ID --BankAccountId <ac
 absuite accounting delete bank-account --TenantId $TENANT_ID --BankAccountId <account-guid>
 ```
 
+**REST API equivalent:**
+```bash
+# List bank accounts
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Banking/<bank-guid>/Accounts" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count bank accounts
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Banking/<bank-guid>/Accounts/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get bank account
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Banking/<bank-guid>/Accounts/<account-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create bank account
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Banking/<bank-guid>/Accounts" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "Name": "Operating Account",
+    "BankAccountNumber": "1234567890",
+    "Iban": "US12345678901234567890",
+    "Swift": "FNBKUS44",
+    "CurrencyId": "<currency-guid>"
+  }'
+
+# Update bank account
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Banking/<bank-guid>/Accounts/<account-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete bank account
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/Banking/<bank-guid>/Accounts/<account-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### Bank Transactions
 
 ```bash
@@ -663,6 +1594,37 @@ absuite accounting update bank-transaction --TenantId $TENANT_ID --BankTransacti
 absuite accounting delete bank-transaction --TenantId $TENANT_ID --BankTransactionId <txn-guid>
 ```
 
+**REST API equivalent:**
+```bash
+# List bank transactions
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Banking/Transactions" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count bank transactions
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Banking/Transactions/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get bank transaction
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Banking/Transactions/<txn-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create bank transaction
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Banking/Transactions" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Update bank transaction
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Banking/Transactions/<txn-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete bank transaction
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/Banking/Transactions/<txn-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### Bank Guarantees
 
 ```bash
@@ -672,6 +1634,37 @@ absuite accounting get bank-guarantee --TenantId $TENANT_ID --BankGuaranteeId <g
 absuite accounting create bank-guarantee --TenantId $TENANT_ID --BankGuaranteeCreateDto '{...}'
 absuite accounting update bank-guarantee --TenantId $TENANT_ID --BankGuaranteeId <guarantee-guid> --BankGuaranteeUpdateDto '{...}'
 absuite accounting delete bank-guarantee --TenantId $TENANT_ID --BankGuaranteeId <guarantee-guid>
+```
+
+**REST API equivalent:**
+```bash
+# List bank guarantees
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Banking/Guarantees" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count bank guarantees
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Banking/Guarantees/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get bank guarantee
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Banking/Guarantees/<guarantee-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create bank guarantee
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Banking/Guarantees" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Update bank guarantee
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Banking/Guarantees/<guarantee-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete bank guarantee
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/Banking/Guarantees/<guarantee-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ---
@@ -704,6 +1697,71 @@ absuite accounting update transaction-category --TenantId $TENANT_ID --Transacti
 absuite accounting delete transaction-category --TenantId $TENANT_ID --TransactionCategoryId <cat-guid>
 ```
 
+**REST API equivalent:**
+```bash
+# List transactions
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Transactions" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count transactions
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Transactions/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get transaction
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Transactions/<txn-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create transaction
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Transactions" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "Description": "Software license sale",
+    "Price": 500.00,
+    "Quantity": 10,
+    "CurrencyId": "<currency-guid>",
+    "TransactionCategoryId": "<category-guid>"
+  }'
+
+# Update transaction
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Transactions/<txn-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete transaction
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/Transactions/<txn-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# List transaction categories
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/TransactionCategories" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count transaction categories
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/TransactionCategories/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get transaction category
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/TransactionCategories/<cat-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create transaction category
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/TransactionCategories" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Update transaction category
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/TransactionCategories/<cat-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete transaction category
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/TransactionCategories/<cat-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ---
 
 ## Budgets & Cost Centres
@@ -723,6 +1781,57 @@ absuite accounting get budget-account-entry --TenantId $TENANT_ID --BudgetAccoun
 absuite accounting create budget-account-entry --TenantId $TENANT_ID --BudgetAccountEntryCreateDto '{...}'
 absuite accounting update budget-account-entry --TenantId $TENANT_ID --BudgetAccountEntryId <entry-guid> --BudgetAccountEntryUpdateDto '{...}'
 absuite accounting delete budget-account-entry --TenantId $TENANT_ID --BudgetAccountEntryId <entry-guid>
+```
+
+**REST API equivalent:**
+```bash
+# List budgets
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Budgets" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count budgets
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Budgets/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get budget
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Budgets/<budget-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create budget
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Budgets" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Update budget
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Budgets/<budget-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete budget
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/Budgets/<budget-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Budget account entries
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Budgets/<budget-guid>/AccountEntries" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Budgets/<budget-guid>/AccountEntries/<entry-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Budgets/<budget-guid>/AccountEntries" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Budgets/<budget-guid>/AccountEntries/<entry-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/Budgets/<budget-guid>/AccountEntries/<entry-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ### Cost Centres
@@ -745,6 +1854,80 @@ absuite accounting create cost-centre-group --TenantId $TENANT_ID --CostCentreGr
 absuite accounting list cost-centre-budgets --TenantId $TENANT_ID
 absuite accounting get cost-centre-budget --TenantId $TENANT_ID --CostCentreBudgetId <budget-guid>
 absuite accounting create cost-centre-budget --TenantId $TENANT_ID --CostCentreBudgetCreateDto '{...}'
+```
+
+**REST API equivalent:**
+```bash
+# List cost centres
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/CostCentres" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count cost centres
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/CostCentres/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get cost centre
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/CostCentres/<cc-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create cost centre
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/CostCentres" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Update cost centre
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/CostCentres/<cc-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete cost centre
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/CostCentres/<cc-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Cost centre groups
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/CostCentres/Groups" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/CostCentres/Groups/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/CostCentres/Groups/<group-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/CostCentres/Groups" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/CostCentres/Groups/<group-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/CostCentres/Groups/<group-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Cost centre budgets
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/CostCentres/Budgets" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/CostCentres/Budgets/<budget-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/CostCentres/Budgets" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/CostCentres/Budgets/<budget-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/CostCentres/Budgets/<budget-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ---
@@ -775,6 +1958,215 @@ absuite accounting update receipt --TenantId $TENANT_ID --ReceiptId <receipt-gui
 absuite accounting delete receipt --TenantId $TENANT_ID --ReceiptId <receipt-guid>
 ```
 
+**REST API equivalent:**
+```bash
+# Commissions
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Commissions" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Commissions/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Commissions/<commission-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Commissions" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Commissions/<commission-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/Commissions/<commission-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Payment commissions
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/PaymentCommissions" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/PaymentCommissions/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/PaymentCommissions/<pc-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/PaymentCommissions" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/PaymentCommissions/<pc-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/PaymentCommissions/<pc-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Receipts
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Receipts" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Receipts/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Receipts/<receipt-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Receipts" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Receipts/<receipt-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/Receipts/<receipt-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+---
+
+## Expense Claims
+
+```bash
+absuite accounting list expense-claims --TenantId $TENANT_ID
+absuite accounting count expense-claims --TenantId $TENANT_ID
+absuite accounting get expense-claim --TenantId $TENANT_ID --ExpenseClaimId <claim-guid>
+absuite accounting create expense-claim --TenantId $TENANT_ID --ExpenseClaimCreateDto '{
+  "Title": "Q2 Travel Expenses",
+  "Description": "Business travel April–June",
+  "CurrencyId": "<currency-guid>",
+  "ContactId": "<contact-guid>"
+}'
+absuite accounting update expense-claim --TenantId $TENANT_ID --ExpenseClaimId <claim-guid> --ExpenseClaimUpdateDto '{...}'
+absuite accounting delete expense-claim --TenantId $TENANT_ID --ExpenseClaimId <claim-guid>
+```
+
+**REST API equivalent:**
+```bash
+# List expense claims
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/ExpenseClaims" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count expense claims
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/ExpenseClaims/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get expense claim
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/ExpenseClaims/<claim-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create expense claim
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/ExpenseClaims" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Update expense claim
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/ExpenseClaims/<claim-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete expense claim
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/ExpenseClaims/<claim-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+---
+
+## Expense Types
+
+```bash
+absuite accounting list expense-types --TenantId $TENANT_ID
+absuite accounting count expense-types --TenantId $TENANT_ID
+absuite accounting get expense-type --TenantId $TENANT_ID --ExpenseTypeId <type-guid>
+absuite accounting create expense-type --TenantId $TENANT_ID --ExpenseTypeCreateDto '{"Name": "Travel", "Description": "Business travel expenses"}'
+absuite accounting update expense-type --TenantId $TENANT_ID --ExpenseTypeId <type-guid> --ExpenseTypeUpdateDto '{...}'
+absuite accounting delete expense-type --TenantId $TENANT_ID --ExpenseTypeId <type-guid>
+```
+
+**REST API equivalent:**
+```bash
+# List expense types
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/ExpenseTypes" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count expense types
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/ExpenseTypes/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get expense type
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/ExpenseTypes/<type-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create expense type
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/ExpenseTypes" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Update expense type
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/ExpenseTypes/<type-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete expense type
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/ExpenseTypes/<type-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+---
+
+## Billable Line Taxes
+
+```bash
+absuite accounting list billable-line-taxes --TenantId $TENANT_ID
+absuite accounting count billable-line-taxes --TenantId $TENANT_ID
+absuite accounting get billable-line-tax --TenantId $TENANT_ID --BillableLineTaxId <tax-guid>
+absuite accounting create billable-line-tax --TenantId $TENANT_ID --BillableLineTaxCreateDto '{...}'
+absuite accounting update billable-line-tax --TenantId $TENANT_ID --BillableLineTaxId <tax-guid> --BillableLineTaxUpdateDto '{...}'
+absuite accounting delete billable-line-tax --TenantId $TENANT_ID --BillableLineTaxId <tax-guid>
+```
+
+**REST API equivalent:**
+```bash
+# List billable line taxes
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/BillableLineTaxes" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count billable line taxes
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/BillableLineTaxes/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get billable line tax
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/BillableLineTaxes/<tax-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create billable line tax
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/BillableLineTaxes" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Update billable line tax
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/BillableLineTaxes/<tax-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete billable line tax
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/BillableLineTaxes/<tax-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ---
 
 ## Grants & Loans
@@ -803,6 +2195,164 @@ absuite accounting list loan-application-details --TenantId $TENANT_ID --LoanApp
 absuite accounting create loan-application --TenantId $TENANT_ID --LoanApplicationCreateDto '{...}'
 absuite accounting update loan-application --TenantId $TENANT_ID --LoanApplicationId <app-guid> --LoanApplicationUpdateDto '{...}'
 absuite accounting delete loan-application --TenantId $TENANT_ID --LoanApplicationId <app-guid>
+```
+
+**REST API equivalent:**
+```bash
+# Grants
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Grants" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Grants/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Grants/<grant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Grants" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Grants/<grant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/Grants/<grant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Loans
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Loans" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Loans/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Loans/<loan-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Loans" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Loans/<loan-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/Loans/<loan-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Loan applications
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Loans/Applications" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Loans/Applications/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Loans/Applications/<app-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Loans/Applications" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Loans/Applications/<app-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/Loans/Applications/<app-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+## Loan Types
+
+```bash
+absuite accounting list loan-types --TenantId $TENANT_ID
+absuite accounting count loan-types --TenantId $TENANT_ID
+absuite accounting get loan-type --TenantId $TENANT_ID --LoanTypeId <type-guid>
+absuite accounting create loan-type --TenantId $TENANT_ID --LoanTypeCreateDto '{"Name": "Term Loan", "Description": "Fixed-term business loan"}'
+absuite accounting update loan-type --TenantId $TENANT_ID --LoanTypeId <type-guid> --LoanTypeUpdateDto '{...}'
+absuite accounting delete loan-type --TenantId $TENANT_ID --LoanTypeId <type-guid>
+```
+
+**REST API equivalent:**
+```bash
+# List loan types
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Loans/Types" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count loan types
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Loans/Types/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get loan type
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Loans/Types/<type-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create loan type
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Loans/Types" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Update loan type
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Loans/Types/<type-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete loan type
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/Loans/Types/<type-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+---
+
+## Bank Profiles
+
+```bash
+absuite accounting list bank-profiles --TenantId $TENANT_ID
+absuite accounting count bank-profiles --TenantId $TENANT_ID
+absuite accounting get bank-profile --TenantId $TENANT_ID --BankProfileId <profile-guid>
+absuite accounting create bank-profile --TenantId $TENANT_ID --BankProfileCreateDto '{...}'
+absuite accounting update bank-profile --TenantId $TENANT_ID --BankProfileId <profile-guid> --BankProfileUpdateDto '{...}'
+absuite accounting delete bank-profile --TenantId $TENANT_ID --BankProfileId <profile-guid>
+```
+
+**REST API equivalent:**
+```bash
+# List bank profiles
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Banking/Profiles" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count bank profiles
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Banking/Profiles/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get bank profile
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Banking/Profiles/<profile-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create bank profile
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Banking/Profiles" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Update bank profile
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Banking/Profiles/<profile-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete bank profile
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/Banking/Profiles/<profile-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ---
@@ -837,6 +2387,101 @@ absuite accounting get share-transfer-reason --TenantId $TENANT_ID --ShareTransf
 absuite accounting create share-transfer-reason --TenantId $TENANT_ID --ShareTransferReasonCreateDto '{...}'
 ```
 
+**REST API equivalent:**
+```bash
+# Share classes
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Shares/Classes" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Shares/Classes/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Shares/Classes/<class-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Shares/Classes" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Shares/Classes/<class-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/Shares/Classes/<class-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Share issuances
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Shares/Issuances" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Shares/Issuances/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Shares/Issuances/<issuance-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Shares/Issuances" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Shares/Issuances/<issuance-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/Shares/Issuances/<issuance-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Share transfers
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Shares/Transfers" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Shares/Transfers/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Shares/Transfers/<transfer-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Shares/Transfers" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Shares/Transfers/<transfer-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/Shares/Transfers/<transfer-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Share transfer reasons
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Shares/TransferReasons" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Shares/TransferReasons/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Shares/TransferReasons/<reason-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Shares/TransferReasons" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Shares/TransferReasons/<reason-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/Shares/TransferReasons/<reason-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ---
 
 ## Invoice Enumeration Ranges
@@ -851,6 +2496,37 @@ absuite accounting update invoice-enumeration-range --TenantId $TENANT_ID --Invo
 absuite accounting delete invoice-enumeration-range --TenantId $TENANT_ID --InvoiceEnumerationRangeId <range-guid>
 ```
 
+**REST API equivalent:**
+```bash
+# List invoice enumeration ranges
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/InvoiceEnumerationRanges" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count invoice enumeration ranges
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/InvoiceEnumerationRanges/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get invoice enumeration range
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/InvoiceEnumerationRanges/<range-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create invoice enumeration range
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/InvoiceEnumerationRanges" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Update invoice enumeration range
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/InvoiceEnumerationRanges/<range-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete invoice enumeration range
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/InvoiceEnumerationRanges/<range-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ---
 
 ## Accounting Periods
@@ -862,6 +2538,37 @@ absuite accounting get period --TenantId $TENANT_ID --PeriodId <period-guid>
 absuite accounting create period --TenantId $TENANT_ID --PeriodCreateDto '{...}'
 absuite accounting update period --TenantId $TENANT_ID --PeriodId <period-guid> --PeriodUpdateDto '{...}'
 absuite accounting delete period --TenantId $TENANT_ID --PeriodId <period-guid>
+```
+
+**REST API equivalent:**
+```bash
+# List accounting periods
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Periods" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count accounting periods
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Periods/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get accounting period
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Periods/<period-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create accounting period
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Periods" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Update accounting period
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Periods/<period-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete accounting period
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/Periods/<period-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ---
@@ -971,10 +2678,315 @@ absuite accounting balance account --AccountId <cash-account-guid>
 absuite accounting get account-aggregate --AccountId <cash-account-guid>
 ```
 
+## API Endpoints Quick Reference
+
+All endpoints are prefixed with `$ABSUITE_HOST_URL/api/v2/AccountingService/`.
+
+| Resource Group | Method | Endpoint | Description |
+|---|---|---|---|
+| **Accounts** | GET | `Accounts` | List all accounts |
+| | GET | `Accounts/Count` | Count accounts |
+| | GET | `Accounts/{id}` | Get account by ID |
+| | GET | `Accounts/{id}/Aggregate` | Get account aggregate/balance |
+| | POST | `Accounts` | Create account |
+| | PUT | `Accounts/{id}` | Update account |
+| | DELETE | `Accounts/{id}` | Delete account |
+| | PATCH | `Accounts/{id}` | Patch account |
+| | POST | `Accounts/{id}/Balance` | Balance an account |
+| | GET | `Accounts/{id}/Children` | List child accounts |
+| | POST | `Accounts/{id}/Credits` | Create account credit |
+| | GET | `Accounts/{id}/Credits` | List account credits |
+| | GET | `Accounts/{id}/Credits/Count` | Count account credits |
+| | POST | `Accounts/{id}/Debits` | Create account debit |
+| | GET | `Accounts/{id}/Debits` | List account debits |
+| | GET | `Accounts/{id}/Debits/Count` | Count account debits |
+| | POST | `Accounts/Aggregate` | Aggregate accounts |
+| | GET | `Accounts/Aggregate/Balance` | Aggregate accounts balance |
+| | GET | `Accounts/Root` | List root accounts |
+| | POST | `Accounts/Root/Balance` | Balance root accounts |
+| **Account Types** | GET | `Accounts/Types` | List account types |
+| | GET | `Accounts/Types/Count` | Count account types |
+| | GET | `Accounts/Types/{typeId}` | Get account type |
+| | POST | `Accounts/Types` | Create account type |
+| | PUT | `Accounts/Types/{typeId}` | Update account type |
+| | DELETE | `Accounts/Types/{typeId}` | Delete account type |
+| **Account Groups** | GET | `AccountGroups` | List account groups |
+| | GET | `AccountGroups/Count` | Count account groups |
+| | GET | `AccountGroups/{groupId}` | Get account group |
+| | POST | `AccountGroups` | Create account group |
+| | PUT | `AccountGroups/{groupId}` | Update account group |
+| | DELETE | `AccountGroups/{groupId}` | Delete account group |
+| **Account Entries** | GET | `Accounts/{id}/Entries` | List account entries |
+| | GET | `Accounts/{id}/Entries/{entryId}` | Get account entry |
+| | POST | `Accounts/{id}/Entries` | Create account entry |
+| | PUT | `Accounts/{id}/Entries/{entryId}` | Update account entry |
+| | DELETE | `Accounts/{id}/Entries/{entryId}` | Delete account entry |
+| | GET | `Accounts/{id}/Entries/Credit` | List credit entries |
+| | GET | `Accounts/{id}/Entries/Debit` | List debit entries |
+| **Account Relations** | GET | `Accounts/Relations` | List account relations |
+| | GET | `Accounts/Relations/Count` | Count account relations |
+| | POST | `Accounts/Relations` | Create account relation |
+| | PUT | `Accounts/Relations/{relId}` | Update account relation |
+| | DELETE | `Accounts/Relations/{relId}` | Delete account relation |
+| **Charts of Accounts** | GET | `Accounts/ChartsOfAccounts` | List charts of accounts |
+| | POST | `Accounts/ChartsOfAccounts/Seed` | Seed chart of accounts from template |
+| **Journals** | GET | `Journals` | List journals |
+| | GET | `Journals/Count` | Count journals |
+| | GET | `Journals/{id}` | Get journal |
+| | POST | `Journals` | Create journal |
+| | PUT | `Journals/{id}` | Update journal |
+| | DELETE | `Journals/{id}` | Delete journal |
+| **Journal Entries** | GET | `Journals/{id}/Entries` | List journal entries |
+| | GET | `Journals/{id}/Entries/Count` | Count journal entries |
+| | GET | `Journals/{id}/Entries/{entryId}` | Get journal entry |
+| | POST | `Journals/{id}/Entries` | Create journal entry |
+| | PUT | `Journals/{id}/Entries/{entryId}` | Update journal entry |
+| | DELETE | `Journals/{id}/Entries/{entryId}` | Delete journal entry |
+| **Journal Types** | GET | `Journals/Types` | List journal types |
+| | GET | `Journals/Types/Count` | Count journal types |
+| | GET | `Journals/Types/{typeId}` | Get journal type |
+| | POST | `Journals/Types` | Create journal type |
+| | PUT | `Journals/Types/{typeId}` | Update journal type |
+| | DELETE | `Journals/Types/{typeId}` | Delete journal type |
+| **Ledgers** | GET | `Ledgers` | List ledgers |
+| | GET | `Ledgers/Count` | Count ledgers |
+| | GET | `Ledgers/{id}` | Get ledger |
+| | POST | `Ledgers` | Create ledger |
+| | PUT | `Ledgers/{id}` | Update ledger |
+| | DELETE | `Ledgers/{id}` | Delete ledger |
+| **Ledger Types** | GET | `Ledgers/Types` | List ledger types |
+| | GET | `Ledgers/Types/Count` | Count ledger types |
+| | GET | `Ledgers/Types/{typeId}` | Get ledger type |
+| | POST | `Ledgers/Types` | Create ledger type |
+| | PUT | `Ledgers/Types/{typeId}` | Update ledger type |
+| | DELETE | `Ledgers/Types/{typeId}` | Delete ledger type |
+| **Financial Books** | GET | `FinancialBooks` | List financial books |
+| | GET | `FinancialBooks/Count` | Count financial books |
+| | GET | `FinancialBooks/{id}` | Get financial book |
+| | POST | `FinancialBooks` | Create financial book |
+| | PUT | `FinancialBooks/{id}` | Update financial book |
+| | DELETE | `FinancialBooks/{id}` | Delete financial book |
+| **Tax Policies** | GET | `TaxPolicies` | List tax policies |
+| | GET | `TaxPolicies/Count` | Count tax policies |
+| | GET | `TaxPolicies/{id}` | Get tax policy |
+| | POST | `TaxPolicies` | Create tax policy |
+| | PUT | `TaxPolicies/{id}` | Update tax policy |
+| | DELETE | `TaxPolicies/{id}` | Delete tax policy |
+| **Tax Rates** | GET | `TaxPolicies/{id}/TaxRates` | List tax rates |
+| | GET | `TaxPolicies/{id}/TaxRates/Count` | Count tax rates |
+| | GET | `TaxPolicies/{id}/TaxRates/{rateId}` | Get tax rate |
+| | POST | `TaxPolicies/{id}/TaxRates` | Create tax rate |
+| | PUT | `TaxPolicies/{id}/TaxRates/{rateId}` | Update tax rate |
+| | DELETE | `TaxPolicies/{id}/TaxRates/{rateId}` | Delete tax rate |
+| **Tax Classes** | GET | `TaxPolicies/{id}/TaxClasses` | List tax classes |
+| | GET | `TaxPolicies/{id}/TaxClasses/Count` | Count tax classes |
+| | GET | `TaxPolicies/{id}/TaxClasses/{classId}` | Get tax class |
+| | POST | `TaxPolicies/{id}/TaxClasses` | Create tax class |
+| | PUT | `TaxPolicies/{id}/TaxClasses/{classId}` | Update tax class |
+| | DELETE | `TaxPolicies/{id}/TaxClasses/{classId}` | Delete tax class |
+| **Applied Tax Records** | GET | `TaxPolicies/{id}/AppliedTaxPolicyRecords` | List applied tax records |
+| | GET | `TaxPolicies/{id}/AppliedTaxPolicyRecords/Count` | Count applied tax records |
+| | GET | `TaxPolicies/{id}/AppliedTaxPolicyRecords/{recId}` | Get applied tax record |
+| | POST | `TaxPolicies/{id}/AppliedTaxPolicyRecords` | Create applied tax record |
+| | PUT | `TaxPolicies/{id}/AppliedTaxPolicyRecords/{recId}` | Update applied tax record |
+| | DELETE | `TaxPolicies/{id}/AppliedTaxPolicyRecords/{recId}` | Delete applied tax record |
+| **Item Tax Records** | GET | `TaxPolicies/{id}/ItemTaxPolicyRecords` | List item tax records |
+| | GET | `TaxPolicies/{id}/ItemTaxPolicyRecords/{recId}` | Get item tax record |
+| | POST | `TaxPolicies/{id}/ItemTaxPolicyRecords` | Create item tax record |
+| | PUT | `TaxPolicies/{id}/ItemTaxPolicyRecords/{recId}` | Update item tax record |
+| | DELETE | `TaxPolicies/{id}/ItemTaxPolicyRecords/{recId}` | Delete item tax record |
+| **Fiscal Authorities** | GET | `Fiscals/Authorities` | List fiscal authorities |
+| | GET | `Fiscals/Authorities/Count` | Count fiscal authorities |
+| | GET | `Fiscals/Authorities/{id}` | Get fiscal authority |
+| | POST | `Fiscals/Authorities` | Create fiscal authority |
+| | PUT | `Fiscals/Authorities/{id}` | Update fiscal authority |
+| | DELETE | `Fiscals/Authorities/{id}` | Delete fiscal authority |
+| **Fiscal Years** | GET | `FiscalYears` | List fiscal years |
+| | GET | `FiscalYears/Count` | Count fiscal years |
+| | GET | `FiscalYears/{id}` | Get fiscal year |
+| | POST | `FiscalYears` | Create fiscal year |
+| | PUT | `FiscalYears/{id}` | Update fiscal year |
+| | DELETE | `FiscalYears/{id}` | Delete fiscal year |
+| **Fiscal Periods** | POST | `Fiscals/Authorities/FiscalPeriods` | Create fiscal period |
+| | PUT | `Fiscals/Authorities/FiscalPeriods/{id}` | Update fiscal period |
+| | DELETE | `Fiscals/Authorities/FiscalPeriods/{id}` | Delete fiscal period |
+| **Fiscal Regimes** | POST | `Fiscals/Authorities/FiscalRegimes` | Create fiscal regime |
+| | PUT | `Fiscals/Authorities/FiscalRegimes/{id}` | Update fiscal regime |
+| | DELETE | `Fiscals/Authorities/FiscalRegimes/{id}` | Delete fiscal regime |
+| **Fiscal Responsibilities** | POST | `Fiscals/Authorities/FiscalResponsibilities` | Create fiscal responsibility |
+| | PUT | `Fiscals/Authorities/FiscalResponsibilities/{id}` | Update fiscal responsibility |
+| | DELETE | `Fiscals/Authorities/FiscalResponsibilities/{id}` | Delete fiscal responsibility |
+| **Fiscal Resp. Records** | POST | `Fiscals/Authorities/FiscalResponsibilityRecords` | Create responsibility record |
+| | PUT | `Fiscals/Authorities/FiscalResponsibilityRecords/{id}` | Update responsibility record |
+| | DELETE | `Fiscals/Authorities/FiscalResponsibilityRecords/{id}` | Delete responsibility record |
+| **Fiscal ID Types** | POST | `Fiscals/Authorities/IdentificationTypes` | Create identification type |
+| | PUT | `Fiscals/Authorities/IdentificationTypes/{id}` | Update identification type |
+| | DELETE | `Fiscals/Authorities/IdentificationTypes/{id}` | Delete identification type |
+| **Billing Profiles** | GET | `BillingProfiles` | List billing profiles |
+| | GET | `BillingProfiles/Count` | Count billing profiles |
+| | GET | `BillingProfiles/{id}` | Get billing profile |
+| | POST | `BillingProfiles` | Create billing profile |
+| | PUT | `BillingProfiles/{id}` | Update billing profile |
+| | DELETE | `BillingProfiles/{id}` | Delete billing profile |
+| **Banks** | GET | `Banking` | List banks |
+| | GET | `Banking/Count` | Count banks |
+| | GET | `Banking/{id}` | Get bank |
+| | POST | `Banking` | Create bank |
+| | PUT | `Banking/{id}` | Update bank |
+| | DELETE | `Banking/{id}` | Delete bank |
+| **Bank Accounts** | GET | `Banking/{bankId}/Accounts` | List bank accounts |
+| | GET | `Banking/{bankId}/Accounts/Count` | Count bank accounts |
+| | GET | `Banking/{bankId}/Accounts/{id}` | Get bank account |
+| | POST | `Banking/{bankId}/Accounts` | Create bank account |
+| | PUT | `Banking/{bankId}/Accounts/{id}` | Update bank account |
+| | DELETE | `Banking/{bankId}/Accounts/{id}` | Delete bank account |
+| **Bank Transactions** | GET | `Banking/Transactions` | List bank transactions |
+| | GET | `Banking/Transactions/Count` | Count bank transactions |
+| | GET | `Banking/Transactions/{id}` | Get bank transaction |
+| | POST | `Banking/Transactions` | Create bank transaction |
+| | PUT | `Banking/Transactions/{id}` | Update bank transaction |
+| | DELETE | `Banking/Transactions/{id}` | Delete bank transaction |
+| **Bank Guarantees** | GET | `Banking/Guarantees` | List bank guarantees |
+| | GET | `Banking/Guarantees/Count` | Count bank guarantees |
+| | GET | `Banking/Guarantees/{id}` | Get bank guarantee |
+| | POST | `Banking/Guarantees` | Create bank guarantee |
+| | PUT | `Banking/Guarantees/{id}` | Update bank guarantee |
+| | DELETE | `Banking/Guarantees/{id}` | Delete bank guarantee |
+| **Bank Profiles** | GET | `Banking/Profiles` | List bank profiles |
+| | GET | `Banking/Profiles/Count` | Count bank profiles |
+| | GET | `Banking/Profiles/{id}` | Get bank profile |
+| | POST | `Banking/Profiles` | Create bank profile |
+| | PUT | `Banking/Profiles/{id}` | Update bank profile |
+| | DELETE | `Banking/Profiles/{id}` | Delete bank profile |
+| **Transactions** | GET | `Transactions` | List transactions |
+| | GET | `Transactions/Count` | Count transactions |
+| | GET | `Transactions/{id}` | Get transaction |
+| | POST | `Transactions` | Create transaction |
+| | PUT | `Transactions/{id}` | Update transaction |
+| | DELETE | `Transactions/{id}` | Delete transaction |
+| **Transaction Categories** | GET | `TransactionCategories` | List categories |
+| | GET | `TransactionCategories/Count` | Count categories |
+| | GET | `TransactionCategories/{id}` | Get category |
+| | POST | `TransactionCategories` | Create category |
+| | PUT | `TransactionCategories/{id}` | Update category |
+| | DELETE | `TransactionCategories/{id}` | Delete category |
+| **Budgets** | GET | `Budgets` | List budgets |
+| | GET | `Budgets/{id}` | Get budget |
+| | POST | `Budgets` | Create budget |
+| | PUT | `Budgets/{id}` | Update budget |
+| | DELETE | `Budgets/{id}` | Delete budget |
+| **Budget Account Entries** | GET | `Budgets/{id}/AccountEntries` | List budget entries |
+| | GET | `Budgets/{id}/AccountEntries/{entryId}` | Get budget entry |
+| | POST | `Budgets/{id}/AccountEntries` | Create budget entry |
+| | PUT | `Budgets/{id}/AccountEntries/{entryId}` | Update budget entry |
+| | DELETE | `Budgets/{id}/AccountEntries/{entryId}` | Delete budget entry |
+| **Cost Centres** | GET | `CostCentres` | List cost centres |
+| | GET | `CostCentres/Count` | Count cost centres |
+| | GET | `CostCentres/{id}` | Get cost centre |
+| | POST | `CostCentres` | Create cost centre |
+| | PUT | `CostCentres/{id}` | Update cost centre |
+| | DELETE | `CostCentres/{id}` | Delete cost centre |
+| **Cost Centre Groups** | GET | `CostCentres/Groups` | List cost centre groups |
+| | GET | `CostCentres/Groups/Count` | Count groups |
+| | GET | `CostCentres/Groups/{id}` | Get group |
+| | POST | `CostCentres/Groups` | Create group |
+| **Cost Centre Budgets** | GET | `CostCentres/Budgets` | List cost centre budgets |
+| | GET | `CostCentres/Budgets/{id}` | Get cost centre budget |
+| | POST | `CostCentres/Budgets` | Create cost centre budget |
+| **Commissions** | GET | `Commissions` | List commissions |
+| | GET | `Commissions/Count` | Count commissions |
+| | GET | `Commissions/{id}` | Get commission |
+| | POST | `Commissions` | Create commission |
+| | PUT | `Commissions/{id}` | Update commission |
+| | DELETE | `Commissions/{id}` | Delete commission |
+| **Payment Commissions** | GET | `PaymentCommissions` | List payment commissions |
+| | GET | `PaymentCommissions/Count` | Count payment commissions |
+| | GET | `PaymentCommissions/{id}` | Get payment commission |
+| | POST | `PaymentCommissions` | Create payment commission |
+| **Receipts** | GET | `Receipts` | List receipts |
+| | GET | `Receipts/Count` | Count receipts |
+| | GET | `Receipts/{id}` | Get receipt |
+| | POST | `Receipts` | Create receipt |
+| | PUT | `Receipts/{id}` | Update receipt |
+| | DELETE | `Receipts/{id}` | Delete receipt |
+| **Grants** | GET | `Grants` | List grants |
+| | GET | `Grants/Count` | Count grants |
+| | GET | `Grants/{id}` | Get grant |
+| | POST | `Grants` | Create grant |
+| | PUT | `Grants/{id}` | Update grant |
+| | DELETE | `Grants/{id}` | Delete grant |
+| **Loans** | GET | `Loans` | List loans |
+| | GET | `Loans/Count` | Count loans |
+| | GET | `Loans/{id}` | Get loan |
+| | POST | `Loans` | Create loan |
+| | PUT | `Loans/{id}` | Update loan |
+| | DELETE | `Loans/{id}` | Delete loan |
+| **Loan Applications** | GET | `Loans/Applications` | List loan applications |
+| | GET | `Loans/Applications/Count` | Count loan applications |
+| | GET | `Loans/Applications/{id}` | Get loan application |
+| | POST | `Loans/Applications` | Create loan application |
+| | PUT | `Loans/Applications/{id}` | Update loan application |
+| | DELETE | `Loans/Applications/{id}` | Delete loan application |
+| **Loan Types** | GET | `Loans/Types` | List loan types |
+| | GET | `Loans/Types/Count` | Count loan types |
+| | GET | `Loans/Types/{id}` | Get loan type |
+| | POST | `Loans/Types` | Create loan type |
+| | PUT | `Loans/Types/{id}` | Update loan type |
+| | DELETE | `Loans/Types/{id}` | Delete loan type |
+| **Share Classes** | GET | `Shares/Classes` | List share classes |
+| | GET | `Shares/Classes/Count` | Count share classes |
+| | GET | `Shares/Classes/{id}` | Get share class |
+| | POST | `Shares/Classes` | Create share class |
+| | PUT | `Shares/Classes/{id}` | Update share class |
+| | DELETE | `Shares/Classes/{id}` | Delete share class |
+| **Share Issuances** | GET | `Shares/Issuances` | List share issuances |
+| | GET | `Shares/Issuances/Count` | Count share issuances |
+| | GET | `Shares/Issuances/{id}` | Get share issuance |
+| | POST | `Shares/Issuances` | Create share issuance |
+| **Share Transfers** | GET | `Shares/Transfers` | List share transfers |
+| | GET | `Shares/Transfers/Count` | Count share transfers |
+| | GET | `Shares/Transfers/{id}` | Get share transfer |
+| | POST | `Shares/Transfers` | Create share transfer |
+| **Share Transfer Reasons** | GET | `Shares/TransferReasons` | List transfer reasons |
+| | GET | `Shares/TransferReasons/Count` | Count transfer reasons |
+| | GET | `Shares/TransferReasons/{id}` | Get transfer reason |
+| | POST | `Shares/TransferReasons` | Create transfer reason |
+| **Invoice Enum. Ranges** | GET | `InvoiceEnumerationRanges` | List ranges |
+| | GET | `InvoiceEnumerationRanges/Count` | Count ranges |
+| | GET | `InvoiceEnumerationRanges/{id}` | Get range |
+| | POST | `InvoiceEnumerationRanges` | Create range |
+| | PUT | `InvoiceEnumerationRanges/{id}` | Update range |
+| | DELETE | `InvoiceEnumerationRanges/{id}` | Delete range |
+| **Accounting Periods** | GET | `Periods` | List periods |
+| | GET | `Periods/Count` | Count periods |
+| | GET | `Periods/{id}` | Get period |
+| | POST | `Periods` | Create period |
+| | PUT | `Periods/{id}` | Update period |
+| | DELETE | `Periods/{id}` | Delete period |
+| **Expense Claims** | GET | `ExpenseClaims` | List expense claims |
+| | GET | `ExpenseClaims/Count` | Count expense claims |
+| | GET | `ExpenseClaims/{id}` | Get expense claim |
+| | POST | `ExpenseClaims` | Create expense claim |
+| | PUT | `ExpenseClaims/{id}` | Update expense claim |
+| | DELETE | `ExpenseClaims/{id}` | Delete expense claim |
+| **Expense Types** | GET | `ExpenseTypes` | List expense types |
+| | GET | `ExpenseTypes/Count` | Count expense types |
+| | GET | `ExpenseTypes/{id}` | Get expense type |
+| | POST | `ExpenseTypes` | Create expense type |
+| | PUT | `ExpenseTypes/{id}` | Update expense type |
+| | DELETE | `ExpenseTypes/{id}` | Delete expense type |
+| **Billable Line Taxes** | GET | `BillableLines/{lineId}/Taxes` | List taxes for a billable line |
+| | GET | `BillableLines/{lineId}/Taxes/Count` | Count taxes for a billable line |
+| | POST | `BillableLines/{lineId}/Taxes` | Create tax on billable line |
+| | PUT | `BillableLines/{lineId}/Taxes/{taxId}` | Update billable line tax |
+| | DELETE | `BillableLines/{lineId}/Taxes/{taxId}` | Delete billable line tax |
+
+---
+
 ## Critical Rules
 
-- **Authenticate first.** Use `absuite login` before any accounting operation.
-- **Always provide a tenant context.** Set a default with `absuite config set --tenant-id` or pass `--TenantId` on each call.
+- **Authenticate first.** Use `absuite login` before any accounting operation, or include a valid bearer token for REST API calls.
+- **Always provide a tenant context.** Set a default with `absuite config set --tenant-id` or pass `--TenantId` on each CLI call. REST API calls are tenant-scoped via the bearer token.
 - **Use `--help` before unfamiliar commands.** The accounting service has 170+ commands with varied DTOs.
 - **Double-entry principle** — journal entries must balance (Debit = Credit).
 - **Set up fiscal framework first** — create fiscal authority → fiscal year → tax policies before posting entries.
