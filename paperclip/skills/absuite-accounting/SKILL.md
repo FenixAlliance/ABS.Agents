@@ -732,6 +732,37 @@ absuite accounting update journal-type --TenantId $TENANT_ID --JournalTypeId <ty
 absuite accounting delete journal-type --TenantId $TENANT_ID --JournalTypeId <type-guid>
 ```
 
+**REST API equivalent:**
+```bash
+# List journal types
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/JournalTypes" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count journal types
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/JournalTypes/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get journal type
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/JournalTypes/<type-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create journal type
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/JournalTypes" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"Name": "Sales Journal", "Description": "Revenue entries"}'
+
+# Update journal type
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/JournalTypes/<type-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete journal type
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/JournalTypes/<type-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ---
 
 ## Ledgers
@@ -758,6 +789,37 @@ absuite accounting update ledger --TenantId $TENANT_ID --LedgerId <ledger-guid> 
 absuite accounting delete ledger --TenantId $TENANT_ID --LedgerId <ledger-guid>
 ```
 
+**REST API equivalent:**
+```bash
+# List ledgers
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Ledgers" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count ledgers
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Ledgers/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get ledger details
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Ledgers/<ledger-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create ledger
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Ledgers" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"Name": "General Ledger", "Description": "Primary ledger for all business transactions", "LedgerTypeId": "<ledger-type-guid>"}'
+
+# Update ledger
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Ledgers/<ledger-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete ledger
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/Ledgers/<ledger-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### Ledger Types
 
 ```bash
@@ -767,6 +829,37 @@ absuite accounting list ledger-type-details --TenantId $TENANT_ID --LedgerTypeId
 absuite accounting create ledger-type --TenantId $TENANT_ID --CreateLedgerTypeDto '{"Name": "General", "Description": "General purpose ledger"}'
 absuite accounting update ledger-type --TenantId $TENANT_ID --LedgerTypeId <type-guid> --UpdateLedgerTypeDto '{...}'
 absuite accounting delete ledger-type --TenantId $TENANT_ID --LedgerTypeId <type-guid>
+```
+
+**REST API equivalent:**
+```bash
+# List ledger types
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/LedgerTypes" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count ledger types
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/LedgerTypes/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get ledger type
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/LedgerTypes/<type-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create ledger type
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/LedgerTypes" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"Name": "General", "Description": "General purpose ledger"}'
+
+# Update ledger type
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/LedgerTypes/<type-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete ledger type
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/LedgerTypes/<type-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ---
@@ -780,6 +873,37 @@ absuite accounting list financial-book-details --TenantId $TENANT_ID --Financial
 absuite accounting create financial-book --TenantId $TENANT_ID --FinancialBookCreateDto '{"Name": "FY2026 Book", "Description": "Financial records for fiscal year 2026"}'
 absuite accounting update financial-book --TenantId $TENANT_ID --FinancialBookId <book-guid> --FinancialBookUpdateDto '{...}'
 absuite accounting delete financial-book --TenantId $TENANT_ID --FinancialBookId <book-guid>
+```
+
+**REST API equivalent:**
+```bash
+# List financial books
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/FinancialBooks" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count financial books
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/FinancialBooks/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get financial book
+curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/FinancialBooks/<book-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create financial book
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/FinancialBooks" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"Name": "FY2026 Book", "Description": "Financial records for fiscal year 2026"}'
+
+# Update financial book
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/FinancialBooks/<book-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{...}'
+
+# Delete financial book
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/FinancialBooks/<book-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ---
