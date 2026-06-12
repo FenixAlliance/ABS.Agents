@@ -16,14 +16,14 @@ description: >
 
 Use this skill for any domain-specific ABS operation via the `absuite` CLI. This covers querying data, creating records, updating entities, and any other ABS API interaction.
 
-For **authentication** (login, token management, identity verification), use the `absuite-login` skill instead.
+For **authentication** (login, token management, identity verification), use the `absuite-login-cli` skill instead. For the same operations over raw HTTP instead of the CLI, see the `absuite-rest` skill. For tenant onboarding (joining a tenant, initializing a portal), see `absuite-onboarding-cli`.
 
 ---
 
 ## Prerequisites
 
 1. **CLI installed system-wide** — `absuite` must be on `PATH`. Verify with `absuite --version`.
-2. **Authenticated session** — Run `absuite login` first (see `absuite-login` skill). The CLI caches the token in `~/.absuite/config.json` and uses it automatically for all subsequent calls.
+2. **Authenticated session** — Run `absuite login` first (see `absuite-login-cli` skill). The CLI caches the token in `~/.absuite/config.json` and uses it automatically for all subsequent calls.
 3. **Tenant context** — Most operations are tenant-scoped. Either set a default tenant (`absuite config set --tenant-id <guid>`) or pass `--TenantId <guid>` on each call.
 
 ---
@@ -277,10 +277,13 @@ The CLI uses consistent verb patterns across all services:
 |---|---|---|
 | `list` | GET | Retrieve a collection |
 | `count` | GET | Get the count of a collection |
+| `search` | GET | Filtered/typed search over a collection |
 | `get` | GET | Retrieve a single entity by ID |
 | `create` | POST | Create a new entity |
 | `update` | PUT | Full update of an entity |
 | `delete` | DELETE | Remove an entity |
+
+> **No `patch` verb.** The `absuite` CLI does **not** support PATCH (atomic JSON Patch) operations. For partial updates either fetch the entity, modify it, and `update` (full PUT), or use the REST API directly — see the `absuite-rest` skill (PATCH is REST-only).
 
 ---
 
@@ -333,7 +336,7 @@ absuite crm delete contact --TenantId $TENANT_ID --ContactId <contact-guid>
 
 ## REST API Alternative
 
-Everything the CLI does can also be accomplished via direct REST API calls. The CLI is a convenience wrapper around the same HTTP API.
+Everything the CLI does can also be accomplished via direct REST API calls. The CLI is a convenience wrapper around the same HTTP API. For a full REST reference (envelope, tenant scoping, OData, JSON Patch), see the `absuite-rest` skill; per-domain REST skills are `absuite-<domain>` (this CLI skill's per-domain counterparts are `absuite-<domain>-cli`).
 
 ### Authentication
 
