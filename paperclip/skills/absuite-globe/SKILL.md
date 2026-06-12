@@ -1,57 +1,73 @@
 ---
 name: absuite-globe
 description: >
-  Look up countries, states, cities, currencies, languages, timezones, calling codes,
-  and top-level domains using the Alliance Business Suite (ABS) `absuite` CLI.
-  This is a reference data service — all data is read-only. Requires an authenticated
-  CLI session.
+  Look up global reference data — countries, states, cities, currencies, languages,
+  timezones, calling codes, and top-level domains — via the Alliance Business Suite (ABS)
+  REST API. This is PUBLIC, read-only reference data: endpoints are NOT tenant-scoped and
+  take no tenantId. Send a bearer token for consistency (see the absuite-login skill).
 ---
 
-# Alliance Business Suite — Globe Skill
+# Alliance Business Suite — Globe Skill (REST)
 
-Query global reference data through the `absuite` CLI's `globe` service. This service provides countries, currencies, languages, timezones, and related lookup data.
+`GlobeService` exposes the platform's **global reference data**: the canonical lists of
+countries (and their states, cities, currencies, languages, timezones, calling codes, and
+top-level domains), plus standalone currency, language, and timezone catalogs. This data is
+**public and read-only** — there are no create / update / delete operations, and **no PATCH
+endpoint exists** on this service. Use it to resolve foreign-key lookups when populating
+other entities (e.g. an address's country/state/city, an invoice's currency, a user's
+language or timezone).
 
-## Prerequisites
+> For the CLI equivalent, see `absuite-globe-cli`. For general REST conventions (auth,
+> envelope, error handling), see `absuite-rest`.
 
-1. **Authenticate first** using `absuite login` (see the `absuite-login` skill).
-2. **Discover commands**: `absuite globe list-commands`
+## Authentication
 
-## REST API Authentication
+`GlobeService` is public reference data and is not tenant-scoped, but the platform's standard
+is to send a bearer token on every API call. Obtain one once and reuse it:
 
-To call the API directly via REST instead of the CLI:
-
-1. **Obtain a bearer token:**
 ```bash
+# 1. Obtain a bearer token
 curl -X POST "$ABSUITE_HOST_URL/login" \
   -H "Content-Type: application/json" \
-  -d '{"email": "'$ABSUITE_USER_EMAIL'", "password": "'$ABSUITE_USER_PASSWORD'"}'
-```
-Extract the `accessToken` from the JSON response.
+  -d '{"email": "<your-email>", "password": "<your-password>"}'
+# -> response contains "accessToken"
 
-2. **Use the token in all subsequent requests:**
-```bash
--H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+# 2. Send it on every subsequent request
+#   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-3. **All REST endpoints use the base path:** `$ABSUITE_HOST_URL/api/v2/`
+- **Base path:** `$ABSUITE_HOST_URL/api/v2/GlobeService/<Resource>`
+- **No tenant scoping.** Do **not** add `?tenantId=` or an `X-TenantId` header to these
+  endpoints — they are global/public and any tenant value is ignored.
+- **Response envelope:** every call returns
+  `{ "isSuccess": bool, "errorMessage": str|null, "correlationId": str, "timestamp": str, "result": <data|array|int|null> }`.
+  Always check `isSuccess`, then read the payload from `result`.
+- **Optional API-version params** are accepted on every endpoint: `?api-version=<v>` (query)
+  or the `x-api-version: <v>` header. Both are optional; omit them unless you need to pin a
+  version.
+
+## Key Concepts
+
+- **Identifiers are opaque.** Every path id (`{countryId}`, `{countryStateId}`,
+  `{currencyId}`, `{languageId}`, `{timeZoneId}`) is the record's internal `Id` string. The
+  platform matches these against the entity's primary key, **not** against ISO codes. To get a
+  valid id, first **list** or **search** the resource and read the `Id` field from `result`,
+  then use that value in the path.
+- **ISO codes are response fields, not path keys.** `CountryDto` exposes `Iso3` and `Iso2`;
+  `CountryLanguageDto` exposes `Iso6391` and `Iso6392`; `CurrencyDto` exposes `Code` and
+  `Symbol`. Use these to recognise a record, but pass the record's `Id` (not the ISO code) in
+  the URL.
+- **Sub-resources hang off a country.** States, cities, calling codes, currencies, timezones,
+  and top-level domains are all reachable under `Countries/{countryId}/...`. Cities are nested
+  one level deeper, under a state: `Countries/{countryId}/States/{countryStateId}/Cities`.
+- **`Count` endpoints** return an integer (in `result`) rather than a list — useful for
+  paging without pulling the full collection.
+- **Search** is name-based and country-only: `Countries/Search?countryName=<term>`.
+- **OData** pagination/filtering query options are accepted on the list and count endpoints
+  (e.g. `$top`, `$skip`, `$filter`, `$orderby`).
 
 ## Countries
 
-```bash
-# List all countries
-absuite globe list all-countries
-
-# Count countries
-absuite globe count countries
-
-# Get country by ID (ISO 3166 alpha-3, e.g., USA, COL, GBR)
-absuite globe get country-by-id --CountryId USA
-
-# Search countries by name
-absuite globe search-countries-by-name --Name "United"
-```
-
-**REST API equivalent:**
 ```bash
 # List all countries
 curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Countries" \
@@ -61,98 +77,72 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Countries" \
 curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Countries/Count" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Get country by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Countries/USA" \
+# Search countries by name (required query param: countryName)
+curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Countries/Search?countryName=United" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Search countries by name
-curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Countries/Search?Name=United" \
+# Get a single country by its id
+curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Countries/<country-id>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Country States/Provinces
+### States / Provinces
 
-```bash
-absuite globe list country-states --CountryId USA
-absuite globe get country-state-by-id --CountryStateId <state-guid>
-```
-
-**REST API equivalent:**
 ```bash
 # List states for a country
-curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Countries/USA/States" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Countries/<country-id>/States" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Count states for a country
-curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Countries/USA/States/Count" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Countries/<country-id>/States/Count" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Get state by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Countries/USA/States/<state-guid>" \
+# Get a single state by its id (within a country)
+curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Countries/<country-id>/States/<state-id>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Cities in a State
+### Cities (within a state)
 
 ```bash
-absuite globe get cities-by-country-state-id --CountryStateId <state-guid>
-```
-
-**REST API equivalent:**
-```bash
-# List cities in a state
-curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Countries/<countryId>/States/<state-guid>/Cities" \
+# List cities for a state
+curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Countries/<country-id>/States/<state-id>/Cities" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Count cities in a state
-curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Countries/<countryId>/States/<state-guid>/Cities/Count" \
+# Count cities for a state
+curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Countries/<country-id>/States/<state-id>/Cities/Count" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Country-Specific Data
+### Country-related lookups
 
-```bash
-# Calling codes (e.g., +1 for USA)
-absuite globe get calling-codes-by-country-id --CountryId USA
-
-# Top-level domains (e.g., .us)
-absuite globe get top-level-domains-by-country-id --CountryId USA
-
-# Timezones for a country
-absuite globe get time-zones-by-country-id --CountryId USA
-
-# Currencies enabled for a country
-absuite globe get enabled-currencies-by-country-id --CountryId USA
-```
-
-**REST API equivalent:**
 ```bash
 # Calling codes for a country
-curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Countries/USA/CallingCodes" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Countries/<country-id>/CallingCodes" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Count calling codes for a country
-curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Countries/USA/CallingCodes/Count" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Countries/<country-id>/CallingCodes/Count" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Top-level domains for a country
-curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Countries/USA/TopLevelDomains" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count top-level domains for a country
-curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Countries/USA/TopLevelDomains/Count" \
+# Enabled currencies for a country
+curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Countries/<country-id>/Currencies" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Timezones for a country
-curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Countries/USA/Timezones" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Countries/<country-id>/Timezones" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Count timezones for a country
-curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Countries/USA/Timezones/Count" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Countries/<country-id>/Timezones/Count" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Currencies enabled for a country
-curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Countries/USA/Currencies" \
+# Top-level domains for a country
+curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Countries/<country-id>/TopLevelDomains" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count top-level domains for a country
+curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Countries/<country-id>/TopLevelDomains/Count" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
@@ -160,18 +150,6 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Countries/USA/Currencies" \
 
 ```bash
 # List all enabled currencies
-absuite globe list enabled-currencies
-
-# Count currencies
-absuite globe count currencies
-
-# Get currency by ID (format: CODE.COUNTRY, e.g., USD.USA)
-absuite globe get currency-by-id --CurrencyId USD.USA
-```
-
-**REST API equivalent:**
-```bash
-# List all currencies
 curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Currencies" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
@@ -179,25 +157,16 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Currencies" \
 curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Currencies/Count" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Get currency by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Currencies/USD.USA" \
+# Get a single currency by its id
+curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Currencies/<currency-id>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
+`CurrencyDto` fields: `Id`, `Timestamp`, `Code`, `Name`, `Symbol`, `Country` (nested
+`CountryDto`). Match on `Code` (e.g. the ISO 4217 alphabetic code) but pass `Id` in the path.
+
 ## Languages
 
-```bash
-# List all languages
-absuite globe list languages
-
-# Count languages
-absuite globe count languages
-
-# Get language by ID
-absuite globe get language-by-id --LanguageId <language-guid>
-```
-
-**REST API equivalent:**
 ```bash
 # List all languages
 curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Languages" \
@@ -207,25 +176,16 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Languages" \
 curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Languages/Count" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Get language by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Languages/<language-guid>" \
+# Get a single language by its id
+curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Languages/<language-id>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
+`CountryLanguageDto` fields: `Id`, `Timestamp`, `Iso6391`, `Iso6392`, `Enabled`, `Name`,
+`LanguageNativeName`. Match on `Iso6391`/`Iso6392` but pass `Id` in the path.
+
 ## Timezones
 
-```bash
-# List all timezones
-absuite globe list time-zones
-
-# Count timezones
-absuite globe count timezones
-
-# Get timezone by ID
-absuite globe get time-zone-by-id --TimezoneId <timezone-guid>
-```
-
-**REST API equivalent:**
 ```bash
 # List all timezones
 curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Timezones" \
@@ -235,58 +195,89 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Timezones" \
 curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Timezones/Count" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Get timezone by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Timezones/<timezone-guid>" \
+# Get a single timezone by its id
+curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Timezones/<timezone-id>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-## Command Quick Reference
+`TimezoneDto` fields: `Id`, `Timestamp`, `Name`, `UtcOffset`, `DisplayName` (read-only).
 
-| Action | CLI Command |
-|---|---|
-| List countries | `absuite globe list all-countries` |
-| Search countries | `absuite globe search-countries-by-name --Name "Colombia"` |
-| Get country | `absuite globe get country-by-id --CountryId COL` |
-| List states | `absuite globe list country-states --CountryId COL` |
-| Get cities | `absuite globe get cities-by-country-state-id --CountryStateId <guid>` |
-| List currencies | `absuite globe list enabled-currencies` |
-| Get currency | `absuite globe get currency-by-id --CurrencyId COP.COL` |
-| List languages | `absuite globe list languages` |
-| List timezones | `absuite globe list time-zones` |
+> **Note on the path segment:** the resource path is `/Timezones`, but the single-record id
+> path parameter is `{timeZoneId}` (camelCase with a capital `Z`). The full route is
+> `/api/v2/GlobeService/Timezones/{timeZoneId}`.
+
+## PATCH (not available)
+
+`GlobeService` is read-only global reference data. **It exposes no PATCH (JSON Patch)
+endpoint** — there is nothing to partially update. The manifest contains zero PATCH (and zero
+POST/PUT/DELETE) operations for this service. If you need to mutate data, you are on the wrong
+service.
+
+## End-to-end workflow: resolve an address's geography
+
+Reference data is consumed by **discovering ids**, then using them. To resolve "Bogotá,
+Cundinamarca, Colombia" into the ids another entity (e.g. an address) needs:
+
+```bash
+# 1. Find the country and read its Id from result[].Id (match on Name / Iso3 / Iso2)
+curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Countries/Search?countryName=Colombia" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+#   -> result[0].Id  ==> <country-id>
+
+# 2. List that country's states and read the matching state's Id
+curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Countries/<country-id>/States" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+#   -> result[].Id  ==> <state-id>
+
+# 3. List that state's cities and read the matching city's Id
+curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Countries/<country-id>/States/<state-id>/Cities" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+#   -> result[].Id  ==> <city-id>
+
+# 4. (Optional) resolve the country's enabled currency for the new record
+curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Countries/<country-id>/Currencies" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+#   -> result[].Id / result[].Code
+```
 
 ## API Endpoints Quick Reference
 
-| Method | Endpoint | Description |
+| Action | Method | Path |
 |---|---|---|
-| GET | `/api/v2/GlobeService/Countries` | List all countries |
-| GET | `/api/v2/GlobeService/Countries/:countryId` | Get country by ID |
-| GET | `/api/v2/GlobeService/Countries/Count` | Count countries |
-| GET | `/api/v2/GlobeService/Countries/Search` | Search countries by name |
-| GET | `/api/v2/GlobeService/Countries/:countryId/States` | List states for a country |
-| GET | `/api/v2/GlobeService/Countries/:countryId/States/:countryStateId` | Get state by ID |
-| GET | `/api/v2/GlobeService/Countries/:countryId/States/Count` | Count states for a country |
-| GET | `/api/v2/GlobeService/Countries/:countryId/States/:countryStateId/Cities` | List cities in a state |
-| GET | `/api/v2/GlobeService/Countries/:countryId/States/:countryStateId/Cities/Count` | Count cities in a state |
-| GET | `/api/v2/GlobeService/Countries/:countryId/CallingCodes` | List calling codes for a country |
-| GET | `/api/v2/GlobeService/Countries/:countryId/CallingCodes/Count` | Count calling codes for a country |
-| GET | `/api/v2/GlobeService/Countries/:countryId/Currencies` | List currencies for a country |
-| GET | `/api/v2/GlobeService/Countries/:countryId/Timezones` | List timezones for a country |
-| GET | `/api/v2/GlobeService/Countries/:countryId/Timezones/Count` | Count timezones for a country |
-| GET | `/api/v2/GlobeService/Countries/:countryId/TopLevelDomains` | List top-level domains for a country |
-| GET | `/api/v2/GlobeService/Countries/:countryId/TopLevelDomains/Count` | Count top-level domains for a country |
-| GET | `/api/v2/GlobeService/Currencies` | List all currencies |
-| GET | `/api/v2/GlobeService/Currencies/:currencyId` | Get currency by ID |
-| GET | `/api/v2/GlobeService/Currencies/Count` | Count currencies |
-| GET | `/api/v2/GlobeService/Languages` | List all languages |
-| GET | `/api/v2/GlobeService/Languages/:languageId` | Get language by ID |
-| GET | `/api/v2/GlobeService/Languages/Count` | Count languages |
-| GET | `/api/v2/GlobeService/Timezones` | List all timezones |
-| GET | `/api/v2/GlobeService/Timezones/:timeZoneId` | Get timezone by ID |
-| GET | `/api/v2/GlobeService/Timezones/Count` | Count timezones |
+| List all countries | GET | `/api/v2/GlobeService/Countries` |
+| Count countries | GET | `/api/v2/GlobeService/Countries/Count` |
+| Search countries by name | GET | `/api/v2/GlobeService/Countries/Search?countryName=<term>` |
+| Get country by id | GET | `/api/v2/GlobeService/Countries/{countryId}` |
+| List states for a country | GET | `/api/v2/GlobeService/Countries/{countryId}/States` |
+| Count states for a country | GET | `/api/v2/GlobeService/Countries/{countryId}/States/Count` |
+| Get state by id | GET | `/api/v2/GlobeService/Countries/{countryId}/States/{countryStateId}` |
+| List cities for a state | GET | `/api/v2/GlobeService/Countries/{countryId}/States/{countryStateId}/Cities` |
+| Count cities for a state | GET | `/api/v2/GlobeService/Countries/{countryId}/States/{countryStateId}/Cities/Count` |
+| List calling codes for a country | GET | `/api/v2/GlobeService/Countries/{countryId}/CallingCodes` |
+| Count calling codes for a country | GET | `/api/v2/GlobeService/Countries/{countryId}/CallingCodes/Count` |
+| List enabled currencies for a country | GET | `/api/v2/GlobeService/Countries/{countryId}/Currencies` |
+| List timezones for a country | GET | `/api/v2/GlobeService/Countries/{countryId}/Timezones` |
+| Count timezones for a country | GET | `/api/v2/GlobeService/Countries/{countryId}/Timezones/Count` |
+| List top-level domains for a country | GET | `/api/v2/GlobeService/Countries/{countryId}/TopLevelDomains` |
+| Count top-level domains for a country | GET | `/api/v2/GlobeService/Countries/{countryId}/TopLevelDomains/Count` |
+| List all currencies | GET | `/api/v2/GlobeService/Currencies` |
+| Count currencies | GET | `/api/v2/GlobeService/Currencies/Count` |
+| Get currency by id | GET | `/api/v2/GlobeService/Currencies/{currencyId}` |
+| List all languages | GET | `/api/v2/GlobeService/Languages` |
+| Count languages | GET | `/api/v2/GlobeService/Languages/Count` |
+| Get language by id | GET | `/api/v2/GlobeService/Languages/{languageId}` |
+| List all timezones | GET | `/api/v2/GlobeService/Timezones` |
+| Count timezones | GET | `/api/v2/GlobeService/Timezones/Count` |
+| Get timezone by id | GET | `/api/v2/GlobeService/Timezones/{timeZoneId}` |
 
 ## Critical Rules
 
-- **This is a read-only service.** No create/update/delete operations.
-- **Country IDs use ISO 3166 alpha-3 codes** (e.g., `USA`, `COL`, `GBR`, `DEU`).
-- **Currency IDs use `CODE.COUNTRY` format** (e.g., `USD.USA`, `EUR.EU`, `COP.COL`).
-- **Use this service for foreign key lookups** when creating entities that reference countries, currencies, languages, or timezones.
+- **Read-only & public.** No create / update / delete / **PATCH** on this service, and **no
+  tenant scoping** — never attach `?tenantId=` or an `X-TenantId` header.
+- **Path ids are opaque `Id` values**, matched against the record's primary key — not ISO
+  codes. Discover the `Id` via list/search first; ISO/code fields (`Iso3`, `Iso2`, `Code`,
+  `Iso6391`, `Iso6392`) are for matching the right record, not for the URL.
+- **Search is country-only and requires `countryName`** as the query param.
+- **`Count` endpoints return an integer** in `result`; list endpoints accept OData query
+  options (`$top`, `$skip`, `$filter`, `$orderby`).
+- **The timezone single-record path parameter is `{timeZoneId}`** (capital `Z`).
