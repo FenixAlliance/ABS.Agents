@@ -20,6 +20,14 @@ covered here; use the broader content CLI commands for them.
 > updates or raw HTTP, use the `absuite-blog` (REST) skill. For CLI install, login, and global
 > conventions, see `absuite-login-cli` and `absuite-cli`.
 
+## API usage essentials
+
+> Full detail in `absuite-cli`.
+
+- **`update` replaces the ENTIRE object** (it maps to HTTP `PUT`) — a full overwrite, not a merge. **`get` the entity first, change only what you need on the complete object, then `update` with the full body.** A partial `update` (or an incomplete `create`) blanks the omitted fields -> silent data loss.
+- **No atomic partial update in the CLI.** For a safe single-field change, use the `absuite-blog` REST skill's `PATCH` (JSON Patch), where that service exposes one.
+- Use **`count <entity>`** (a dedicated operation) to size a collection. OData filtering/paging (`$filter`, `$top`, ...) is REST-only — the CLI does not expose it; use `absuite-blog` for filtered queries or a filtered count.
+
 ## Prerequisites
 
 1. **Authenticate first** — run `absuite login` (see `absuite-login-cli`). Commands fail with
