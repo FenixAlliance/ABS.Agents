@@ -1,844 +1,626 @@
 ---
 name: absuite-blog
 description: >
-  Create, read, update, and delete blog posts in the Alliance Business Suite
-  (ABS) Content Service using the `absuite` CLI. Covers blog posts, categories,
-  tags, comments, and authors. Blog post content is written in Markdown and passed
-  via the `Code` property. Requires an authenticated CLI session (use the
-  `absuite-login` skill to authenticate first).
+  Manage blog content in the Alliance Business Suite (ABS) Content Service via the
+  REST API (curl). Covers blog posts, categories, tags, comments, and authors,
+  including atomic PATCH (JSON Patch) updates. Tenant scoping is per-endpoint —
+  blog reads are public/optional-tenant; writes are tenant-scoped. Requires a bearer
+  token (see the absuite-login skill to authenticate).
 ---
 
-# Alliance Business Suite — Blog Posts Skill
+# Alliance Business Suite — Blog (REST)
 
-Manage blog posts through the `absuite` CLI's `content` service. All blog operations are tenant-scoped and require authentication.
+Manage the **blog subset** of the ABS **Content Service** directly over HTTP. This skill
+covers blog posts, their categories, tags, comments, and authors. The Content Service also
+hosts portals, web pages, web content, themes, templates, and components — those are **not**
+covered here; see the `absuite-content` skill for the rest of the service.
 
-## Prerequisites
+> This is the pure-REST skill. For the same operations via the `absuite` CLI, see
+> `absuite-blog-cli`. For general REST conventions (auth, envelope, tenant scoping, PATCH),
+> see `absuite-rest`.
 
-1. **Authenticate first** using `absuite login` (see the `absuite-login` skill).
-2. **Set your tenant** — all blog operations require a tenant. Either set a default:
-   ```bash
-   absuite config set --tenant-id <tenant-guid>
-   ```
-   Or pass `--TenantId <guid>` on each call.
-3. **Discover commands** — run `absuite content list-commands` to see all content commands, or use `--help` on any command for full parameter and output schemas.
+## Authentication
 
-## REST API Authentication
+Obtain a bearer token, then send it on every request.
 
-To call the API directly via REST instead of the CLI:
-
-1. **Obtain a bearer token:**
 ```bash
+# 1. Log in
 curl -X POST "$ABSUITE_HOST_URL/login" \
   -H "Content-Type: application/json" \
-  -d '{"email": "'$ABSUITE_USER_EMAIL'", "password": "'$ABSUITE_USER_PASSWORD'"}'
-```
-Extract the `accessToken` from the JSON response.
+  -d '{"email": "<your-email>", "password": "<your-password>"}'
+# → response contains "accessToken"; export it:
+#   export ABSUITE_ACCESS_TOKEN=<accessToken>
 
-2. **Use the token in all subsequent requests:**
-```bash
--H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-3. **All REST endpoints use the base path:** `$ABSUITE_HOST_URL/api/v2/`
-
-## Command Discovery
-
-```bash
-# List all content commands
-absuite content list-commands
-
-# Filter for blog-related commands
-absuite content list-commands | grep blog
-
-# Get detailed help for any command
-absuite content create blog-post --help
+# 2. Authenticate every subsequent call
+#   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-**REST API equivalent:**
+- **Base path:** `$ABSUITE_HOST_URL/api/v2/ContentService/<Resource>`
+- **Response envelope:** every response is
+  `{ "isSuccess": bool, "errorMessage": str|null, "correlationId": str, "timestamp": str, "result": <data|array|int|null> }`.
+  Always check `isSuccess`; read the payload from `result`.
+
+## Tenant scoping (read this — it varies per endpoint)
+
+The platform binds the tenant from the `?tenantId=` query param **or** the `X-TenantId`
+header interchangeably. For the blog endpoints:
+
+- **Reads are public / optional-tenant.** `GET BlogPosts`, `GET BlogPosts/{id}`,
+  `GET BlogPosts/Count`, the per-post sub-resource GETs (Categories / Comments / Tags / Replies),
+  and all `BlogPostAuthors` GETs do **not** require a tenant. Omitting `tenantId` returns the
+  global/public view; pass `?tenantId=<tenant-guid>` to scope to a tenant where the endpoint
+  accepts it (`GET BlogPosts`, `GET BlogPosts/Count`).
+- **Category and Tag collection reads are tenant-required.** `GET/Count BlogPostCategories`
+  and `GET/Count BlogPostTags` require `?tenantId=<tenant-guid>`.
+- **All writes are tenant-required.** Every POST / PUT / PATCH / DELETE below requires
+  `?tenantId=<tenant-guid>` (a common past bug was omitting it on writes → HTTP 400). The
+  `?tenantId=` query param is shown in the examples; `-H "X-TenantId: <tenant-guid>"` is the
+  equivalent.
+
+The exact requirement for each endpoint is in the **Quick Reference** table at the bottom.
+
+## Key Concepts
+
+- **Blog post** (`BlogPosts`) — the article aggregate. On **create** the post body content
+  goes in `code` with `codeType` selecting the source language (Markdown is typical for blog
+  authoring). `title` is the only required field on create.
+- **`codeType`** is an enum: **`Razor | CSharp | CSHtml | Liquid | Html5 | Markdown | Markup`**.
+- **Category** (`BlogPostCategories`) — taxonomy bucket. A post may reference a primary
+  category via `blogPostCategoryId`, and additional categories can be related/unrelated.
+- **Tag** (`BlogPostTags`) — lightweight label, related/unrelated to posts.
+- **Comment** (`BlogPosts/{id}/Comments`) — reader comments; `message` is required, and a
+  comment can be a reply to another (`parentCommentId`).
+- **Author** (`BlogPostAuthors`) — read-only over this surface (list, get, posts-by-author,
+  count); authors are not created/edited through these endpoints.
+- The **create** DTO and the **update** DTO are different shapes — create is a small set of
+  fields, update exposes the full editorial/SEO surface. Use the field names exactly as listed.
+
+## Operations
+
+### List blog posts (optional tenant)
+
 ```bash
-# All blog endpoints are under the ContentService base path:
-# $ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts
-# $ABSUITE_HOST_URL/api/v2/ContentService/BlogPostCategories
-# $ABSUITE_HOST_URL/api/v2/ContentService/BlogPostTags
-# Use --help on CLI commands to see the full DTO schemas for request bodies.
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
+Omit `?tenantId=` for the public/global list.
 
-## Important: Content Format
-
-Blog post body content goes in the **`Code`** property as **Markdown**. Set `CodeType` to `"Markdown"`.
-
-- `Code` — the Markdown source of the blog post body
-- `HtmlContent` — optional pre-rendered HTML (if omitted, the platform renders from `Code`)
-- `Description` — a short plain-text summary / excerpt shown in listings
-- `Title` — the display title of the post
-
-## Workflow: Creating a Blog Post
-
-Always follow this sequence:
-
-1. **Fetch available categories** — every blog post must belong to a category
-2. **Create the blog post** — with Markdown content in `Code`, assigned to a category
-3. **(Optional)** Add tags to the post
-4. **(Optional)** Update SEO fields
-
-### Step 1 — Get Available Categories
+### Count blog posts (optional tenant)
 
 ```bash
-absuite content list blog-post-categories --TenantId $TENANT_ID
-```
-
-**REST API equivalent:**
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostCategories" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-Response contains an array of categories.Note the `.Id` and `.Title` of the one you want:
-
-```
-.Result[]:
-  .Id           — category GUID (use as BlogPostCategoryID)
-  .Title        — category display name
-  .Slug         — URL-friendly identifier
-  .Description  — category description
-```
-
-If no suitable category exists, create one first:
+### Get a blog post by ID (no tenant param)
 
 ```bash
-absuite content create blog-post-category --TenantId $TENANT_ID --BlogPostCategoryCreateDto '{
-  "Title": "Engineering",
-  "Slug": "engineering",
-  "Description": "Technical articles and engineering updates"
-}'
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<blog-post-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-**REST API equivalent:**
+### Create a blog post (tenant required)
+
+Body = `BlogPostCreateDto`. Required field: `title`.
+
 ```bash
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostCategories" \
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "Title": "Engineering",
-    "Slug": "engineering",
-    "Description": "Technical articles and engineering updates"
+    "title": "Getting Started with the ABS Platform",
+    "description": "A practical introduction for new developers.",
+    "code": "# Getting Started\n\nWelcome to the Alliance Business Suite...",
+    "codeType": "Markdown",
+    "markup": "",
+    "featuredImageUrl": "https://example.com/images/hero.jpg",
+    "slug": "getting-started-with-abs",
+    "published": true,
+    "blogPostCategoryId": "<category-guid>",
+    "webTemplateId": "<web-template-guid>"
   }'
 ```
 
-### Step 2 — Create the Blog Post
+`BlogPostCreateDto` fields: `id`, `timestamp`, `title` (**required**), `published`,
+`description`, `code`, `markup`, `featuredImageUrl`, `codeType` (enum above), `slug`,
+`blogPostCategoryId`, `webTemplateId`.
+
+### Update a blog post — full replace (tenant required)
+
+Body = `BlogPostUpdateDto` (the full editorial + SEO surface). PUT replaces the whole DTO.
 
 ```bash
-absuite content create blog-post --TenantId $TENANT_ID --BlogPostCreateDto '{
-  "Title": "Getting Started with the ABS Platform",
-  "Description": "A practical introduction to the Alliance Business Suite for new developers.",
-  "Code": "# Getting Started with the ABS Platform\n\nWelcome to the Alliance Business Suite...\n\n## Prerequisites\n\n- An ABS tenant\n- The `absuite` CLI installed\n\n## First Steps\n\nAfter logging in with `absuite login`, explore the available services:\n\n```bash\nabsuite services\n```\n\n## Next Steps\n\nCheck out the full documentation at [absuite.net](https://absuite.net).",
-  "CodeType": "Markdown",
-  "Published": true,
-  "BlogPostCategoryID": "<category-guid>",
-  "FeaturedImageUrl": "https://example.com/images/hero.jpg"
-}'
-```
-
-**REST API equivalent:**
-```bash
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts" \
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<blog-post-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "Title": "Getting Started with the ABS Platform",
-    "Description": "A practical introduction to the Alliance Business Suite for new developers.",
-    "Code": "# Getting Started with the ABS Platform\n\nWelcome to the Alliance Business Suite...",
-    "CodeType": "Markdown",
-    "Published": true,
-    "BlogPostCategoryID": "<category-guid>",
-    "FeaturedImageUrl": "https://example.com/images/hero.jpg"
+    "title": "Getting Started with the ABS Platform",
+    "slug": "getting-started-with-abs",
+    "excerpt": "A practical introduction for new developers.",
+    "description": "A practical introduction for new developers.",
+    "content": "# Getting Started\n\nUpdated body...",
+    "code": "# Getting Started\n\nUpdated body...",
+    "codeType": "Markdown",
+    "htmlContent": "",
+    "featuredImageUrl": "https://example.com/images/hero.jpg",
+    "canonicalUrl": "https://example.com/blog/getting-started-with-abs",
+    "seoTitle": "Getting Started with ABS | Alliance Business Suite",
+    "seoKeyWords": "ABS, getting started",
+    "seoKeyPhrases": "ABS tutorial, Alliance Business Suite",
+    "metaDescription": "Learn how to set up and use the ABS platform.",
+    "enable": true,
+    "enableComments": true,
+    "displaySocialBox": true,
+    "published": true,
+    "allowSearchEngineIndexing": true,
+    "cornerstoneContent": false,
+    "blogPostCategoryId": "<category-guid>",
+    "webTemplateId": "<web-template-guid>"
   }'
 ```
 
-**Required fields:**
-- `Title` — blog post title
-- `Code` — the Markdown content body
-- `CodeType` — set to `"Markdown"`
-- `BlogPostCategoryID` — GUID of an existing category (from Step 1)
+`BlogPostUpdateDto` fields (all optional on the wire): `order`, `slug`, `name`, `title`,
+`excerpt`, `password`, `description`, `highlightImage`, `canonicalUrl`, `seoTitle`,
+`seoKeyWords`, `seoKeyPhrases`, `metaDescription`, `twitterImage`, `twitterTitle`,
+`twitterDescription`, `facebookImage`, `facebookTitle`, `facebookDescription`,
+`featuredImageUrl`, `content`, `code`, `namespace`, `typeName`, `generatedCode`,
+`compilationPath`, `htmlContent`, `codeType` (enum above), `cSharpContent`, `razorContent`,
+`cssContent`, `jsContent`, `cssFiles`, `jsFiles`, `razorGeneratedCode`, `cSharpGeneratedCode`,
+`precompiledLogicSize`, `precompiledLogicSizeLong`, `precompiledViewSize`,
+`precompiledViewSizeLong`, `precompiledLogicViewSize`, `template`, `default`, `enable`,
+`enableComments`, `displaySocialBox`, `published`, `inTrashCan`, `systemLocked`,
+`allowPingbacks`, `allowTrackbacks`, `cornerstoneContent`, `isEssentialContent`,
+`allowSearchEngineIndexing`, `blogPostCategoryId`, `webTemplateId`.
 
-**Recommended fields:**
-- `Description` — short excerpt for listings and meta description
-- `Published` — `true` to make visible, `false` for draft
-- `FeaturedImageUrl` — hero image URL
+### Patch a blog post — atomic partial update (tenant required)
 
-### Step 3 (Optional) — Add Tags
-
-First check available tags:
+`Content-Type: application/json`, body = a **JSON Patch (RFC 6902) array**. See the
+**PATCH** section below for the full operation set. Quick example — publish a draft and fix
+its title in one atomic request:
 
 ```bash
-absuite content list blog-post-tags --TenantId $TENANT_ID
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<blog-post-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[
+    { "op": "replace", "path": "/title", "value": "Getting Started with ABS (2026 Edition)" },
+    { "op": "replace", "path": "/published", "value": true }
+  ]'
 ```
 
-**REST API equivalent:**
+### Delete a blog post (tenant required)
+
 ```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostTags" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<blog-post-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-Create a new tag for the post:
+---
+
+### Categories
+
+#### List categories (tenant required)
 
 ```bash
-absuite content create tag-for-blog-post --TenantId $TENANT_ID --BlogPostId <post-guid> --BlogPostTagCreateDto '{
-  "Title": "Getting Started",
-  "Slug": "getting-started"
-}'
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostCategories?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-**REST API equivalent:**
+#### Count categories (tenant required)
+
 ```bash
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>/Tags" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostCategories/Count?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+#### Get category by ID (tenant required)
+
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostCategories/<category-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+#### Create a category (tenant required)
+
+Body = `BlogPostCategoryCreateDto`.
+
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostCategories?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "Title": "Getting Started",
-    "Slug": "getting-started"
+    "slug": "engineering",
+    "type": "Category",
+    "title": "Engineering",
+    "description": "Technical articles and engineering updates",
+    "seoTitle": "Engineering Articles",
+    "metaDescription": "Engineering posts from our team.",
+    "seoKeyPhrases": "engineering, software",
+    "canonicalUrl": "https://example.com/blog/category/engineering",
+    "cornerstoneContent": false,
+    "allowSerachEngines": true,
+    "imageURL": "https://example.com/images/engineering.jpg",
+    "image": "",
+    "webPortalId": "<web-portal-guid>"
   }'
 ```
 
-Or relate an existing tag:
+`BlogPostCategoryCreateDto` fields: `id`, `timestamp`, `slug`, `type`, `title`, `description`,
+`seoTitle`, `metaDescription`, `cornerstoneContent`, `allowSerachEngines`, `seoKeyPhrases`,
+`canonicalUrl`, `imageURL`, `image`, `webPortalId`.
+
+> NOTE: the API spells the SEO-indexing flag **`allowSerachEngines`** (misspelled in the
+> contract). Transcribe it verbatim — `allowSearchEngines` will be ignored.
+
+#### Update a category — full replace (tenant required)
+
+Body = `BlogPostCategoryUpdateDto`: `slug`, `type`, `title`, `description`, `seoTitle`,
+`metaDescription`, `cornerstoneContent`, `allowSerachEngines`, `seoKeyPhrases`, `canonicalUrl`,
+`imageURL`, `image`, `webPortalId`.
 
 ```bash
-absuite content post relate-tag-to-blog --TenantId $TENANT_ID --BlogPostId <post-guid> --BlogPostTagId <tag-guid>
-```
-
-**REST API equivalent:**
-```bash
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>/Tags/<tag-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Step 4 (Optional) — Update SEO Fields
-
-```bash
-absuite content update blog-post --TenantId $TENANT_ID --BlogPostId <post-guid> --BlogPostUpdateDto '{
-  "SeoTitle": "Getting Started with ABS | Alliance Business Suite",
-  "MetaDescription": "Learn how to set up and use the Alliance Business Suite platform.",
-  "SeoKeyPhrases": "ABS, Alliance Business Suite, getting started, tutorial",
-  "CanonicalUrl": "https://example.com/blog/getting-started-abs",
-  "AllowSearchEngineIndexing": true,
-  "Slug": "getting-started-with-abs"
-}'
-```
-
-**REST API equivalent:**
-```bash
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>" \
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostCategories/<category-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "SeoTitle": "Getting Started with ABS | Alliance Business Suite",
-    "MetaDescription": "Learn how to set up and use the Alliance Business Suite platform.",
-    "SeoKeyPhrases": "ABS, Alliance Business Suite, getting started, tutorial",
-    "CanonicalUrl": "https://example.com/blog/getting-started-abs",
-    "AllowSearchEngineIndexing": true,
-    "Slug": "getting-started-with-abs"
+    "title": "News & Updates",
+    "slug": "news-updates",
+    "description": "Company news and product updates"
   }'
 ```
 
-## CRUD Operations
+#### Patch a category — atomic partial update (tenant required)
 
-### List Blog Posts
+JSON Patch array.
 
 ```bash
-absuite content list blog-posts --TenantId $TENANT_ID
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostCategories/<category-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[ { "op": "replace", "path": "/title", "value": "News & Updates" } ]'
 ```
 
-**REST API equivalent:**
+#### Delete a category (tenant required)
+
 ```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostCategories/<category-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Count Blog Posts
+#### Per-post categories (relate / unrelate / list / create)
 
 ```bash
-absuite content count blog-posts --TenantId $TENANT_ID
-```
+# List the categories of a post (no tenant param)
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<blog-post-guid>/Categories" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-**REST API equivalent:**
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/Count" \
+# Create a NEW category attached to a post (tenant required; body = BlogPostCategoryCreateDto)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<blog-post-guid>/Categories?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "title": "Engineering", "slug": "engineering" }'
+
+# Relate an EXISTING category to a post (tenant required; no body)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<blog-post-guid>/Categories/<category-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Unrelate a category from a post (tenant required)
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<blog-post-guid>/Categories/<category-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Get Blog Post by ID
+---
+
+### Tags
+
+#### List tags (tenant required)
 
 ```bash
-absuite content get blog-post-by-id --BlogPostId <post-guid>
-```
-
-**REST API equivalent:**
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostTags?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Update Blog Post
-
-Update the Markdown content, title, or any other fields:
+#### Count tags (tenant required)
 
 ```bash
-absuite content update blog-post --TenantId $TENANT_ID --BlogPostId <post-guid> --BlogPostUpdateDto '{
-  "Title": "Updated Title",
-  "Code": "# Updated Title\n\nNew Markdown content goes here...",
-  "CodeType": "Markdown",
-  "Published": true
-}'
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostTags/Count?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-**REST API equivalent:**
+#### Get tag by ID (tenant required)
+
 ```bash
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostTags/<tag-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+#### Create a tag (tenant required)
+
+Body = `BlogPostTagCreateDto`: `id`, `timestamp`, `slug`, `type`, `title`, `description`,
+`seoTitle`, `metaDescription`, `cornerstoneContent`, `allowSerachEngines`, `seoKeyPhrases`,
+`canonicalUrl`, `imageURL`, `image`, `webPortalId`.
+
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostTags?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "title": "Tutorial", "slug": "tutorial", "type": "Tag" }'
+```
+
+#### Update a tag — full replace (tenant required)
+
+Body = `BlogPostTagUpdateDto`: `slug`, `type`, `title`, `description`, `seoTitle`,
+`metaDescription`, `cornerstoneContent`, `allowSerachEngines`, `seoKeyPhrases`, `canonicalUrl`,
+`imageURL`, `image`, `webPortalId`.
+
+```bash
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostTags/<tag-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "title": "Tutorials", "slug": "tutorials" }'
+```
+
+#### Patch a tag — atomic partial update (tenant required)
+
+JSON Patch array.
+
+```bash
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostTags/<tag-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[ { "op": "replace", "path": "/title", "value": "Tutorials" } ]'
+```
+
+#### Delete a tag (tenant required)
+
+```bash
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostTags/<tag-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+#### Per-post tags (relate / unrelate / list / create)
+
+```bash
+# List the tags of a post (no tenant param)
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<blog-post-guid>/Tags" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create a NEW tag attached to a post (tenant required; body = BlogPostTagCreateDto)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<blog-post-guid>/Tags?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "title": "Beginner", "slug": "beginner" }'
+
+# Relate an EXISTING tag to a post (tenant required; no body)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<blog-post-guid>/Tags/<tag-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Unrelate a tag from a post (tenant required)
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<blog-post-guid>/Tags/<tag-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+---
+
+### Comments
+
+#### List comments for a post (no tenant param)
+
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<blog-post-guid>/Comments" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+#### Create a comment on a post (tenant required)
+
+Body = `BlogPostCommentCreateDto`. Required field: `message`.
+
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<blog-post-guid>/Comments?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "Title": "Updated Title",
-    "Code": "# Updated Title\n\nNew Markdown content goes here...",
-    "CodeType": "Markdown",
-    "Published": true
+    "message": "Great article! Very helpful.",
+    "ownerSocialProfileId": "<social-profile-guid>",
+    "socialPostId": "<social-post-guid>",
+    "parentCommentId": null
   }'
 ```
 
-### Unpublish (Draft) a Blog Post
+`BlogPostCommentCreateDto` fields: `id`, `timestamp`, `message` (**required**),
+`ownerSocialProfileId`, `socialPostId`, `parentCommentId`.
+
+#### List replies for a comment (no tenant param)
 
 ```bash
-absuite content update blog-post --TenantId $TENANT_ID --BlogPostId <post-guid> --BlogPostUpdateDto '{
-  "Published": false
-}'
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<blog-post-guid>/Comments/<comment-guid>/Replies" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-**REST API equivalent:**
+#### Reply to a comment (tenant required)
+
+Body = `BlogPostCommentCreateDto` (same shape as create-comment; `message` required).
+
 ```bash
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>" \
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<blog-post-guid>/Comments/<comment-guid>/Reply?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"Published": false}'
+  -d '{ "message": "Thanks for the feedback!" }'
 ```
 
-### Delete Blog Post
+#### Delete a comment (tenant required)
 
 ```bash
-absuite content delete blog-post --TenantId $TENANT_ID --BlogPostId <post-guid>
-```
-
-**REST API equivalent:**
-```bash
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<blog-post-guid>/Comments/<comment-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-## Categories
+---
 
-### List Categories
+### Authors (read-only)
+
+#### List blog authors (optional tenant)
 
 ```bash
-absuite content list blog-post-categories --TenantId $TENANT_ID
-```
-
-**REST API equivalent:**
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostCategories" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostAuthors?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Create Category
+#### Get author by ID (no tenant param)
 
-```bash
-absuite content create blog-post-category --TenantId $TENANT_ID --BlogPostCategoryCreateDto '{
-  "Title": "Product Updates",
-  "Slug": "product-updates",
-  "Description": "Latest product news and feature announcements"
-}'
-```
-
-**REST API equivalent:**
-```bash
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostCategories" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "Title": "Product Updates",
-    "Slug": "product-updates",
-    "Description": "Latest product news and feature announcements"
-  }'
-```
-
-### Get Category by ID
-
-```bash
-absuite content get blog-post-category-by-id --BlogPostCategoryId <category-guid>
-```
-
-**REST API equivalent:**
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostCategories/<category-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Update Category
-
-```bash
-absuite content update blog-post-category --TenantId $TENANT_ID --BlogPostCategoryId <category-guid> --BlogPostCategoryUpdateDto '{
-  "Title": "News & Updates",
-  "Description": "Company news and product updates"
-}'
-```
-
-**REST API equivalent:**
-```bash
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostCategories/<category-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "Title": "News & Updates",
-    "Description": "Company news and product updates"
-  }'
-```
-
-### Delete Category
-
-```bash
-absuite content delete blog-post-category --TenantId $TENANT_ID --BlogPostCategoryId <category-guid>
-```
-
-**REST API equivalent:**
-```bash
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostCategories/<category-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Get Categories for a Specific Post
-
-```bash
-absuite content get categories-for-blog-post --TenantId $TENANT_ID --BlogPostId <post-guid>
-```
-
-**REST API equivalent:**
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>/Categories" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Relate / Unrelate Category to Post
-
-```bash
-# Add a category
-absuite content post relate-category-to-blog --TenantId $TENANT_ID --BlogPostId <post-guid> --BlogPostCategoryId <category-guid>
-
-# Remove a category
-absuite content post unrelate-category-from-blog --TenantId $TENANT_ID --BlogPostId <post-guid> --BlogPostCategoryId <category-guid>
-```
-
-**REST API equivalent:**
-```bash
-# Add a category to a post
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>/Categories/<category-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Remove a category from a post
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>/Categories/<category-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-## Tags
-
-### List Tags
-
-```bash
-absuite content list blog-post-tags --TenantId $TENANT_ID
-```
-
-**REST API equivalent:**
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostTags" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Create Tag (Global)
-
-```bash
-absuite content create blog-post-tag --TenantId $TENANT_ID --BlogPostTagCreateDto '{
-  "Title": "Tutorial",
-  "Slug": "tutorial"
-}'
-```
-
-**REST API equivalent:**
-```bash
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostTags" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "Title": "Tutorial",
-    "Slug": "tutorial"
-  }'
-```
-
-### Create Tag for a Specific Post
-
-```bash
-absuite content create tag-for-blog-post --TenantId $TENANT_ID --BlogPostId <post-guid> --BlogPostTagCreateDto '{
-  "Title": "Beginner",
-  "Slug": "beginner"
-}'
-```
-
-**REST API equivalent:**
-```bash
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>/Tags" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "Title": "Beginner",
-    "Slug": "beginner"
-  }'
-```
-
-### Get Tags for a Specific Post
-
-```bash
-absuite content get tags-for-blog-post --TenantId $TENANT_ID --BlogPostId <post-guid>
-```
-
-**REST API equivalent:**
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>/Tags" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Relate / Unrelate Tag to Post
-
-```bash
-# Add a tag
-absuite content post relate-tag-to-blog --TenantId $TENANT_ID --BlogPostId <post-guid> --BlogPostTagId <tag-guid>
-
-# Remove a tag
-absuite content post unrelate-tag-from-blog --TenantId $TENANT_ID --BlogPostId <post-guid> --BlogPostTagId <tag-guid>
-```
-
-**REST API equivalent:**
-```bash
-# Add a tag to a post
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>/Tags/<tag-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Remove a tag from a post
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>/Tags/<tag-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Delete Tag
-
-```bash
-absuite content delete blog-post-tag --TenantId $TENANT_ID --BlogPostTagId <tag-guid>
-```
-
-**REST API equivalent:**
-```bash
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostTags/<tag-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-## Comments
-
-### Get Comments for a Post
-
-```bash
-absuite content get comments-for-blog-post --TenantId $TENANT_ID --BlogPostId <post-guid>
-```
-
-**REST API equivalent:**
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>/Comments" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Create Comment on a Post
-
-```bash
-absuite content create comment-for-blog-post --TenantId $TENANT_ID --BlogPostId <post-guid> --BlogPostCommentCreateDto '{
-  "Content": "Great article! Very helpful."
-}'
-```
-
-**REST API equivalent:**
-```bash
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>/Comments" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"Content": "Great article! Very helpful."}'
-```
-
-### Reply to a Comment
-
-```bash
-absuite content reply-to-comment --TenantId $TENANT_ID --BlogPostCommentId <comment-guid> --BlogPostCommentReplyDto '{
-  "Content": "Thanks for the feedback!"
-}'
-```
-
-**REST API equivalent:**
-```bash
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>/Comments/<comment-guid>/Reply" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"Content": "Thanks for the feedback!"}'
-```
-
-### Delete Comment
-
-```bash
-absuite content delete comment-from-blog-post --TenantId $TENANT_ID --BlogPostId <post-guid> --BlogPostCommentId <comment-guid>
-```
-
-**REST API equivalent:**
-```bash
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>/Comments/<comment-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-## Authors
-
-### List Blog Authors
-
-```bash
-absuite content list blog-authors --TenantId $TENANT_ID
-```
-
-**REST API equivalent:**
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostAuthors" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Get Author by ID
-
-```bash
-absuite content get blog-author-by-id --BlogAuthorId <author-guid>
-```
-
-**REST API equivalent:**
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostAuthors/<author-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Get Posts by Author
+#### List posts by author (no tenant param)
 
-```bash
-absuite content get blog-posts-by-author --TenantId $TENANT_ID --BlogAuthorId <author-guid>
-```
-
-**REST API equivalent:**
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostAuthors/<author-guid>/BlogPosts" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Count Posts by Author
+#### Count posts by author (no tenant param)
 
-```bash
-absuite content count blog-posts-by-author --TenantId $TENANT_ID --BlogAuthorId <author-guid>
-```
-
-**REST API equivalent:**
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostAuthors/<author-guid>/BlogPosts/Count" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-## Markdown Content Guidelines
+## PATCH (JSON Patch, RFC 6902)
 
-When writing blog post content for the `Code` field:
+Three blog resources support `PATCH` for atomic partial updates:
 
-1. **Use standard Markdown** — headings, lists, links, images, code blocks, emphasis, blockquotes
-2. **Escape JSON strings** — newlines must be `\n`, quotes must be `\"` inside the JSON DTO
-3. **Keep it readable** — for long posts, build the Markdown string in a variable first:
+- `BlogPosts/{blogPostId}`
+- `BlogPostCategories/{blogPostCategoryId}`
+- `BlogPostTags/{blogPostTagId}`
+
+All require `?tenantId=<tenant-guid>`, `Content-Type: application/json`, and a request body
+that is a **JSON array of operations**. Each operation is `{ "op", "path", "value" }` (and
+`"from"` for `move`/`copy`):
+
+- `op` ∈ `add | remove | replace | move | copy | test`
+- `path` / `from` are JSON Pointers: leading `/`, **camelCase** field names matching the
+  update DTO (e.g. `/title`, `/published`, `/seoTitle`, `/allowSerachEngines`).
+
+Prefer PATCH over PUT when you only need to change a couple of fields — it is safer under
+concurrent edits and avoids resending the full object.
 
 ```bash
-# Build content in a variable, then pass it
-$CONTENT="# My Blog Post\n\nIntro paragraph.\n\n## Section One\n\nDetails here.\n\n## Section Two\n\n- Point A\n- Point B\n- Point C\n\n## Conclusion\n\nWrapping up."
-
-absuite content create blog-post --TenantId $TENANT_ID --BlogPostCreateDto "{
-  \"Title\": \"My Blog Post\",
-  \"Description\": \"A brief summary of the post.\",
-  \"Code\": \"$CONTENT\",
-  \"CodeType\": \"Markdown\",
-  \"Published\": true,
-  \"BlogPostCategoryID\": \"<category-guid>\"
-}"
-```
-
-**REST API equivalent:**
-```bash
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts" \
+# Flip a post to draft, retitle it, and set a canonical URL — atomically
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<blog-post-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{
-    "Title": "My Blog Post",
-    "Description": "A brief summary of the post.",
-    "Code": "# My Blog Post\n\nIntro paragraph.\n\n## Section One\n\nDetails here.\n\n## Section Two\n\n- Point A\n- Point B\n- Point C\n\n## Conclusion\n\nWrapping up.",
-    "CodeType": "Markdown",
-    "Published": true,
-    "BlogPostCategoryID": "<category-guid>"
-  }'
+  -d '[
+    { "op": "replace", "path": "/published", "value": false },
+    { "op": "replace", "path": "/title", "value": "Getting Started (Draft)" },
+    { "op": "replace", "path": "/canonicalUrl", "value": "https://example.com/blog/getting-started" }
+  ]'
 ```
 
-4. **Images** — use full URLs in Markdown image syntax: `![Alt text](https://example.com/image.jpg)`
-5. **Code blocks** — use triple backticks with language hints:
-
-````
-```csharp
-var client = new AbsClient();
-await client.LoginAsync();
-```
-````
-
-## Full Example: End-to-End Blog Post Creation
+## End-to-End Workflow
 
 ```bash
-# 1. Authenticate
-absuite login --email author@company.com
+# 0. Authenticate → export ABSUITE_ACCESS_TOKEN (see Authentication)
 
-# 2. Set tenant
-absuite config set --tenant-id 00000000-0000-0000-0000-000000000000
-
-# 3. List categories to pick one
-absuite content list blog-post-categories
-
-# 4. Create the post (using a category ID from step 3)
-absuite content create blog-post --BlogPostCreateDto '{
-  "Title": "Announcing ABS CLI v1.0",
-  "Description": "We are excited to announce the general availability of the ABS CLI.",
-  "Code": "# Announcing ABS CLI v1.0\n\nToday we are releasing the **Alliance Business Suite CLI** to the public.\n\n## What is it?\n\nA single command-line tool that wraps all 37 ABS API services into 1700+ human-friendly commands.\n\n## Install\n\n```bash\nnpm install -g @fenixalliance/abs-cli\n```\n\n## Get Started\n\n```bash\nabsuite login --email you@example.com\nabsuite services\nabsuite crm list contacts\n```\n\n## Learn More\n\nVisit [absuite.net](https://absuite.net) for full documentation.",
-  "CodeType": "Markdown",
-  "Published": true,
-  "BlogPostCategoryID": "<category-guid-from-step-3>",
-  "FeaturedImageUrl": "https://cdn.example.com/blog/abs-cli-hero.png"
-}'
-
-# 5. Note the returned post ID, then add tags
-absuite content create tag-for-blog-post --BlogPostId <returned-post-id> --BlogPostTagCreateDto '{
-  "Title": "CLI",
-  "Slug": "cli"
-}'
-
-absuite content create tag-for-blog-post --BlogPostId <returned-post-id> --BlogPostTagCreateDto '{
-  "Title": "Release",
-  "Slug": "release"
-}'
-
-# 6. Update SEO
-absuite content update blog-post --BlogPostId <returned-post-id> --BlogPostUpdateDto '{
-  "SeoTitle": "ABS CLI v1.0 Released | Alliance Business Suite",
-  "MetaDescription": "Install the ABS CLI with npm and manage your entire business suite from the terminal.",
-  "SeoKeyPhrases": "ABS CLI, Alliance Business Suite, command line, npm",
-  "Slug": "announcing-abs-cli-v1",
-  "AllowSearchEngineIndexing": true,
-  "EnableComments": true,
-  "DisplaySocialBox": true
-}'
-
-# 7. Verify
-absuite content get blog-post-by-id --BlogPostId <returned-post-id>
-```
-
-**REST API equivalent:**
-```bash
-# 1. Authenticate — obtain a bearer token
-curl -X POST "$ABSUITE_HOST_URL/login" \
-  -H "Content-Type: application/json" \
-  -d '{"email":"author@company.com","password":"..."}'
-# Save the returned token as $ABSUITE_ACCESS_TOKEN
-
-# 2. List categories to pick one
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostCategories" \
+# 1. Find or create a category (tenant required)
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostCategories?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# 3. Create the post (using a category ID from step 2)
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts" \
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostCategories?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "title": "Product Updates", "slug": "product-updates", "description": "Release notes and announcements" }'
+# → note result.id as <category-guid>
+
+# 2. Create the post (title required; Markdown body in code)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "Title": "Announcing ABS CLI v1.0",
-    "Description": "We are excited to announce the general availability of the ABS CLI.",
-    "Code": "# Announcing ABS CLI v1.0\n\nToday we are releasing the **Alliance Business Suite CLI** to the public...",
-    "CodeType": "Markdown",
-    "Published": true,
-    "BlogPostCategoryID": "<category-guid-from-step-2>",
-    "FeaturedImageUrl": "https://cdn.example.com/blog/abs-cli-hero.png"
+    "title": "Announcing ABS v2",
+    "description": "What is new in this release.",
+    "code": "# Announcing ABS v2\n\nToday we are releasing...",
+    "codeType": "Markdown",
+    "published": false,
+    "blogPostCategoryId": "<category-guid>",
+    "slug": "announcing-abs-v2"
   }'
-# Save the returned post ID as <returned-post-id>
+# → note result.id as <blog-post-guid>
 
-# 4. Add tags
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<returned-post-id>/Tags" \
+# 3. Add a tag to the post (creates a new tag bound to the post)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<blog-post-guid>/Tags?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"Title": "CLI", "Slug": "cli"}'
+  -d '{ "title": "Release", "slug": "release" }'
 
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<returned-post-id>/Tags" \
+# 4. Patch SEO fields and publish — atomically
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<blog-post-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"Title": "Release", "Slug": "release"}'
+  -d '[
+    { "op": "replace", "path": "/seoTitle", "value": "Announcing ABS v2 | Alliance Business Suite" },
+    { "op": "replace", "path": "/metaDescription", "value": "Read the ABS v2 release notes." },
+    { "op": "replace", "path": "/allowSearchEngineIndexing", "value": true },
+    { "op": "replace", "path": "/published", "value": true }
+  ]'
 
-# 5. Update SEO
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<returned-post-id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "SeoTitle": "ABS CLI v1.0 Released | Alliance Business Suite",
-    "MetaDescription": "Install the ABS CLI with npm and manage your entire business suite from the terminal.",
-    "SeoKeyPhrases": "ABS CLI, Alliance Business Suite, command line, npm",
-    "Slug": "announcing-abs-cli-v1",
-    "AllowSearchEngineIndexing": true,
-    "EnableComments": true,
-    "DisplaySocialBox": true
-  }'
-
-# 6. Verify
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<returned-post-id>" \
+# 5. Verify
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<blog-post-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ## API Endpoints Quick Reference
 
-| Resource | Method | Endpoint |
-|---|---|---|
-| Blog Posts | GET | `/api/v2/ContentService/BlogPosts` |
-| Blog Posts | POST | `/api/v2/ContentService/BlogPosts` |
-| Blog Post by ID | GET | `/api/v2/ContentService/BlogPosts/:blogPostId` |
-| Blog Post by ID | PUT | `/api/v2/ContentService/BlogPosts/:blogPostId` |
-| Blog Post by ID | DELETE | `/api/v2/ContentService/BlogPosts/:blogPostId` |
-| Blog Post Categories | GET | `/api/v2/ContentService/BlogPosts/:blogPostId/Categories` |
-| Relate Category | POST | `/api/v2/ContentService/BlogPosts/:blogPostId/Categories/:categoryId` |
-| Unrelate Category | DELETE | `/api/v2/ContentService/BlogPosts/:blogPostId/Categories/:categoryId` |
-| Blog Post Comments | GET | `/api/v2/ContentService/BlogPosts/:blogPostId/Comments` |
-| Create Comment | POST | `/api/v2/ContentService/BlogPosts/:blogPostId/Comments` |
-| Delete Comment | DELETE | `/api/v2/ContentService/BlogPosts/:blogPostId/Comments/:commentId` |
-| Comment Replies | GET | `/api/v2/ContentService/BlogPosts/:blogPostId/Comments/:commentId/Replies` |
-| Reply to Comment | POST | `/api/v2/ContentService/BlogPosts/:blogPostId/Comments/:commentId/Reply` |
-| Blog Post Tags | GET | `/api/v2/ContentService/BlogPosts/:blogPostId/Tags` |
-| Relate Tag | POST | `/api/v2/ContentService/BlogPosts/:blogPostId/Tags/:tagId` |
-| Unrelate Tag | DELETE | `/api/v2/ContentService/BlogPosts/:blogPostId/Tags/:tagId` |
-| Blog Posts Count | GET | `/api/v2/ContentService/BlogPosts/Count` |
-| Blog Post Categories (all) | GET | `/api/v2/ContentService/BlogPostCategories` |
-| Blog Post Categories (all) | POST | `/api/v2/ContentService/BlogPostCategories` |
-| Blog Post Category by ID | GET | `/api/v2/ContentService/BlogPostCategories/:blogPostCategoryId` |
-| Blog Post Category by ID | PUT | `/api/v2/ContentService/BlogPostCategories/:blogPostCategoryId` |
-| Blog Post Category by ID | DELETE | `/api/v2/ContentService/BlogPostCategories/:blogPostCategoryId` |
-| Blog Post Categories Count | GET | `/api/v2/ContentService/BlogPostCategories/Count` |
-| Blog Post Tags (all) | GET | `/api/v2/ContentService/BlogPostTags` |
-| Blog Post Tags (all) | POST | `/api/v2/ContentService/BlogPostTags` |
-| Blog Post Tag by ID | GET | `/api/v2/ContentService/BlogPostTags/:blogPostTagId` |
-| Blog Post Tag by ID | PUT | `/api/v2/ContentService/BlogPostTags/:blogPostTagId` |
-| Blog Post Tag by ID | DELETE | `/api/v2/ContentService/BlogPostTags/:blogPostTagId` |
-| Blog Post Tags Count | GET | `/api/v2/ContentService/BlogPostTags/Count` |
-| Blog Post Authors | GET | `/api/v2/ContentService/BlogPostAuthors` |
-| Blog Post Author by ID | GET | `/api/v2/ContentService/BlogPostAuthors/:authorId` |
-| Posts by Author | GET | `/api/v2/ContentService/BlogPostAuthors/:authorId/BlogPosts` |
-| Posts by Author Count | GET | `/api/v2/ContentService/BlogPostAuthors/:authorId/BlogPosts/Count` |
+`tenant` column: **req** = `?tenantId=` required · **opt** = optional (omit for public/global)
+· **—** = no tenant param.
+
+| Action | Method | Path | Tenant |
+|---|---|---|---|
+| List blog posts | GET | `/api/v2/ContentService/BlogPosts` | opt |
+| Count blog posts | GET | `/api/v2/ContentService/BlogPosts/Count` | opt |
+| Get blog post by ID | GET | `/api/v2/ContentService/BlogPosts/{blogPostId}` | — |
+| Create blog post | POST | `/api/v2/ContentService/BlogPosts` | req |
+| Update blog post | PUT | `/api/v2/ContentService/BlogPosts/{blogPostId}` | req |
+| Patch blog post | PATCH | `/api/v2/ContentService/BlogPosts/{blogPostId}` | req |
+| Delete blog post | DELETE | `/api/v2/ContentService/BlogPosts/{blogPostId}` | req |
+| List post categories | GET | `/api/v2/ContentService/BlogPosts/{blogPostId}/Categories` | — |
+| Create category on post | POST | `/api/v2/ContentService/BlogPosts/{blogPostId}/Categories` | req |
+| Relate category to post | POST | `/api/v2/ContentService/BlogPosts/{blogPostId}/Categories/{categoryId}` | req |
+| Unrelate category from post | DELETE | `/api/v2/ContentService/BlogPosts/{blogPostId}/Categories/{categoryId}` | req |
+| List post comments | GET | `/api/v2/ContentService/BlogPosts/{blogPostId}/Comments` | — |
+| Create comment on post | POST | `/api/v2/ContentService/BlogPosts/{blogPostId}/Comments` | req |
+| Delete comment | DELETE | `/api/v2/ContentService/BlogPosts/{blogPostId}/Comments/{commentId}` | req |
+| List comment replies | GET | `/api/v2/ContentService/BlogPosts/{blogPostId}/Comments/{commentId}/Replies` | — |
+| Reply to comment | POST | `/api/v2/ContentService/BlogPosts/{blogPostId}/Comments/{commentId}/Reply` | req |
+| List post tags | GET | `/api/v2/ContentService/BlogPosts/{blogPostId}/Tags` | — |
+| Create tag on post | POST | `/api/v2/ContentService/BlogPosts/{blogPostId}/Tags` | req |
+| Relate tag to post | POST | `/api/v2/ContentService/BlogPosts/{blogPostId}/Tags/{tagId}` | req |
+| Unrelate tag from post | DELETE | `/api/v2/ContentService/BlogPosts/{blogPostId}/Tags/{tagId}` | req |
+| List categories | GET | `/api/v2/ContentService/BlogPostCategories` | req |
+| Count categories | GET | `/api/v2/ContentService/BlogPostCategories/Count` | req |
+| Get category by ID | GET | `/api/v2/ContentService/BlogPostCategories/{blogPostCategoryId}` | req |
+| Create category | POST | `/api/v2/ContentService/BlogPostCategories` | req |
+| Update category | PUT | `/api/v2/ContentService/BlogPostCategories/{blogPostCategoryId}` | req |
+| Patch category | PATCH | `/api/v2/ContentService/BlogPostCategories/{blogPostCategoryId}` | req |
+| Delete category | DELETE | `/api/v2/ContentService/BlogPostCategories/{blogPostCategoryId}` | req |
+| List tags | GET | `/api/v2/ContentService/BlogPostTags` | req |
+| Count tags | GET | `/api/v2/ContentService/BlogPostTags/Count` | req |
+| Get tag by ID | GET | `/api/v2/ContentService/BlogPostTags/{blogPostTagId}` | req |
+| Create tag | POST | `/api/v2/ContentService/BlogPostTags` | req |
+| Update tag | PUT | `/api/v2/ContentService/BlogPostTags/{blogPostTagId}` | req |
+| Patch tag | PATCH | `/api/v2/ContentService/BlogPostTags/{blogPostTagId}` | req |
+| Delete tag | DELETE | `/api/v2/ContentService/BlogPostTags/{blogPostTagId}` | req |
+| List blog authors | GET | `/api/v2/ContentService/BlogPostAuthors` | opt |
+| Get author by ID | GET | `/api/v2/ContentService/BlogPostAuthors/{authorId}` | — |
+| List posts by author | GET | `/api/v2/ContentService/BlogPostAuthors/{authorId}/BlogPosts` | — |
+| Count posts by author | GET | `/api/v2/ContentService/BlogPostAuthors/{authorId}/BlogPosts/Count` | — |
+
+> All endpoints also accept the optional `api-version` (query) / `x-api-version` (header)
+> parameters; omit them to use the default `v2` surface.
+
+---
+
+For the CLI equivalent of these operations, see `absuite-blog-cli`. For other Content Service
+resources (portals, web pages, web content, themes, templates, components), see `absuite-content`.
+For shared REST conventions, see `absuite-rest`.
