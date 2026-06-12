@@ -19,6 +19,13 @@ are **no create, update, or delete commands, and no PATCH** on this service.
 > For general CLI setup (login, config, command discovery), see `absuite-login-cli` and
 > `absuite-cli`. For raw HTTP / curl, see the REST skill `absuite-globe`.
 
+## API usage essentials
+
+> Full detail in `absuite-cli`.
+
+- This service is **read-only** (list / get / count) — no `update`/`create`.
+- Use **`count <entity>`** to size a collection. OData filtering/paging is REST-only (not exposed by the CLI) — use the `absuite-globe` REST skill for filtered queries.
+
 ## Prerequisites
 
 1. **Authenticate first:** `absuite login` (see `absuite-login-cli`).
