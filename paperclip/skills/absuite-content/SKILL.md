@@ -1,936 +1,1179 @@
 ---
 name: absuite-content
 description: >
-  Manage web content, web pages, web portals, web templates, blog posts, blog
-  categories, blog tags, blog comments, blog authors, and business domains in the
-  Alliance Business Suite (ABS) using the `absuite` CLI. This is the comprehensive
-  content management skill â€” for blog-only operations see the `absuite-blog` skill.
-  Requires an authenticated CLI session.
+  Manage web content in the Alliance Business Suite (ABS) via the REST API — web
+  portals, web pages, web-page categories/tags, web content blocks, web templates,
+  website themes, web components, menu contexts, localization strings, business
+  domains, and the full blog system (posts, authors, categories, tags, comments).
+  Includes atomic PATCH (JSON Patch RFC 6902) updates. Most operations are
+  tenant-scoped and require a bearer token (see the absuite-login skill to authenticate).
 ---
 
-# Alliance Business Suite â€” Content Skill
+# Alliance Business Suite — Content Skill (REST)
 
-Manage all content through the `absuite` CLI's `content` service. Covers web portals, web pages, web templates, web content blocks, and the full blog system.
+Drive the ABS **ContentService** directly over HTTP with `curl`. This skill is the
+comprehensive content surface: web portals and their settings/options/domain bindings,
+web pages (with categories and tags), web-page categories/tags, web content blocks,
+web templates, website themes, web components, menu contexts, localization strings,
+business domains, and the complete blog system (posts, authors, categories, tags,
+comments). For a blog-only subset use the separate `absuite-blog` skill.
 
-## Prerequisites
+- For the CLI equivalent, see `absuite-content-cli`.
+- For generic REST conventions (envelope, auth, paging), see `absuite-rest`.
+- The portal **Initialize** / onboarding flow is documented in `absuite-onboarding` — it
+  is referenced here but not duplicated.
 
-1. **Authenticate first** using `absuite login` (see the `absuite-login` skill).
-2. **Set your tenant**: `absuite config set --tenant-id <tenant-guid>` or pass `--TenantId` on each call.
-3. **Discover commands**: `absuite content list-commands`
-
-## REST API Authentication
-
-To call the API directly via REST instead of the CLI:
+## Authentication
 
 1. **Obtain a bearer token:**
 ```bash
 curl -X POST "$ABSUITE_HOST_URL/login" \
   -H "Content-Type: application/json" \
-  -d '{"email": "'$ABSUITE_USER_EMAIL'", "password": "'$ABSUITE_USER_PASSWORD'"}'
+  -d '{"email": "<user-email>", "password": "<user-password>"}'
 ```
-Extract the `accessToken` from the JSON response.
+Extract `accessToken` from the JSON response.
 
-2. **Use the token in all subsequent requests:**
+2. **Send it on every call:**
 ```bash
 -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-3. **All REST endpoints use the base path:** `$ABSUITE_HOST_URL/api/v2/`
+3. **Base path:** `$ABSUITE_HOST_URL/api/v2/ContentService/<Resource>`
+
+4. **Response envelope** — every response is wrapped:
+```json
+{ "isSuccess": true, "errorMessage": null, "correlationId": "...", "timestamp": "...", "result": <data|array|int|null> }
+```
+Always check `isSuccess`; read the payload from `result`.
+
+## Tenant scoping (read carefully — it is per-endpoint)
+
+ABS binds the tenant from the `?tenantId=<tenant-guid>` query param **or** the
+`X-TenantId: <tenant-guid>` header (interchangeable). The rules below come straight
+from the ContentService manifest:
+
+- **Tenant REQUIRED** (`tenantId(query,req)`) — pass `?tenantId=<tenant-guid>` on **every**
+  verb, including POST/PUT/PATCH/DELETE. Omitting it on a write returns 400. This applies
+  to: Portals list/create/update/patch/delete + settings/domain-bindings, BusinessDomains
+  (all), WebPages create/update/patch/delete + relations, WebPageCategories, WebPageTags,
+  WebContents, WebComponents, WebTemplates, WebsiteThemes, MenuContexts, LocalizationStrings,
+  BlogPostCategories, BlogPostTags, and all blog write/relation/comment operations.
+- **Tenant OPTIONAL** (`tenantId(query,opt)`) — omit for the global/public view, pass to scope
+  to a tenant. This applies to: `GET /BlogPosts` (list) and `GET /BlogPosts/Count`.
+- **No tenantId param** — do **NOT** add a tenant param or header; it is ignored. This applies to:
+  - `GET /Portals/Current`, `GET /Portals/Current/Options`, `GET /Portals/Root`,
+    `GET /Portals/Search`, `POST /Portals/Initialize` (host/portal-scoped).
+  - `GET /Portals/{portalId}`, `GET /Portals/{portalId}/Options`, `GET /Portals/{portalId}/Settings`
+    (resolved by portal id).
+  - `GET /BlogPosts/{blogPostId}` and the blog sub-reads
+    (`/BlogPostAuthors`, `.../Categories`, `.../Tags`, `.../Comments`, `.../Replies`),
+    and `GET /WebPages/{webPageId}/Categories`, `GET /WebPages/{webPageId}/Tags`.
+  - `GET /Themes/Update`.
+
+> Note the header is `X-TenantId` (no second hyphen). `X-Tenant-ID` is **not** read by the platform.
+
+---
 
 ## Web Portals
 
-### List / Get Portals
-
 ```bash
-# Get current portal
-absuite content get current-web-portal --TenantId $TENANT_ID
-
-# Get root portal
-absuite content get root-web-portal
-
-# Get portal by ID
-absuite content get web-portal-by-id --TenantId $TENANT_ID --WebPortalId <portal-guid>
-
-# Search portal by domain
-absuite content search-web-portal --Domain example.com
-```
-
-**REST API equivalent:**
-```bash
-# Get current portal
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/Portals/Current" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get root portal
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/Portals/Root" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get portal by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/Portals/<portal-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Search portal by domain
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/Portals/Search?domain=example.com" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# List all portals
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/Portals" \
+# List portals (tenant required)
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/Portals?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Count portals
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/Portals/Count" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/Portals/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
 
-### Create Portal
+# Get portal by ID (NO tenantId — resolved by portal id)
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/Portals/<portal-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-```bash
-absuite content create web-portal --TenantId $TENANT_ID --WebPortalCreateDto '{
-  "Title": "Main Website",
-  "Domain": "www.example.com",
-  "Description": "Company main website",
-  "BusinessID": "<tenant-guid>"
-}'
-```
-
-**REST API equivalent:**
-```bash
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/Portals" \
+# Create a portal
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/Portals?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "Title": "Main Website",
     "Domain": "www.example.com",
     "Description": "Company main website",
-    "BusinessID": "<tenant-guid>"
+    "Root": false,
+    "Disabled": false,
+    "WebsiteThemeId": "<theme-guid>",
+    "BusinessDomainId": "<domain-guid>",
+    "BusinessPortalApplicationId": "<app-guid>"
   }'
-```
 
-### Update / Patch Portal
-
-```bash
-absuite content update web-portal --TenantId $TENANT_ID --WebPortalId <portal-guid> --WebPortalUpdateDto '{
-  "Title": "Updated Website Title"
-}'
-
-absuite content patch web-portal --TenantId $TENANT_ID --WebPortalId <portal-guid> --Body '[
-  {"op": "replace", "path": "/Title", "value": "New Title"}
-]'
-```
-
-**REST API equivalent:**
-```bash
-# Full update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/Portals/<portal-guid>" \
+# Update a portal (PUT — full replace)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/Portals/<portal-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "Title": "Updated Website Title"
+    "Title": "Updated Website Title",
+    "Domain": "www.example.com",
+    "Description": "Updated description",
+    "Root": false,
+    "Disabled": false,
+    "WebsiteThemeId": "<theme-guid>",
+    "BusinessDomainId": "<domain-guid>",
+    "BusinessPortalApplicationId": "<app-guid>"
   }'
 
-# Partial update (JSON Patch)
-curl -X PATCH "$ABSUITE_HOST_URL/api/v2/ContentService/Portals/<portal-guid>" \
+# Patch a portal (PARTIAL — JSON Patch)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/ContentService/Portals/<portal-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '[
-    {"op": "replace", "path": "/Title", "value": "New Title"}
-  ]'
-```
+  -d '[ {"op": "replace", "path": "/title", "value": "New Title"} ]'
 
-### Delete Portal
-
-```bash
-absuite content delete web-portal --TenantId $TENANT_ID --WebPortalId <portal-guid>
-```
-
-**REST API equivalent:**
-```bash
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/Portals/<portal-guid>" \
+# Delete a portal
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/Portals/<portal-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Portal Options & Settings
+**WebPortalCreateDto / WebPortalUpdateDto fields:** `Title`, `Domain`, `Description`,
+`Root` (bool), `Disabled` (bool), `WebsiteThemeId`, `BusinessDomainId`,
+`BusinessPortalApplicationId`. (Create also accepts `Id`, `Timestamp`.)
+
+### Current / Root / Search / Initialize portals (host-scoped — NO tenantId)
 
 ```bash
-absuite content list current-web-portal-options --TenantId $TENANT_ID
-absuite content list web-portal-options --TenantId $TENANT_ID --WebPortalId <portal-guid>
-absuite content list web-portal-settings --TenantId $TENANT_ID --WebPortalId <portal-guid>
-```
+# Current portal (resolved from the request host)
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/Portals/Current" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-**REST API equivalent:**
-```bash
 # Current portal options
 curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/Portals/Current/Options" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Portal options by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/Portals/<portal-guid>/Options" \
+# Root portal
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/Portals/Root" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Portal settings by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/Portals/<portal-guid>/Settings" \
+# Search a portal by its domain (domain query param is REQUIRED)
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/Portals/Search?domain=www.example.com" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
 
-### Initialize Portal
-
-```bash
-absuite content initialize-current-web-portal --TenantId $TENANT_ID
-```
-
-**REST API equivalent:**
-```bash
+# Initialize the current portal (onboarding flow — see absuite-onboarding)
 curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/Portals/Initialize" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
+### Portal options & settings
+
+```bash
+# Options by portal ID (NO tenantId)
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/Portals/<portal-guid>/Options" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Settings by portal ID (NO tenantId on GET)
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/Portals/<portal-guid>/Settings" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Update settings (tenant required) — body is a PortalSettings object
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/Portals/<portal-guid>/Settings?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "Enable": true,
+    "PortalID": "<portal-guid>",
+    "Scopes": "...",
+    "TenantID": "<tenant-guid>",
+    "HomePageID": "<page-guid>",
+    "BlogPageID": "<page-guid>",
+    "StorePageID": "<page-guid>",
+    "BaseEndpoint": "https://api.example.com",
+    "StoreRoutePrefix": "store",
+    "PublicKey": "...",
+    "PrivateKey": "...",
+    "AuthToken": "...",
+    "AuthTokenType": "Bearer",
+    "AuthTokenExpiration": 3600
+  }'
+```
+
+**PortalSettings fields:** `Enable` (bool), `PortalID`, `Scopes`, `TenantID`, `HomePageID`,
+`BlogPageID`, `StorePageID`, `BaseEndpoint`, `StoreRoutePrefix`, `PublicKey`, `PrivateKey`,
+`AuthToken`, `AuthTokenType`, `AuthTokenExpiration` (int), `Options` (PortalOptions object).
+
+### Portal domain bindings
+
+```bash
+# Get a portal's bound domains
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/Portals/<portal-guid>/DomainBindings?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Bind a domain to a portal
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/Portals/<portal-guid>/DomainBindings/<domain-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Unbind a domain from a portal
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/Portals/<portal-guid>/DomainBindings/<domain-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+---
+
 ## Business Domains
 
 ```bash
-absuite content list business-domains --TenantId $TENANT_ID
-absuite content count business-domains --TenantId $TENANT_ID
-absuite content get business-domain-by-id --TenantId $TENANT_ID --BusinessDomainId <domain-guid>
+# List
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BusinessDomains?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BusinessDomains/Count?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get by ID
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BusinessDomains/<domain-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Register a business domain (Domain is REQUIRED)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BusinessDomains?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "Domain": "shop.example.com" }'
+
+# Update a business domain
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/BusinessDomains/<domain-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "Domain": "store.example.com" }'
+
+# Verify a business domain (DNS/ownership check)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BusinessDomains/<domain-guid>/Verify?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Delete a business domain
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/BusinessDomains/<domain-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-**REST API equivalent:**
-```bash
-# List business domains
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BusinessDomains" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+**BusinessDomainCreateDto:** `Domain` (REQUIRED) (+ `Id`, `Timestamp`). **UpdateDto:** `Domain`.
 
-# Count business domains
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BusinessDomains/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get business domain by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BusinessDomains/<domain-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
+---
 
 ## Web Pages
 
 ```bash
 # List / Count
-absuite content list web-pages --TenantId $TENANT_ID
-absuite content count web-pages --TenantId $TENANT_ID
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/WebPages?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/WebPages/Count?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Get by ID
-absuite content get web-page-by-id --TenantId $TENANT_ID --WebPageId <page-guid>
-
-# Create
-absuite content create web-page --TenantId $TENANT_ID --WebPageCreateDto '{
-  "Title": "About Us",
-  "Description": "Company about page"
-}'
-
-# Update
-absuite content update web-page --TenantId $TENANT_ID --WebPageId <page-guid> --WebPageUpdateDto '{...}'
-
-# Delete
-absuite content delete web-page --TenantId $TENANT_ID --WebPageId <page-guid>
-```
-
-**REST API equivalent:**
-```bash
-# List web pages
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/WebPages" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/WebPages/<page-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Count web pages
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/WebPages/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get web page by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/WebPages/<page-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create web page
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/WebPages" \
+# Create a web page (Title is REQUIRED)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/WebPages?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "Title": "About Us",
-    "Description": "Company about page"
+    "Description": "Company about page",
+    "Published": true,
+    "Code": "<h1>About Us</h1>",
+    "Markup": "",
+    "FeaturedImageUrl": "https://cdn.example.com/about.png",
+    "CodeType": "Html5",
+    "Slug": "about-us",
+    "WebTemplateId": "<template-guid>",
+    "ParentWebContentId": "<content-guid>"
   }'
 
-# Update web page
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/WebPages/<page-guid>" \
+# Update a web page (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/WebPages/<page-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "Title": "Updated Page Title"
+    "Title": "About Our Company",
+    "Slug": "about-us",
+    "HtmlContent": "<h1>About Our Company</h1>",
+    "CodeType": "Html5",
+    "Published": true,
+    "IsHomePage": false
   }'
 
-# Delete web page
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/WebPages/<page-guid>" \
+# Patch a web page (JSON Patch)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/ContentService/WebPages/<page-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[ {"op": "replace", "path": "/published", "value": true} ]'
+
+# Delete a web page
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/WebPages/<page-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Web Page Categories
+**WebPageCreateDto fields:** `Title` (REQUIRED), `Published` (bool), `Description`, `Code`,
+`Markup`, `FeaturedImageUrl`, `CodeType` (enum, see below), `Slug`, `WebTemplateId`,
+`ParentWebContentId` (+ `Id`, `Timestamp`).
+
+**WebPageUpdateDto fields** (large; all optional): `Order` (int), `Slug`, `Name`, `Title`,
+`Excerpt`, `Password`, `Description`, `HighlightImage`, `CanonicalUrl`, `SeoTitle`,
+`SeoKeyWords`, `SeoKeyPhrases`, `MetaDescription`, `TwitterImage`, `TwitterTitle`,
+`TwitterDescription`, `FacebookImage`, `FacebookTitle`, `FacebookDescription`,
+`FeaturedImageUrl`, `Content`, `Code`, `Namespace`, `TypeName`, `GeneratedCode`,
+`CompilationPath`, `HtmlContent`, `CodeType`, `CSharpContent`, `RazorContent`, `CssContent`,
+`JsContent`, `CssFiles`, `JsFiles`, `RazorGeneratedCode`, `CSharpGeneratedCode`,
+`PrecompiledLogicSize` (int), `PrecompiledLogicSizeLong` (int), `PrecompiledViewSize` (int),
+`PrecompiledViewSizeLong` (int), `PrecompiledLogicViewSize` (int), `Template` (bool),
+`Default` (bool), `Enable` (bool), `EnableComments` (bool), `DisplaySocialBox` (bool),
+`Published` (bool), `InTrashCan` (bool), `SystemLocked` (bool), `AllowPingbacks` (bool),
+`AllowTrackbacks` (bool), `CornerstoneContent` (bool), `IsEssentialContent` (bool),
+`AllowSearchEngineIndexing` (bool), `WebTemplateId`, `ParentWebContentId`, `IsHomePage` (bool),
+`IsStorePage` (bool), `IsCartPage` (bool), `IsBlogPage` (bool), `IsAccountPage` (bool),
+`IsCheckoutPage` (bool), `IsWishListsPage` (bool), `IsContactPage` (bool),
+`IsPrivacyPolicyPage` (bool), `IsTermsOfServicePage` (bool).
+
+### Web page ↔ category / tag relations
 
 ```bash
-absuite content list web-page-categories --TenantId $TENANT_ID
-absuite content count web-page-categories --TenantId $TENANT_ID
-absuite content get web-page-category-by-id --TenantId $TENANT_ID --WebPageCategoryId <category-guid>
-absuite content create web-page-category --TenantId $TENANT_ID --WebPageCategoryCreateDto '{...}'
-absuite content update web-page-category --TenantId $TENANT_ID --WebPageCategoryId <category-guid> --WebPageCategoryUpdateDto '{...}'
-absuite content delete web-page-category --TenantId $TENANT_ID --WebPageCategoryId <category-guid>
-
-# Relate / unrelate
-absuite content relate-web-page-to-category --TenantId $TENANT_ID --WebPageId <page-guid> --WebPageCategoryId <category-guid>
-absuite content unrelate-web-page-category --TenantId $TENANT_ID --WebPageId <page-guid> --WebPageCategoryId <category-guid>
-absuite content get categories-by-web-page --TenantId $TENANT_ID --WebPageId <page-guid>
-```
-
-**REST API equivalent:**
-```bash
-# List web page categories
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/WebPageCategories" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count web page categories
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/WebPageCategories/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get web page category by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/WebPageCategories/<category-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create web page category
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/WebPageCategories" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "Name": "Tutorials"
-  }'
-
-# Update web page category
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/WebPageCategories/<category-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "Name": "Updated Category Name"
-  }'
-
-# Delete web page category
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/WebPageCategories/<category-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create category relation for a web page
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/WebPages/<page-guid>/Categories" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "Name": "New Category"
-  }'
-
-# Relate existing category to web page
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/WebPages/<page-guid>/Categories/<category-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Unrelate category from web page
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/WebPages/<page-guid>/Categories/<category-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get categories for a web page
+# Get a page's categories (NO tenantId)
 curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/WebPages/<page-guid>/Categories" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
 
-### Web Page Tags
-
-```bash
-absuite content list web-page-tags --TenantId $TENANT_ID
-absuite content count web-page-tags --TenantId $TENANT_ID
-absuite content get web-page-tag-by-id --TenantId $TENANT_ID --WebPageTagId <tag-guid>
-absuite content create web-page-tag --TenantId $TENANT_ID --WebPageTagCreateDto '{...}'
-absuite content update web-page-tag --TenantId $TENANT_ID --WebPageTagId <tag-guid> --WebPageTagUpdateDto '{...}'
-absuite content delete web-page-tag --TenantId $TENANT_ID --WebPageTagId <tag-guid>
-
-# Relate / unrelate
-absuite content relate-web-page-to-tag --TenantId $TENANT_ID --WebPageId <page-guid> --WebPageTagId <tag-guid>
-absuite content unrelate-web-page-tag --TenantId $TENANT_ID --WebPageId <page-guid> --WebPageTagId <tag-guid>
-absuite content get tags-by-web-page --TenantId $TENANT_ID --WebPageId <page-guid>
-```
-
-**REST API equivalent:**
-```bash
-# List web page tags
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/WebPageTags" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count web page tags
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/WebPageTags/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get web page tag by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/WebPageTags/<tag-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create web page tag
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/WebPageTags" \
+# Create AND relate a new category to a page (body is WebPageCategoryCreateDto)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/WebPages/<page-guid>/Categories?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{
-    "Name": "tutorial"
-  }'
+  -d '{ "Title": "Tutorials", "Slug": "tutorials" }'
 
-# Update web page tag
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/WebPageTags/<tag-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "Name": "updated-tag"
-  }'
-
-# Delete web page tag
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/WebPageTags/<tag-guid>" \
+# Relate an EXISTING category to a page
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/WebPages/<page-guid>/Categories/<category-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Create tag relation for a web page
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/WebPages/<page-guid>/Tags" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "Name": "new-tag"
-  }'
-
-# Relate existing tag to web page
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/WebPages/<page-guid>/Tags/<tag-guid>" \
+# Unrelate a category from a page
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/WebPages/<page-guid>/Categories/<category-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Unrelate tag from web page
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/WebPages/<page-guid>/Tags/<tag-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get tags for a web page
+# Get a page's tags (NO tenantId)
 curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/WebPages/<page-guid>/Tags" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create AND relate a new tag to a page (body is WebPageTagCreateDto)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/WebPages/<page-guid>/Tags?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "Title": "dotnet", "Slug": "dotnet" }'
+
+# Relate an EXISTING tag to a page
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/WebPages/<page-guid>/Tags/<tag-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Unrelate a tag from a page
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/WebPages/<page-guid>/Tags/<tag-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-## Web Templates
+---
+
+## Web Page Categories
 
 ```bash
-absuite content list web-templates --TenantId $TENANT_ID
-absuite content count web-templates --TenantId $TENANT_ID
-absuite content get web-template-by-id --TenantId $TENANT_ID --WebTemplateId <template-guid>
-absuite content create web-template --TenantId $TENANT_ID --WebTemplateCreateDto '{...}'
-absuite content update web-template --TenantId $TENANT_ID --WebTemplateId <template-guid> --WebTemplateUpdateDto '{...}'
-absuite content delete web-template --TenantId $TENANT_ID --WebTemplateId <template-guid>
-```
-
-**REST API equivalent:**
-```bash
-# List web templates
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/WebTemplates" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/WebPageCategories?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/WebPageCategories/Count?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/WebPageCategories/<category-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Count web templates
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/WebTemplates/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get web template by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/WebTemplates/<template-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create web template
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/WebTemplates" \
+# Create
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/WebPageCategories?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "Name": "Landing Page Template",
-    "Source": "<html>...</html>"
+    "Title": "Tutorials",
+    "Slug": "tutorials",
+    "Description": "How-to articles",
+    "SeoTitle": "Tutorials",
+    "MetaDescription": "...",
+    "CornerstoneContent": false,
+    "AllowSerachEngines": true,
+    "SeoKeyPhrases": "...",
+    "CanonicalUrl": "https://example.com/tutorials",
+    "ImageURL": "https://cdn.example.com/cat.png",
+    "WebPortalId": "<portal-guid>"
   }'
 
-# Update web template
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/WebTemplates/<template-guid>" \
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/WebPageCategories/<category-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{
-    "Name": "Updated Template",
-    "Source": "<html>...</html>"
-  }'
+  -d '{ "Title": "Guides", "Slug": "guides" }'
 
-# Delete web template
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/WebTemplates/<template-guid>" \
+# Patch (JSON Patch)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/ContentService/WebPageCategories/<category-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[ {"op": "replace", "path": "/title", "value": "Guides"} ]'
+
+# Delete
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/WebPageCategories/<category-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
+
+**WebPageCategoryCreateDto fields:** `Slug`, `Title`, `Description`, `SeoTitle`,
+`MetaDescription`, `CornerstoneContent` (bool), `AllowSerachEngines` (bool — note spelling),
+`SeoKeyPhrases`, `CanonicalUrl`, `ImageURL`, `Image`, `WebPortalId` (+ `Id`, `Timestamp`).
+**UpdateDto** is the same minus `WebPortalId`/`Id`/`Timestamp`.
+
+---
+
+## Web Page Tags
+
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/WebPageTags?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/WebPageTags/Count?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/WebPageTags/<tag-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/WebPageTags?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "Title": "dotnet", "Slug": "dotnet", "WebPortalId": "<portal-guid>" }'
+
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/WebPageTags/<tag-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "Title": "dotnet-core", "Slug": "dotnet-core" }'
+
+# Patch (JSON Patch)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/ContentService/WebPageTags/<tag-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[ {"op": "replace", "path": "/title", "value": "dotnet-core"} ]'
+
+# Delete
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/WebPageTags/<tag-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+**WebPageTagCreateDto fields:** same shape as WebPageCategoryCreateDto (`Slug`, `Title`,
+`Description`, `SeoTitle`, `MetaDescription`, `CornerstoneContent`, `AllowSerachEngines`,
+`SeoKeyPhrases`, `CanonicalUrl`, `ImageURL`, `Image`, `WebPortalId`, `Id`, `Timestamp`).
+**UpdateDto** drops `WebPortalId`/`Id`/`Timestamp`.
+
+---
 
 ## Web Content Blocks
 
 ```bash
-absuite content list web-contents --TenantId $TENANT_ID
-absuite content count web-contents --TenantId $TENANT_ID
-absuite content get web-content-by-id --TenantId $TENANT_ID --WebContentId <content-guid>
-absuite content create web --TenantId $TENANT_ID --WebContentCreateDto '{...}'
-absuite content update web --TenantId $TENANT_ID --WebContentId <content-guid> --WebContentUpdateDto '{...}'
-absuite content delete web --TenantId $TENANT_ID --WebContentId <content-guid>
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/WebContents?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/WebContents/Count?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/WebContents/<content-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create (Title is REQUIRED)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/WebContents?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "Title": "Hero Section",
+    "Published": true,
+    "Description": "Landing hero block",
+    "Code": "<div class=\"hero\">...</div>",
+    "Markup": "",
+    "FeaturedImageUrl": "https://cdn.example.com/hero.png",
+    "CodeType": "Html5"
+  }'
+
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/WebContents/<content-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "Title": "Updated Hero", "HtmlContent": "<div>...</div>", "CodeType": "Html5", "Published": true }'
+
+# Patch (JSON Patch)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/ContentService/WebContents/<content-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[ {"op": "replace", "path": "/published", "value": false} ]'
+
+# Delete
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/WebContents/<content-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-**REST API equivalent:**
+**WebContentCreateDto:** `Title` (REQUIRED), `Published` (bool), `Description`, `Code`,
+`Markup`, `FeaturedImageUrl`, `CodeType` (+ `Id`, `Timestamp`). **WebContentUpdateDto** has
+the same large field set as WebPageUpdateDto (minus the `Is*Page` flags and
+`WebTemplateId`/`ParentWebContentId`).
+
+---
+
+## Web Templates
+
 ```bash
-# List web contents
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/WebContents" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/WebTemplates?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/WebTemplates/Count?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/WebTemplates/<template-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Count web contents
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/WebContents/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get web content by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/WebContents/<content-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create web content
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/WebContents" \
+# Create
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/WebTemplates?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "Name": "Hero Section",
-    "Content": "<div>...</div>"
+    "Slug": "landing",
+    "Name": "Landing Page Template",
+    "Title": "Landing",
+    "Description": "Marketing landing layout",
+    "Content": "",
+    "HtmlContent": "<html>...</html>",
+    "CssContent": "...",
+    "JsContent": "...",
+    "RazorContent": "",
+    "HighlightImage": "https://cdn.example.com/tpl.png",
+    "Order": 0
   }'
 
-# Update web content
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/WebContents/<content-guid>" \
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/WebTemplates/<template-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{
-    "Name": "Updated Hero Section",
-    "Content": "<div>...</div>"
-  }'
+  -d '{ "Name": "Updated Template", "HtmlContent": "<html>...</html>", "Order": 1 }'
 
-# Delete web content
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/WebContents/<content-guid>" \
+# Patch (JSON Patch)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/ContentService/WebTemplates/<template-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[ {"op": "replace", "path": "/order", "value": 2} ]'
+
+# Delete
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/WebTemplates/<template-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
+
+**WebTemplateCreateDto / UpdateDto fields:** `Slug`, `Name`, `Title`, `Description`,
+`Content`, `HtmlContent`, `CssContent`, `JsContent`, `RazorContent`, `HighlightImage`,
+`Order` (int) (+ `Id`, `Timestamp`).
+
+---
 
 ## Website Themes
 
 ```bash
-absuite content list website-themes --TenantId $TENANT_ID
-absuite content count website-themes --TenantId $TENANT_ID
-absuite content get website-theme-by-id --TenantId $TENANT_ID --WebsiteThemeId <theme-guid>
-absuite content create website-theme --TenantId $TENANT_ID --WebsiteThemeCreateDto '{
-  "Name": "Dark Theme"
-}'
-absuite content update website-theme --TenantId $TENANT_ID --WebsiteThemeId <theme-guid> --WebsiteThemeUpdateDto '{
-  "Name": "Updated Theme"
-}'
-absuite content delete website-theme --TenantId $TENANT_ID --WebsiteThemeId <theme-guid>
-```
-
-**REST API equivalent:**
-```bash
-# List website themes
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/WebsiteThemes" \
+# List (supports OData via oDataQueryOptions)
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/WebsiteThemes?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/WebsiteThemes/Count?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/WebsiteThemes/<theme-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Count website themes
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/WebsiteThemes/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get website theme by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/WebsiteThemes/<theme-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create website theme
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/WebsiteThemes" \
+# Create (Name is REQUIRED)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/WebsiteThemes?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "Name": "Dark Theme"
+    "Name": "Dark Theme",
+    "Description": "Dark mode theme",
+    "AuthorName": "ACME",
+    "AuthorUrl": "https://acme.example.com",
+    "Version": "1.0.0",
+    "Tags": "dark,modern",
+    "Enable": true
   }'
 
-# Update website theme
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/WebsiteThemes/<theme-guid>" \
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/WebsiteThemes/<theme-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{
-    "Name": "Updated Theme"
-  }'
+  -d '{ "Name": "Dark Theme v2", "Version": "2.0.0", "Enable": true }'
 
-# Delete website theme
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/WebsiteThemes/<theme-guid>" \
+# Patch (JSON Patch)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/ContentService/WebsiteThemes/<theme-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[ {"op": "replace", "path": "/enable", "value": false} ]'
+
+# Delete
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/WebsiteThemes/<theme-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Update base themes
+# Update base web content themes (utility — NO tenantId)
 curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/Themes/Update" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
+**WebsiteThemeCreateDto / UpdateDto fields:** `Name` (REQUIRED on create), `Description`,
+`AuthorName`, `AuthorUrl`, `Version`, `Tags`, `Enable` (bool) (+ `Id`, `Timestamp` on create).
+The theme path id parameter is `{id}`.
+
+---
+
+## Web Components
+
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/WebComponents?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/WebComponents/Count?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/WebComponents/<component-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create (Name is REQUIRED)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/WebComponents?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "Name": "PricingCard",
+    "Title": "Pricing Card",
+    "Description": "Reusable pricing block",
+    "Code": "",
+    "HtmlContent": "<div class=\"card\">...</div>",
+    "CssContent": "...",
+    "JsContent": "...",
+    "CodeType": "Html5",
+    "Published": true,
+    "Enable": true,
+    "FeaturedImageUrl": "https://cdn.example.com/comp.png"
+  }'
+
+# Update (PUT — note: no PATCH for web components)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/WebComponents/<component-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "Name": "PricingCard", "Title": "Updated Pricing Card", "Enable": true }'
+
+# Delete
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/WebComponents/<component-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+**WebComponentCreateDto / UpdateDto fields:** `Name` (REQUIRED on create), `Title`,
+`Description`, `Code`, `HtmlContent`, `CssContent`, `JsContent`, `CodeType` (enum),
+`Published` (bool), `Enable` (bool), `FeaturedImageUrl` (+ `Id`, `Timestamp` on create).
+
+---
+
+## Menu Contexts
+
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/MenuContexts?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/MenuContexts/Count?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/MenuContexts/<menu-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create (Name is REQUIRED)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/MenuContexts?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "Name": "MainNav",
+    "Category": "Header",
+    "Component": "TopMenu",
+    "Enable": true,
+    "StudioMenu": false,
+    "CustomCss": "",
+    "CustomJs": "",
+    "CustomHtml": "",
+    "LoggedInOnly": "false",
+    "BackgroundImage": "",
+    "WebPortalId": "<portal-guid>"
+  }'
+
+# Update (PUT — no PATCH for menu contexts)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/MenuContexts/<menu-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "Name": "MainNav", "Enable": false }'
+
+# Delete
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/MenuContexts/<menu-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+**MenuContextCreateDto / UpdateDto fields:** `Name` (REQUIRED on create), `Category`,
+`Component`, `Enable` (bool), `StudioMenu` (bool), `CustomCss`, `CustomJs`, `CustomHtml`,
+`LoggedInOnly` (string), `BackgroundImage`, `WebPortalId` (+ `Id`, `Timestamp` on create).
+
+---
+
+## Localization Strings
+
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/LocalizationStrings?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/LocalizationStrings/Count?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/LocalizationStrings/<string-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create (Base is REQUIRED)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/LocalizationStrings?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "Base": "welcome.title", "Comments": "Home hero heading", "CountryLanguageId": "<lang-guid>" }'
+
+# Update (PUT — no PATCH for localization strings)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/LocalizationStrings/<string-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "Base": "welcome.heading", "CountryLanguageId": "<lang-guid>" }'
+
+# Delete
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/LocalizationStrings/<string-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+**LocalizationStringCreateDto / UpdateDto fields:** `Base` (REQUIRED on create), `Comments`,
+`CountryLanguageId` (+ `Id`, `Timestamp` on create).
+
+---
+
 ## Blog Posts
 
 ```bash
-# List / Count
-absuite content list blog-posts --TenantId $TENANT_ID
-absuite content count blog-posts --TenantId $TENANT_ID
-
-# Get by ID
-absuite content get blog-post-by-id --TenantId $TENANT_ID --BlogPostId <post-guid>
-
-# Create
-absuite content create blog-post --TenantId $TENANT_ID --BlogPostCreateDto '{
-  "Title": "Getting Started with ABS",
-  "Excerpt": "A quick guide to the Alliance Business Suite",
-  "Code": "# Welcome\n\nThis is your first post.",
-  "Slug": "getting-started-with-abs"
-}'
-
-# Update
-absuite content update blog-post --TenantId $TENANT_ID --BlogPostId <post-guid> --BlogPostUpdateDto '{...}'
-
-# Delete
-absuite content delete blog-post --TenantId $TENANT_ID --BlogPostId <post-guid>
-```
-
-**REST API equivalent:**
-```bash
-# List blog posts
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts" \
+# List (tenant OPTIONAL — omit for global view, pass to scope)
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Count blog posts
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/Count" \
+# Count (tenant OPTIONAL)
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Get blog post by ID
+# Get by ID (NO tenantId)
 curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Create blog post
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts" \
+# Create (Title is REQUIRED, tenant required)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "Title": "Getting Started with ABS",
-    "Excerpt": "A quick guide to the Alliance Business Suite",
+    "Published": false,
+    "Description": "A quick guide to the Alliance Business Suite",
     "Code": "# Welcome\n\nThis is your first post.",
-    "Slug": "getting-started-with-abs"
+    "Markup": "",
+    "FeaturedImageUrl": "https://cdn.example.com/post.png",
+    "CodeType": "Markdown",
+    "Slug": "getting-started-with-abs",
+    "BlogPostCategoryId": "<category-guid>",
+    "WebTemplateId": "<template-guid>"
   }'
 
-# Update blog post
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>" \
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{
-    "Title": "Updated Title"
-  }'
+  -d '{ "Title": "Getting Started with ABS (v2)", "Slug": "getting-started-with-abs", "Published": true }'
 
-# Delete blog post
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>" \
+# Patch (JSON Patch — e.g. publish)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[ {"op": "replace", "path": "/published", "value": true} ]'
+
+# Delete
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Blog Authors
+**BlogPostCreateDto fields:** `Title` (REQUIRED), `Published` (bool), `Description`, `Code`,
+`Markup`, `FeaturedImageUrl`, `CodeType` (enum), `Slug`, `BlogPostCategoryId`, `WebTemplateId`
+(+ `Id`, `Timestamp`). **BlogPostUpdateDto** has the same large field set as WebPageUpdateDto
+plus `BlogPostCategoryId` and `WebTemplateId` (no `Is*Page`/`ParentWebContentId` fields).
+
+### Blog post ↔ category / tag / comment operations
 
 ```bash
-absuite content list blog-authors --TenantId $TENANT_ID
-absuite content get blog-author-by-id --TenantId $TENANT_ID --BlogAuthorId <author-guid>
-absuite content count blog-posts-by-author --TenantId $TENANT_ID --BlogAuthorId <author-guid>
-absuite content get blog-posts-by-author --TenantId $TENANT_ID --BlogAuthorId <author-guid>
-```
-
-**REST API equivalent:**
-```bash
-# List blog post authors
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostAuthors" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get blog post author by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostAuthors/<author-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get blog posts by author
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostAuthors/<author-guid>/BlogPosts" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count blog posts by author
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostAuthors/<author-guid>/BlogPosts/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Blog Categories
-
-```bash
-absuite content list blog-post-categories --TenantId $TENANT_ID
-absuite content count blog-post-categories --TenantId $TENANT_ID
-absuite content get blog-post-category-by-id --TenantId $TENANT_ID --BlogPostCategoryId <category-guid>
-absuite content create blog-post-category --TenantId $TENANT_ID --BlogPostCategoryCreateDto '{...}'
-absuite content update blog-post-category --TenantId $TENANT_ID --BlogPostCategoryId <category-guid> --BlogPostCategoryUpdateDto '{...}'
-absuite content delete blog-post-category --TenantId $TENANT_ID --BlogPostCategoryId <category-guid>
-
-# Relate/unrelate category to a blog post
-absuite content create category-for-blog-post --TenantId $TENANT_ID --BlogPostId <post-guid> --BlogPostCategoryCreateDto '{...}'
-absuite content post relate-category-to-blog --TenantId $TENANT_ID --BlogPostId <post-guid> --BlogPostCategoryId <category-guid>
-absuite content post unrelate-category-from-blog --TenantId $TENANT_ID --BlogPostId <post-guid> --BlogPostCategoryId <category-guid>
-absuite content get categories-for-blog-post --TenantId $TENANT_ID --BlogPostId <post-guid>
-```
-
-**REST API equivalent:**
-```bash
-# List blog post categories
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostCategories" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count blog post categories
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostCategories/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get blog post category by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostCategories/<category-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create blog post category
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostCategories" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "Name": "Technology"
-  }'
-
-# Update blog post category
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostCategories/<category-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "Name": "Updated Category"
-  }'
-
-# Delete blog post category
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostCategories/<category-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create category for a blog post
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>/Categories" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "Name": "New Category"
-  }'
-
-# Relate existing category to blog post
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>/Categories/<category-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Unrelate category from blog post
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>/Categories/<category-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get categories for a blog post
+# Categories of a post (NO tenantId)
 curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>/Categories" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
 
-### Blog Tags
-
-```bash
-absuite content list blog-post-tags --TenantId $TENANT_ID
-absuite content count blog-post-tags --TenantId $TENANT_ID
-absuite content get blog-post-tag-by-id --TenantId $TENANT_ID --BlogPostTagId <tag-guid>
-absuite content create blog-post-tag --TenantId $TENANT_ID --BlogPostTagCreateDto '{...}'
-absuite content update blog-post-tag --TenantId $TENANT_ID --BlogPostTagId <tag-guid> --BlogPostTagUpdateDto '{...}'
-absuite content delete blog-post-tag --TenantId $TENANT_ID --BlogPostTagId <tag-guid>
-
-# Relate/unrelate tag to a blog post
-absuite content create tag-for-blog-post --TenantId $TENANT_ID --BlogPostId <post-guid> --BlogPostTagCreateDto '{...}'
-absuite content post relate-tag-to-blog --TenantId $TENANT_ID --BlogPostId <post-guid> --BlogPostTagId <tag-guid>
-absuite content post unrelate-tag-from-blog --TenantId $TENANT_ID --BlogPostId <post-guid> --BlogPostTagId <tag-guid>
-absuite content get tags-for-blog-post --TenantId $TENANT_ID --BlogPostId <post-guid>
-```
-
-**REST API equivalent:**
-```bash
-# List blog post tags
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostTags" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count blog post tags
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostTags/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get blog post tag by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostTags/<tag-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create blog post tag
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostTags" \
+# Create AND relate a new category to a post (body is BlogPostCategoryCreateDto)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>/Categories?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{
-    "Name": "dotnet"
-  }'
+  -d '{ "Title": "Technology", "Slug": "technology" }'
 
-# Update blog post tag
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostTags/<tag-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "Name": "updated-tag"
-  }'
-
-# Delete blog post tag
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostTags/<tag-guid>" \
+# Relate an EXISTING category to a post
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>/Categories/<category-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Create tag for a blog post
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>/Tags" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "Name": "new-tag"
-  }'
-
-# Relate existing tag to blog post
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>/Tags/<tag-guid>" \
+# Unrelate a category from a post
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>/Categories/<category-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Unrelate tag from blog post
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>/Tags/<tag-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get tags for a blog post
+# Tags of a post (NO tenantId)
 curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>/Tags" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
 
-### Blog Comments
-
-```bash
-absuite content create comment-for-blog-post --TenantId $TENANT_ID --BlogPostId <post-guid> --BlogPostCommentCreateDto '{...}'
-absuite content get comments-for-blog-post --TenantId $TENANT_ID --BlogPostId <post-guid>
-absuite content reply-to-comment --TenantId $TENANT_ID --BlogPostId <post-guid> --CommentId <comment-guid> --BlogPostCommentCreateDto '{...}'
-absuite content get replies-for-comment --TenantId $TENANT_ID --CommentId <comment-guid>
-absuite content delete comment-from-blog-post --TenantId $TENANT_ID --BlogPostId <post-guid> --CommentId <comment-guid>
-```
-
-**REST API equivalent:**
-```bash
-# Create comment on a blog post
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>/Comments" \
+# Create AND relate a new tag to a post (body is BlogPostTagCreateDto)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>/Tags?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{
-    "Content": "Great post!"
-  }'
+  -d '{ "Title": "dotnet", "Slug": "dotnet" }'
 
-# Get comments for a blog post
+# Relate an EXISTING tag to a post
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>/Tags/<tag-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Unrelate a tag from a post
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>/Tags/<tag-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Comments of a post (NO tenantId)
 curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>/Comments" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Reply to a comment
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>/Comments/<comment-guid>/Reply" \
+# Create a comment on a post (Message is REQUIRED)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>/Comments?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{
-    "Content": "Thanks for the feedback!"
-  }'
+  -d '{ "Message": "Great post!", "OwnerSocialProfileId": "<social-guid>", "ParentCommentId": null }'
 
-# Get replies for a comment
+# Reply to a comment (Message is REQUIRED)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>/Comments/<comment-guid>/Reply?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "Message": "Thanks for the feedback!" }'
+
+# Replies for a comment (NO tenantId)
 curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>/Comments/<comment-guid>/Replies" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Delete a comment
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>/Comments/<comment-guid>" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>/Comments/<comment-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Currency Rates (Utility)
+**BlogPostCommentCreateDto fields:** `Message` (REQUIRED), `OwnerSocialProfileId`,
+`SocialPostId`, `ParentCommentId` (+ `Id`, `Timestamp`).
+
+---
+
+## Blog Post Authors (read-only)
 
 ```bash
-absuite content get latest-currency-rates-model --TenantId $TENANT_ID
+# List authors (tenant OPTIONAL)
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostAuthors?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get author by ID (NO tenantId)
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostAuthors/<author-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Posts by author (NO tenantId)
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostAuthors/<author-guid>/BlogPosts" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count posts by author (NO tenantId)
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostAuthors/<author-guid>/BlogPosts/Count" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-## Critical Rules
+---
 
-- **Authenticate first.**
-- **Always provide a tenant context.**
-- **Blog content goes in the `Code` field** as Markdown.
-- **Use `post relate-*` / `post unrelate-*`** to link/unlink existing categories and tags to blog posts.
-- **Use `create category-for-blog-post` / `create tag-for-blog-post`** to create AND link in one step.
-- **Use `--help`** on any command for full DTO schemas.
+## Blog Post Categories
+
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostCategories?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostCategories/Count?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostCategories/<category-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostCategories?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "Title": "Technology",
+    "Slug": "technology",
+    "Type": "category",
+    "Description": "Tech articles",
+    "SeoTitle": "Technology",
+    "MetaDescription": "...",
+    "CornerstoneContent": false,
+    "AllowSerachEngines": true,
+    "SeoKeyPhrases": "...",
+    "CanonicalUrl": "https://example.com/blog/technology",
+    "ImageURL": "https://cdn.example.com/tech.png",
+    "WebPortalId": "<portal-guid>"
+  }'
+
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostCategories/<category-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "Title": "Tech & Engineering", "Slug": "tech-engineering" }'
+
+# Patch (JSON Patch)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostCategories/<category-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[ {"op": "replace", "path": "/title", "value": "Tech & Engineering"} ]'
+
+# Delete
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostCategories/<category-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+**BlogPostCategoryCreateDto fields:** `Slug`, `Type`, `Title`, `Description`, `SeoTitle`,
+`MetaDescription`, `CornerstoneContent` (bool), `AllowSerachEngines` (bool), `SeoKeyPhrases`,
+`CanonicalUrl`, `ImageURL`, `Image`, `WebPortalId` (+ `Id`, `Timestamp`). **UpdateDto** drops
+`WebPortalId`/`Id`/`Timestamp`.
+
+---
+
+## Blog Post Tags
+
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostTags?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostTags/Count?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostTags/<tag-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostTags?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "Title": "dotnet", "Slug": "dotnet", "Type": "tag", "WebPortalId": "<portal-guid>" }'
+
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostTags/<tag-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "Title": "dotnet-10", "Slug": "dotnet-10" }'
+
+# Patch (JSON Patch)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostTags/<tag-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[ {"op": "replace", "path": "/title", "value": "dotnet-10"} ]'
+
+# Delete
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostTags/<tag-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+**BlogPostTagCreateDto fields:** `Slug`, `Type`, `Title`, `Description`, `SeoTitle`,
+`MetaDescription`, `CornerstoneContent` (bool), `AllowSerachEngines` (bool), `SeoKeyPhrases`,
+`CanonicalUrl`, `ImageURL`, `Image`, `WebPortalId` (+ `Id`, `Timestamp`). **UpdateDto** drops
+`WebPortalId`/`Id`/`Timestamp`.
+
+---
+
+## Enums
+
+- **CodeType** (used by WebPages, WebContents, WebComponents, BlogPosts):
+  `Razor | CSharp | CSHtml | Liquid | Html5 | Markdown | Markup`.
+
+## PATCH (JSON Patch RFC 6902)
+
+PATCH bodies are a JSON **array** of operations with `Content-Type: application/json`.
+`op` ∈ `add | remove | replace | move | copy | test`; `path`/`from` are JSON-Pointers with
+a leading `/` and a **camelCase** field name (matching the serialized JSON, e.g. `/title`,
+`/published`, `/enable`, `/order`). Always include `?tenantId=<tenant-guid>` on PATCH.
+
+```bash
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/ContentService/WebPages/<page-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[
+    {"op": "replace", "path": "/title", "value": "About Our Company"},
+    {"op": "replace", "path": "/published", "value": true},
+    {"op": "replace", "path": "/isHomePage", "value": false}
+  ]'
+```
+
+**Resources that support PATCH:** Portals, WebPages, WebPageCategories, WebPageTags,
+WebContents, WebTemplates, WebsiteThemes, BlogPosts, BlogPostCategories, BlogPostTags.
+**No PATCH** on: WebComponents, MenuContexts, LocalizationStrings, BusinessDomains, Portal
+Settings (use PUT for those).
+
+## End-to-end workflow: publish a web page
+
+```bash
+HOST="$ABSUITE_HOST_URL/api/v2/ContentService"
+AUTH="-H Authorization:\ Bearer\ $ABSUITE_ACCESS_TOKEN"
+T="tenantId=<tenant-guid>"
+
+# 1. Create the page (draft)
+curl -X POST "$HOST/WebPages?$T" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{"Title":"Pricing","Slug":"pricing","CodeType":"Html5","Published":false}'
+# -> capture result.id (the new <page-guid>)
+
+# 2. Create + relate a category in one step
+curl -X POST "$HOST/WebPages/<page-guid>/Categories?$T" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{"Title":"Marketing","Slug":"marketing"}'
+
+# 3. Patch it live (atomic publish)
+curl -X PATCH "$HOST/WebPages/<page-guid>?$T" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '[{"op":"replace","path":"/published","value":true}]'
+
+# 4. Verify
+curl -X GET "$HOST/WebPages/<page-guid>?$T" -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
 
 ## API Endpoints Quick Reference
 
-| Resource | Method | Endpoint |
+| Action | Method | Path |
 |---|---|---|
-| Portals | GET | `/api/v2/ContentService/Portals` |
-| Portals | POST | `/api/v2/ContentService/Portals` |
-| Portal by ID | GET | `/api/v2/ContentService/Portals/:portalId` |
-| Portal by ID | PUT | `/api/v2/ContentService/Portals/:portalId` |
-| Portal by ID | PATCH | `/api/v2/ContentService/Portals/:portalId` |
-| Portal by ID | DELETE | `/api/v2/ContentService/Portals/:portalId` |
-| Portal Options | GET | `/api/v2/ContentService/Portals/:portalId/Options` |
-| Portal Settings | GET | `/api/v2/ContentService/Portals/:portalId/Settings` |
-| Portal Count | GET | `/api/v2/ContentService/Portals/Count` |
-| Current Portal | GET | `/api/v2/ContentService/Portals/Current` |
-| Current Portal Options | GET | `/api/v2/ContentService/Portals/Current/Options` |
-| Initialize Portal | POST | `/api/v2/ContentService/Portals/Initialize` |
-| Root Portal | GET | `/api/v2/ContentService/Portals/Root` |
-| Search Portal | GET | `/api/v2/ContentService/Portals/Search` |
-| Business Domains | GET | `/api/v2/ContentService/BusinessDomains` |
-| Business Domain by ID | GET | `/api/v2/ContentService/BusinessDomains/:businessDomainId` |
-| Business Domains Count | GET | `/api/v2/ContentService/BusinessDomains/Count` |
-| Web Pages | GET | `/api/v2/ContentService/WebPages` |
-| Web Pages | POST | `/api/v2/ContentService/WebPages` |
-| Web Page by ID | GET | `/api/v2/ContentService/WebPages/:webPageId` |
-| Web Page by ID | PUT | `/api/v2/ContentService/WebPages/:webPageId` |
-| Web Page by ID | DELETE | `/api/v2/ContentService/WebPages/:webPageId` |
-| Web Page Categories | GET | `/api/v2/ContentService/WebPages/:webPageId/Categories` |
-| Web Page Tags | GET | `/api/v2/ContentService/WebPages/:webPageId/Tags` |
-| Web Pages Count | GET | `/api/v2/ContentService/WebPages/Count` |
-| Web Page Categories | GET | `/api/v2/ContentService/WebPageCategories` |
-| Web Page Categories | POST | `/api/v2/ContentService/WebPageCategories` |
-| Web Page Category by ID | GET | `/api/v2/ContentService/WebPageCategories/:webPageCategoryId` |
-| Web Page Category by ID | PUT | `/api/v2/ContentService/WebPageCategories/:webPageCategoryId` |
-| Web Page Category by ID | DELETE | `/api/v2/ContentService/WebPageCategories/:webPageCategoryId` |
-| Web Page Categories Count | GET | `/api/v2/ContentService/WebPageCategories/Count` |
-| Web Page Tags | GET | `/api/v2/ContentService/WebPageTags` |
-| Web Page Tags | POST | `/api/v2/ContentService/WebPageTags` |
-| Web Page Tag by ID | GET | `/api/v2/ContentService/WebPageTags/:webPageTagId` |
-| Web Page Tag by ID | PUT | `/api/v2/ContentService/WebPageTags/:webPageTagId` |
-| Web Page Tag by ID | DELETE | `/api/v2/ContentService/WebPageTags/:webPageTagId` |
-| Web Page Tags Count | GET | `/api/v2/ContentService/WebPageTags/Count` |
-| Web Templates | GET | `/api/v2/ContentService/WebTemplates` |
-| Web Templates | POST | `/api/v2/ContentService/WebTemplates` |
-| Web Template by ID | GET | `/api/v2/ContentService/WebTemplates/:webTemplateId` |
-| Web Template by ID | PUT | `/api/v2/ContentService/WebTemplates/:webTemplateId` |
-| Web Template by ID | DELETE | `/api/v2/ContentService/WebTemplates/:webTemplateId` |
-| Web Templates Count | GET | `/api/v2/ContentService/WebTemplates/Count` |
-| Web Contents | GET | `/api/v2/ContentService/WebContents` |
-| Web Contents | POST | `/api/v2/ContentService/WebContents` |
-| Web Content by ID | GET | `/api/v2/ContentService/WebContents/:webContentId` |
-| Web Content by ID | PUT | `/api/v2/ContentService/WebContents/:webContentId` |
-| Web Content by ID | DELETE | `/api/v2/ContentService/WebContents/:webContentId` |
-| Web Contents Count | GET | `/api/v2/ContentService/WebContents/Count` |
-| Website Themes | GET | `/api/v2/ContentService/WebsiteThemes` |
-| Website Themes | POST | `/api/v2/ContentService/WebsiteThemes` |
-| Website Theme by ID | GET | `/api/v2/ContentService/WebsiteThemes/:id` |
-| Website Theme by ID | PUT | `/api/v2/ContentService/WebsiteThemes/:id` |
-| Website Theme by ID | DELETE | `/api/v2/ContentService/WebsiteThemes/:id` |
-| Website Themes Count | GET | `/api/v2/ContentService/WebsiteThemes/Count` |
-| Blog Posts | GET | `/api/v2/ContentService/BlogPosts` |
-| Blog Posts | POST | `/api/v2/ContentService/BlogPosts` |
-| Blog Post by ID | GET | `/api/v2/ContentService/BlogPosts/:blogPostId` |
-| Blog Post by ID | PUT | `/api/v2/ContentService/BlogPosts/:blogPostId` |
-| Blog Post by ID | DELETE | `/api/v2/ContentService/BlogPosts/:blogPostId` |
-| Blog Post Categories | GET | `/api/v2/ContentService/BlogPosts/:blogPostId/Categories` |
-| Blog Post Comments | GET | `/api/v2/ContentService/BlogPosts/:blogPostId/Comments` |
-| Blog Post Tags | GET | `/api/v2/ContentService/BlogPosts/:blogPostId/Tags` |
-| Blog Posts Count | GET | `/api/v2/ContentService/BlogPosts/Count` |
-| Blog Post Categories | GET | `/api/v2/ContentService/BlogPostCategories` |
-| Blog Post Categories | POST | `/api/v2/ContentService/BlogPostCategories` |
-| Blog Post Category by ID | GET | `/api/v2/ContentService/BlogPostCategories/:blogPostCategoryId` |
-| Blog Post Category by ID | PUT | `/api/v2/ContentService/BlogPostCategories/:blogPostCategoryId` |
-| Blog Post Category by ID | DELETE | `/api/v2/ContentService/BlogPostCategories/:blogPostCategoryId` |
-| Blog Post Categories Count | GET | `/api/v2/ContentService/BlogPostCategories/Count` |
-| Blog Post Tags | GET | `/api/v2/ContentService/BlogPostTags` |
-| Blog Post Tags | POST | `/api/v2/ContentService/BlogPostTags` |
-| Blog Post Tag by ID | GET | `/api/v2/ContentService/BlogPostTags/:blogPostTagId` |
-| Blog Post Tag by ID | PUT | `/api/v2/ContentService/BlogPostTags/:blogPostTagId` |
-| Blog Post Tag by ID | DELETE | `/api/v2/ContentService/BlogPostTags/:blogPostTagId` |
-| Blog Post Tags Count | GET | `/api/v2/ContentService/BlogPostTags/Count` |
-| Blog Post Authors | GET | `/api/v2/ContentService/BlogPostAuthors` |
-| Blog Post Author by ID | GET | `/api/v2/ContentService/BlogPostAuthors/:authorId` |
-| Posts by Author | GET | `/api/v2/ContentService/BlogPostAuthors/:authorId/BlogPosts` |
-| Posts by Author Count | GET | `/api/v2/ContentService/BlogPostAuthors/:authorId/BlogPosts/Count` |
-| Update Themes | GET | `/api/v2/ContentService/Themes/Update` |
+| List portals | GET | `/api/v2/ContentService/Portals` |
+| Count portals | GET | `/api/v2/ContentService/Portals/Count` |
+| Create portal | POST | `/api/v2/ContentService/Portals` |
+| Get portal by ID | GET | `/api/v2/ContentService/Portals/{portalId}` |
+| Update portal | PUT | `/api/v2/ContentService/Portals/{portalId}` |
+| Patch portal | PATCH | `/api/v2/ContentService/Portals/{portalId}` |
+| Delete portal | DELETE | `/api/v2/ContentService/Portals/{portalId}` |
+| Current portal | GET | `/api/v2/ContentService/Portals/Current` |
+| Current portal options | GET | `/api/v2/ContentService/Portals/Current/Options` |
+| Root portal | GET | `/api/v2/ContentService/Portals/Root` |
+| Search portal by domain | GET | `/api/v2/ContentService/Portals/Search` |
+| Initialize current portal | POST | `/api/v2/ContentService/Portals/Initialize` |
+| Portal options | GET | `/api/v2/ContentService/Portals/{portalId}/Options` |
+| Portal settings | GET | `/api/v2/ContentService/Portals/{portalId}/Settings` |
+| Update portal settings | PUT | `/api/v2/ContentService/Portals/{portalId}/Settings` |
+| Portal domain bindings | GET | `/api/v2/ContentService/Portals/{portalId}/DomainBindings` |
+| Bind portal domain | POST | `/api/v2/ContentService/Portals/{portalId}/DomainBindings/{businessDomainId}` |
+| Unbind portal domain | DELETE | `/api/v2/ContentService/Portals/{portalId}/DomainBindings/{businessDomainId}` |
+| List business domains | GET | `/api/v2/ContentService/BusinessDomains` |
+| Count business domains | GET | `/api/v2/ContentService/BusinessDomains/Count` |
+| Register business domain | POST | `/api/v2/ContentService/BusinessDomains` |
+| Get business domain by ID | GET | `/api/v2/ContentService/BusinessDomains/{businessDomainId}` |
+| Update business domain | PUT | `/api/v2/ContentService/BusinessDomains/{businessDomainId}` |
+| Verify business domain | POST | `/api/v2/ContentService/BusinessDomains/{businessDomainId}/Verify` |
+| Delete business domain | DELETE | `/api/v2/ContentService/BusinessDomains/{businessDomainId}` |
+| List web pages | GET | `/api/v2/ContentService/WebPages` |
+| Count web pages | GET | `/api/v2/ContentService/WebPages/Count` |
+| Create web page | POST | `/api/v2/ContentService/WebPages` |
+| Get web page by ID | GET | `/api/v2/ContentService/WebPages/{webPageId}` |
+| Update web page | PUT | `/api/v2/ContentService/WebPages/{webPageId}` |
+| Patch web page | PATCH | `/api/v2/ContentService/WebPages/{webPageId}` |
+| Delete web page | DELETE | `/api/v2/ContentService/WebPages/{webPageId}` |
+| Get web page categories | GET | `/api/v2/ContentService/WebPages/{webPageId}/Categories` |
+| Create+relate web page category | POST | `/api/v2/ContentService/WebPages/{webPageId}/Categories` |
+| Relate web page to category | POST | `/api/v2/ContentService/WebPages/{webPageId}/Categories/{categoryId}` |
+| Unrelate web page category | DELETE | `/api/v2/ContentService/WebPages/{webPageId}/Categories/{categoryId}` |
+| Get web page tags | GET | `/api/v2/ContentService/WebPages/{webPageId}/Tags` |
+| Create+relate web page tag | POST | `/api/v2/ContentService/WebPages/{webPageId}/Tags` |
+| Relate web page to tag | POST | `/api/v2/ContentService/WebPages/{webPageId}/Tags/{tagId}` |
+| Unrelate web page tag | DELETE | `/api/v2/ContentService/WebPages/{webPageId}/Tags/{tagId}` |
+| List web page categories | GET | `/api/v2/ContentService/WebPageCategories` |
+| Count web page categories | GET | `/api/v2/ContentService/WebPageCategories/Count` |
+| Create web page category | POST | `/api/v2/ContentService/WebPageCategories` |
+| Get web page category by ID | GET | `/api/v2/ContentService/WebPageCategories/{webPageCategoryId}` |
+| Update web page category | PUT | `/api/v2/ContentService/WebPageCategories/{webPageCategoryId}` |
+| Patch web page category | PATCH | `/api/v2/ContentService/WebPageCategories/{webPageCategoryId}` |
+| Delete web page category | DELETE | `/api/v2/ContentService/WebPageCategories/{webPageCategoryId}` |
+| List web page tags | GET | `/api/v2/ContentService/WebPageTags` |
+| Count web page tags | GET | `/api/v2/ContentService/WebPageTags/Count` |
+| Create web page tag | POST | `/api/v2/ContentService/WebPageTags` |
+| Get web page tag by ID | GET | `/api/v2/ContentService/WebPageTags/{webPageTagId}` |
+| Update web page tag | PUT | `/api/v2/ContentService/WebPageTags/{webPageTagId}` |
+| Patch web page tag | PATCH | `/api/v2/ContentService/WebPageTags/{webPageTagId}` |
+| Delete web page tag | DELETE | `/api/v2/ContentService/WebPageTags/{webPageTagId}` |
+| List web contents | GET | `/api/v2/ContentService/WebContents` |
+| Count web contents | GET | `/api/v2/ContentService/WebContents/Count` |
+| Create web content | POST | `/api/v2/ContentService/WebContents` |
+| Get web content by ID | GET | `/api/v2/ContentService/WebContents/{webContentId}` |
+| Update web content | PUT | `/api/v2/ContentService/WebContents/{webContentId}` |
+| Patch web content | PATCH | `/api/v2/ContentService/WebContents/{webContentId}` |
+| Delete web content | DELETE | `/api/v2/ContentService/WebContents/{webContentId}` |
+| List web templates | GET | `/api/v2/ContentService/WebTemplates` |
+| Count web templates | GET | `/api/v2/ContentService/WebTemplates/Count` |
+| Create web template | POST | `/api/v2/ContentService/WebTemplates` |
+| Get web template by ID | GET | `/api/v2/ContentService/WebTemplates/{webTemplateId}` |
+| Update web template | PUT | `/api/v2/ContentService/WebTemplates/{webTemplateId}` |
+| Patch web template | PATCH | `/api/v2/ContentService/WebTemplates/{webTemplateId}` |
+| Delete web template | DELETE | `/api/v2/ContentService/WebTemplates/{webTemplateId}` |
+| List website themes | GET | `/api/v2/ContentService/WebsiteThemes` |
+| Count website themes | GET | `/api/v2/ContentService/WebsiteThemes/Count` |
+| Create website theme | POST | `/api/v2/ContentService/WebsiteThemes` |
+| Get website theme by ID | GET | `/api/v2/ContentService/WebsiteThemes/{id}` |
+| Update website theme | PUT | `/api/v2/ContentService/WebsiteThemes/{id}` |
+| Patch website theme | PATCH | `/api/v2/ContentService/WebsiteThemes/{id}` |
+| Delete website theme | DELETE | `/api/v2/ContentService/WebsiteThemes/{id}` |
+| Update base themes | GET | `/api/v2/ContentService/Themes/Update` |
+| List web components | GET | `/api/v2/ContentService/WebComponents` |
+| Count web components | GET | `/api/v2/ContentService/WebComponents/Count` |
+| Create web component | POST | `/api/v2/ContentService/WebComponents` |
+| Get web component by ID | GET | `/api/v2/ContentService/WebComponents/{webComponentId}` |
+| Update web component | PUT | `/api/v2/ContentService/WebComponents/{webComponentId}` |
+| Delete web component | DELETE | `/api/v2/ContentService/WebComponents/{webComponentId}` |
+| List menu contexts | GET | `/api/v2/ContentService/MenuContexts` |
+| Count menu contexts | GET | `/api/v2/ContentService/MenuContexts/Count` |
+| Create menu context | POST | `/api/v2/ContentService/MenuContexts` |
+| Get menu context by ID | GET | `/api/v2/ContentService/MenuContexts/{menuContextId}` |
+| Update menu context | PUT | `/api/v2/ContentService/MenuContexts/{menuContextId}` |
+| Delete menu context | DELETE | `/api/v2/ContentService/MenuContexts/{menuContextId}` |
+| List localization strings | GET | `/api/v2/ContentService/LocalizationStrings` |
+| Count localization strings | GET | `/api/v2/ContentService/LocalizationStrings/Count` |
+| Create localization string | POST | `/api/v2/ContentService/LocalizationStrings` |
+| Get localization string by ID | GET | `/api/v2/ContentService/LocalizationStrings/{localizationStringId}` |
+| Update localization string | PUT | `/api/v2/ContentService/LocalizationStrings/{localizationStringId}` |
+| Delete localization string | DELETE | `/api/v2/ContentService/LocalizationStrings/{localizationStringId}` |
+| List blog posts | GET | `/api/v2/ContentService/BlogPosts` |
+| Count blog posts | GET | `/api/v2/ContentService/BlogPosts/Count` |
+| Create blog post | POST | `/api/v2/ContentService/BlogPosts` |
+| Get blog post by ID | GET | `/api/v2/ContentService/BlogPosts/{blogPostId}` |
+| Update blog post | PUT | `/api/v2/ContentService/BlogPosts/{blogPostId}` |
+| Patch blog post | PATCH | `/api/v2/ContentService/BlogPosts/{blogPostId}` |
+| Delete blog post | DELETE | `/api/v2/ContentService/BlogPosts/{blogPostId}` |
+| Get categories for blog post | GET | `/api/v2/ContentService/BlogPosts/{blogPostId}/Categories` |
+| Create+relate category for blog post | POST | `/api/v2/ContentService/BlogPosts/{blogPostId}/Categories` |
+| Relate category to blog post | POST | `/api/v2/ContentService/BlogPosts/{blogPostId}/Categories/{categoryId}` |
+| Unrelate category from blog post | DELETE | `/api/v2/ContentService/BlogPosts/{blogPostId}/Categories/{categoryId}` |
+| Get tags for blog post | GET | `/api/v2/ContentService/BlogPosts/{blogPostId}/Tags` |
+| Create+relate tag for blog post | POST | `/api/v2/ContentService/BlogPosts/{blogPostId}/Tags` |
+| Relate tag to blog post | POST | `/api/v2/ContentService/BlogPosts/{blogPostId}/Tags/{tagId}` |
+| Unrelate tag from blog post | DELETE | `/api/v2/ContentService/BlogPosts/{blogPostId}/Tags/{tagId}` |
+| Get comments for blog post | GET | `/api/v2/ContentService/BlogPosts/{blogPostId}/Comments` |
+| Create comment for blog post | POST | `/api/v2/ContentService/BlogPosts/{blogPostId}/Comments` |
+| Reply to comment | POST | `/api/v2/ContentService/BlogPosts/{blogPostId}/Comments/{commentId}/Reply` |
+| Get replies for comment | GET | `/api/v2/ContentService/BlogPosts/{blogPostId}/Comments/{commentId}/Replies` |
+| Delete comment from blog post | DELETE | `/api/v2/ContentService/BlogPosts/{blogPostId}/Comments/{commentId}` |
+| List blog post authors | GET | `/api/v2/ContentService/BlogPostAuthors` |
+| Get blog author by ID | GET | `/api/v2/ContentService/BlogPostAuthors/{authorId}` |
+| Posts by author | GET | `/api/v2/ContentService/BlogPostAuthors/{authorId}/BlogPosts` |
+| Count posts by author | GET | `/api/v2/ContentService/BlogPostAuthors/{authorId}/BlogPosts/Count` |
+| List blog post categories | GET | `/api/v2/ContentService/BlogPostCategories` |
+| Count blog post categories | GET | `/api/v2/ContentService/BlogPostCategories/Count` |
+| Create blog post category | POST | `/api/v2/ContentService/BlogPostCategories` |
+| Get blog post category by ID | GET | `/api/v2/ContentService/BlogPostCategories/{blogPostCategoryId}` |
+| Update blog post category | PUT | `/api/v2/ContentService/BlogPostCategories/{blogPostCategoryId}` |
+| Patch blog post category | PATCH | `/api/v2/ContentService/BlogPostCategories/{blogPostCategoryId}` |
+| Delete blog post category | DELETE | `/api/v2/ContentService/BlogPostCategories/{blogPostCategoryId}` |
+| List blog post tags | GET | `/api/v2/ContentService/BlogPostTags` |
+| Count blog post tags | GET | `/api/v2/ContentService/BlogPostTags/Count` |
+| Create blog post tag | POST | `/api/v2/ContentService/BlogPostTags` |
+| Get blog post tag by ID | GET | `/api/v2/ContentService/BlogPostTags/{blogPostTagId}` |
+| Update blog post tag | PUT | `/api/v2/ContentService/BlogPostTags/{blogPostTagId}` |
+| Patch blog post tag | PATCH | `/api/v2/ContentService/BlogPostTags/{blogPostTagId}` |
+| Delete blog post tag | DELETE | `/api/v2/ContentService/BlogPostTags/{blogPostTagId}` |
+
+## Critical Rules
+
+- **Authenticate first.** Send `Authorization: Bearer $ABSUITE_ACCESS_TOKEN` on every call.
+- **Tenant scoping is per-endpoint** — pass `?tenantId=<tenant-guid>` only where the manifest
+  marks it required/optional; never add it to Portals `Current`/`Root`/`Search`/`Initialize`,
+  the by-id portal reads, the blog sub-reads, or `Themes/Update`.
+- **PATCH bodies are JSON Patch arrays** with camelCase JSON-Pointer paths.
+- **Blog/web body text** goes in `Code` (source) or `HtmlContent`/`RazorContent`/etc. depending
+  on `CodeType`.
+- **Note the field spelling `AllowSerachEngines`** (the API uses this exact spelling).
+- **Create-and-relate** (`POST .../Categories` with a body) creates a new taxonomy term and
+  links it; **relate-existing** (`POST .../Categories/{categoryId}`) links an existing one.
