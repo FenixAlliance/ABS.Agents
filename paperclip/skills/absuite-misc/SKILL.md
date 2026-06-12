@@ -1,2033 +1,835 @@
 ---
 name: absuite-misc
 description: >
-  Covers inventory, logistics, shipments, sales, and marketplace services in ABS.
-  While CLI coverage is minimal, the REST API provides comprehensive CRUD operations
-  across warehouses, ports, vessels, voyages, shipments, bills of lading, and more.
-  Requires an authenticated CLI session or REST bearer token.
+  Manage inventory, logistics, shipments, and sales resources via the Alliance
+  Business Suite (ABS) REST API. Covers warehouses, ports, vessels, voyages,
+  waybills (air/road/rail/sea), trucks, proofs of delivery, packing/pick/restock
+  documents, shipments, bills of lading, shipping methods/couriers/zones/classes,
+  stores, point-of-sales, loyalty programs and sales literature — including atomic
+  PATCH (JSON Patch) updates. All operations are tenant-scoped and require a bearer
+  token (see the absuite-login skill to authenticate).
 ---
 
-# Alliance Business Suite — Miscellaneous Services Skill
+# Alliance Business Suite — Misc Services (Inventory / Logistics / Shipments / Sales / Marketplace) REST Skill
 
-These services have minimal CLI coverage but extensive REST API support. The REST API provides full CRUD operations, record counts, sub-resource management, and lifecycle actions for logistics, shipments, and sales resources. They are grouped here by service for reference.
+This skill teaches an agent to drive five ABS services purely over REST:
+**InventoryService**, **LogisticsService**, **ShipmentsService**, **SalesService**, and
+**MarketplaceService**. Logistics and Shipments are large transport/document services
+(waybills, proofs of delivery, bills of lading, voyages, trucks). Sales is a small POS
+catalog (stores, POS terminals, loyalty programs, literature). Inventory exposes a single
+read endpoint. Marketplace currently exposes no tenant-domain REST endpoints.
 
-## Prerequisites
+> For the CLI equivalent see `absuite-misc-cli`; for general REST conventions see `absuite-rest`.
 
-1. **Authenticate first** using `absuite login` (see the `absuite-login` skill).
-2. **Set your tenant** where applicable.
+## Authentication
 
-## REST API Authentication
+Obtain a bearer token, then send it on every request:
 
-To call the API directly via REST instead of the CLI:
-
-1. **Obtain a bearer token:**
 ```bash
+# 1) Log in
 curl -X POST "$ABSUITE_HOST_URL/login" \
   -H "Content-Type: application/json" \
   -d '{"email": "'$ABSUITE_USER_EMAIL'", "password": "'$ABSUITE_USER_PASSWORD'"}'
-```
-Extract the `accessToken` from the JSON response.
+# -> extract accessToken from the JSON response
 
-2. **Use the token in all subsequent requests:**
-```bash
+# 2) Send it on every call
 -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-3. **All REST endpoints use the base path:** `$ABSUITE_HOST_URL/api/v2/`
+- **Base path:** `$ABSUITE_HOST_URL/api/v2/<ServiceName>/<Resource>`.
+- **Response envelope:** every response is
+  `{ "isSuccess": bool, "errorMessage": str|null, "correlationId": str, "timestamp": str, "result": <data|array|int|null> }`.
+  Always check `isSuccess`, then read the payload from `result`.
+
+## Tenant scoping
+
+Read the per-endpoint rule from the manifest, do not assume:
+
+- **Logistics, Shipments, Sales** domain endpoints all require **`?tenantId=<tenant-guid>`**
+  on **every** verb — including POST / PUT / PATCH / DELETE and the `/Count`, `/Extended`,
+  and action sub-paths. Omitting it on writes returns `400`. The equivalent header is
+  `X-TenantId: <tenant-guid>` (the platform binds the query param OR the header
+  interchangeably); examples below use the query param.
+- **InventoryService `Inventory/{stockItemId}/Details`** takes **no** `tenantId` param
+  (path-scoped by the stock item) — do not add one.
+- Optional everywhere: `api-version` (query) and `x-api-version` (header). Omit unless told otherwise.
+
+## PATCH = JSON Patch (RFC 6902)
+
+`PATCH` request bodies are a JSON **array** of operations with `Content-Type: application/json`:
+
+```json
+[
+  { "op": "replace", "path": "/title", "value": "New title" },
+  { "op": "add",     "path": "/remarks", "value": "Handle with care" }
+]
+```
+
+`op` ∈ `add|remove|replace|move|copy|test`; `path`/`from` are JSON-Pointers (leading `/`,
+camelCase field names). PATCH is for atomic partial updates — change a couple of fields
+without resending the whole object (safer than PUT under concurrent edits). PATCH is
+available on Logistics and Shipments aggregates and their line/entry sub-resources, and on
+all four Sales aggregates. See each section for which paths support it.
+
+Field names in `-d '{...}'` create/update bodies use **camelCase** exactly as transcribed
+from the manifest below (e.g. `documentNumber`, `freightCurrencyId`, `shipperContactId`).
+A handful of ShipmentsService policy fields use trailing uppercase `ID` (`currencyID`,
+`countryID`, `shippingCourierID`) — transcribe those verbatim.
 
 ---
 
-## Inventory
+# Inventory
 
-### InventoryService
-
-The InventoryService exposes a single endpoint for retrieving stock item details.
+The **InventoryService** exposes a single read endpoint: inventory details for a stock item.
+There is no list/create/update/delete and no PATCH.
 
 ```bash
-# List inventory details
-absuite inventory list details --TenantId $TENANT_ID
-```
-
-**REST API — Get inventory details for a stock item:**
-```bash
+# Get inventory details for a stock item (no tenantId param — path-scoped)
 curl -X GET "$ABSUITE_HOST_URL/api/v2/InventoryService/Inventory/<stockItemId>/Details" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ---
 
-## Logistics
+# Logistics
 
-The LogisticsService provides a comprehensive set of resources for managing supply chain, transport documents, warehousing, and freight operations. Each resource supports full CRUD plus count unless noted otherwise.
+The **LogisticsService** manages supply-chain documents and assets: warehouses, ports,
+vessels, voyages (with port calls), trucks (with trips), truck drivers, proofs of delivery
+(with lines and attached delivery notes), delivery notes, supplier profiles, item restocks /
+retain samples / packing slips / pick lists (each with entries), and four waybill families
+(air / rail / road / sea, each with lines). Every aggregate supports list / count / get /
+create / **PUT** / **PATCH** / delete; transport documents add lifecycle actions.
 
-### Warehouses
+**All Logistics endpoints require `?tenantId=<tenant-guid>` on every verb.**
 
-```bash
-absuite logistics list warehouses --TenantId $TENANT_ID
-absuite logistics get warehouse --TenantId $TENANT_ID --WarehouseId <id>
-absuite logistics create warehouse --TenantId $TENANT_ID --CreateWarehouseDto '{...}'
-absuite logistics update warehouse --TenantId $TENANT_ID --WarehouseId <id> --UpdateWarehouseDto '{...}'
-absuite logistics delete warehouse --TenantId $TENANT_ID --WarehouseId <id>
-```
-
-**REST API — Full CRUD + Count:**
-```bash
-# List all warehouses
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/Warehouses" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count warehouses
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/Warehouses/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get warehouse by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/Warehouses/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create warehouse
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/Warehouses" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Update warehouse
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/LogisticsService/Warehouses/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Delete warehouse
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/LogisticsService/Warehouses/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Ports
+## Warehouses
 
 ```bash
-# List ports
-absuite logistics list ports --TenantId $TENANT_ID
-```
-
-**REST API — Full CRUD + Count:**
-```bash
-# List all ports
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/Ports" \
+# List
+curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/Warehouses?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Count ports
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/Ports/Count" \
+# Count
+curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/Warehouses/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Get port by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/Ports/<id>" \
+# Get by ID
+curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/Warehouses/<warehouseId>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Create port
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/Ports" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
+# Create (title + address1 required)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/Warehouses?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{
+        "title": "Central DC",
+        "address1": "100 Dock Rd",
+        "address2": "",
+        "postalCode": "00000",
+        "phone": "",
+        "countryId": "<country-guid>",
+        "stateId": "<state-guid>",
+        "cityId": "<city-guid>",
+        "isGroup": false,
+        "parentWarehouseId": null
+      }'
 
-# Update port
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/LogisticsService/Ports/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
+# Update (PUT — full replace)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/LogisticsService/Warehouses/<warehouseId>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "title": "Central DC (renamed)", "address1": "100 Dock Rd" }'
 
-# Delete port
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/LogisticsService/Ports/<id>" \
+# Patch (atomic partial update)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/LogisticsService/Warehouses/<warehouseId>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '[ { "op": "replace", "path": "/phone", "value": "+1-555-0100" } ]'
+
+# Delete
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/LogisticsService/Warehouses/<warehouseId>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Vessels
+`WarehouseCreateDto` fields: `title`(req), `address1`(req), `address2`, `address3`,
+`postalCode`, `phone`, `countryId`, `stateId`, `cityId`, `isGroup`, `shipwireWarehouseId`,
+`parentWarehouseId` (plus optional `id`, `timestamp`). `WarehouseUpdateDto` drops `id`/`timestamp`.
+
+## Ports
 
 ```bash
-# List vessels
-absuite logistics list vessels --TenantId $TENANT_ID
+# Create (title + address1 required)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/Ports?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{
+        "title": "Port of Example",
+        "address1": "Pier 1",
+        "unLocode": "XXXXX",
+        "iataCode": "",
+        "portType": "Seaport",
+        "portAuthority": "",
+        "hasCustomsFacility": true,
+        "isFreeTradezone": false,
+        "isActive": true,
+        "longitude": 0.0,
+        "latitude": 0.0,
+        "countryId": "<country-guid>"
+      }'
 ```
 
-**REST API — Full CRUD + Count:**
+Other ops follow the standard pattern (`tenantId` required on all):
+`GET /Ports`, `GET /Ports/Count`, `GET /Ports/<portId>`,
+`PUT /Ports/<portId>`, `PATCH /Ports/<portId>`, `DELETE /Ports/<portId>`.
+`PortCreateDto` adds: `company`, `email`, `address2`, `address3`, `unit`, `customCity`,
+`customState`, `postalCode`, `phone`, `fax`, `countryStateId`, `cityId`, `parentPortId`.
+
+## Vessels
+
+Standard CRUD + count + PATCH (`tenantId` required).
+`VesselCreateDto`: `name`, `imoNumber`, `mmsiNumber`, `callSign`, `flagCountryId`,
+`vesselType`, `vesselStatus`, `grossTonnage`, `deadweightTonnage`, `teuCapacity`,
+`lengthMeters`, `beamMeters`, `draftMeters`, `yearBuilt`, `shippingCourierId`.
+
 ```bash
-# List all vessels
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/Vessels" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count vessels
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/Vessels/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get vessel by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/Vessels/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create vessel
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/Vessels" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Update vessel
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/LogisticsService/Vessels/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Delete vessel
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/LogisticsService/Vessels/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/Vessels?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "name": "MV Example", "imoNumber": "9999999", "vesselType": "Container", "teuCapacity": 8000 }'
 ```
 
-### Trucks
+## Trucks & Truck Trips
+
+Trucks support standard CRUD + count + PATCH. **Trips are a sub-resource of a truck**
+with their own CRUD + count + PATCH **plus five lifecycle actions**.
 
 ```bash
-# List trucks
-absuite logistics list trucks --TenantId $TENANT_ID
+# Truck create
+curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/Trucks?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "plateNumber": "ABC-123", "name": "Truck 1", "truckType": "Semi",
+        "maxPayloadKg": 24000, "teuCapacity": 2, "isActive": true, "isRefrigerated": false,
+        "shippingCourierId": "<courier-guid>" }'
+
+# Trip create under a truck
+curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/Trucks/<truckId>/Trips?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "tripNumber": "T-1001", "containerNumber": "CSQU3054383", "sealNumber": "S-77",
+        "departureTime": "2026-06-12T08:00:00Z", "distanceKm": 320,
+        "originPortId": "<port-guid>", "destinationPortId": "<port-guid>",
+        "shipmentId": "<shipment-guid>", "billOfLadingId": "<bol-guid>" }'
+
+# Trip lifecycle actions (POST, no body): Dispatch -> Depart -> Arrive -> Deliver ; or Cancel
+curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/Trucks/<truckId>/Trips/<tripId>/Dispatch?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+# ...Depart, Arrive, Deliver, Cancel follow the identical shape.
 ```
 
-**REST API — Full CRUD + Count:**
+Trip sub-paths: `GET|POST .../Trips`, `GET .../Trips/Count`, `GET|PUT|PATCH|DELETE .../Trips/<tripId>`,
+`POST .../Trips/<tripId>/{Arrive|Cancel|Deliver|Depart|Dispatch}`.
+`TruckTripCreateDto`: `tripNumber`, `containerNumber`, `sealNumber`, `departureTime`,
+`arrivalTime`, `distanceKm`, `notes`, `originPortId`, `originLocationId`,
+`destinationPortId`, `destinationLocationId`, `shipmentId`, `billOfLadingId`.
+
+## Truck Drivers
+
+Standard CRUD + count + PATCH, plus **Activate / Deactivate** actions.
+
 ```bash
-# List all trucks
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/Trucks" \
+curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/TruckDrivers/<driverId>/Activate?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count trucks
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/Trucks/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get truck by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/Trucks/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create truck
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/Trucks" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Update truck
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/LogisticsService/Trucks/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Delete truck
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/LogisticsService/Trucks/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-**REST API — Truck Trips (sub-resource with CRUD + Count + lifecycle actions):**
-```bash
-# List trips for a truck
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/Trucks/<truckId>/Trips" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count trips for a truck
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/Trucks/<truckId>/Trips/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get trip by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/Trucks/<truckId>/Trips/<tripId>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create trip
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/Trucks/<truckId>/Trips" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Update trip
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/LogisticsService/Trucks/<truckId>/Trips/<tripId>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Delete trip
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/LogisticsService/Trucks/<truckId>/Trips/<tripId>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Lifecycle actions: Arrive, Cancel, Deliver, Depart, Dispatch
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/Trucks/<truckId>/Trips/<tripId>/Arrive" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/Trucks/<truckId>/Trips/<tripId>/Cancel" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/Trucks/<truckId>/Trips/<tripId>/Deliver" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/Trucks/<truckId>/Trips/<tripId>/Depart" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/Trucks/<truckId>/Trips/<tripId>/Dispatch" \
+curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/TruckDrivers/<driverId>/Deactivate?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Truck Drivers
+`TruckDriverCreateDto`: `name`, `licenseNumber`, `licenseClass`, `phone`, `email`,
+`contactId`, `shippingCourierId`, `adrCertified`, `licenseExpiryDate`,
+`medicalExamExpiryDate`, `nationalIdNumber`, `notes`.
+
+## Voyages & Port Calls
+
+Voyages support CRUD + count + PATCH plus **Start / Complete / Cancel** lifecycle actions.
+**Port Calls are a sub-resource** with CRUD + count + PATCH (no lifecycle actions).
 
 ```bash
-# List truck drivers
-absuite logistics list truck-drivers --TenantId $TENANT_ID
+# Voyage create
+curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/Voyages?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "voyageNumber": "VY-2026-01", "title": "Asia loop", "voyageDirection": "Eastbound",
+        "departureDate": "2026-07-01", "arrivalDate": "2026-07-20", "vesselId": "<vessel-guid>" }'
+
+# Lifecycle (POST, no body)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/Voyages/<voyageId>/Start?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+# ...Complete, Cancel follow the identical shape.
+
+# Port call create
+curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/Voyages/<voyageId>/PortCalls?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "sequenceNumber": 1, "portCallStatus": "Scheduled", "eta": "2026-07-03T06:00:00Z",
+        "etd": "2026-07-03T18:00:00Z", "berthNumber": "B12", "portId": "<port-guid>" }'
 ```
 
-**REST API — Full CRUD + Count + Activate/Deactivate:**
-```bash
-# List all truck drivers
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/TruckDrivers" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+`VoyageCreateDto`: `voyageNumber`, `title`, `description`, `voyageDirection`,
+`departureDate`, `arrivalDate`, `vesselId`.
+`VoyagePortCallCreateDto`: `sequenceNumber`, `portCallStatus`, `eta`, `etd`, `berthNumber`,
+`remarks`, `portId` (the **Update** DTO additionally accepts `ata`, `atd`).
 
-# Count truck drivers
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/TruckDrivers/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+## Proofs of Delivery (+ Lines, + Delivery Notes attach/detach)
 
-# Get truck driver by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/TruckDrivers/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create truck driver
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/TruckDrivers" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Update truck driver
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/LogisticsService/TruckDrivers/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Delete truck driver
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/LogisticsService/TruckDrivers/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Activate driver
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/TruckDrivers/<id>/Activate" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Deactivate driver
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/TruckDrivers/<id>/Deactivate" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Voyages
+PODs support CRUD + count + PATCH, three actions (**Sign / Reject / Dispute**), a **Lines**
+sub-resource (CRUD + count + PATCH), and **DeliveryNotes** attach/detach.
 
 ```bash
-# List voyages
-absuite logistics list voyages --TenantId $TENANT_ID
+# Create POD
+curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/ProofsOfDelivery?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "documentNumber": "POD-1001", "shipmentId": "<shipment-guid>",
+        "recipientName": "Receiving Dept", "deliveryAddress": "100 Dock Rd",
+        "deliveryDate": "2026-06-12", "overallCondition": "Good" }'
+
+# Sign (body: signedBy, signerId) / Reject (body: reason) / Dispute (body: reason)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/ProofsOfDelivery/<podId>/Sign?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "signedBy": "J. Receiver", "signerId": "<contact-guid>" }'
+curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/ProofsOfDelivery/<podId>/Reject?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "reason": "Seal broken" }'
+
+# Add a POD line
+curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/ProofsOfDelivery/<podId>/Lines?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "description": "Pallet A", "quantityExpected": 10, "quantityReceived": 9,
+        "quantityRejected": 1, "condition": "Damaged", "hsCode": "8471.30" }'
+
+# Attach / detach a delivery note (note ID is in the path, not the body)
+curl -X POST   "$ABSUITE_HOST_URL/api/v2/LogisticsService/ProofsOfDelivery/<podId>/DeliveryNotes/<noteId>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/LogisticsService/ProofsOfDelivery/<podId>/DeliveryNotes/<noteId>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+# List/Count attached notes: GET .../DeliveryNotes  and  GET .../DeliveryNotes/Count
 ```
 
-**REST API — Full CRUD + Count + lifecycle actions:**
-```bash
-# List all voyages
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/Voyages" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+`ProofOfDeliveryCreateDto` links to any one transport doc via
+`billOfLadingId`/`seawayBillId`/`airwayBillId`/`roadWaybillId`/`railWaybillId`/`truckTripId`,
+plus `documentNumber`, `shipmentId`, `recipientName`, `recipientCompanyContactId`,
+`deliveryAddress`, `deliveryDate`, `deliveryTime`, `overallCondition`, `remarks`. The
+**Update** DTO also accepts `totalQuantityDelivered`, `totalQuantityRejected`,
+`photoEvidenceUri`. POD line DTO: `description`, `quantityExpected`, `quantityReceived`,
+`quantityRejected`, `condition`, `remarks`, `hsCode`.
 
-# Count voyages
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/Voyages/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+> POD has **no top-level PATCH on the Lines collection**; PATCH is on `.../Lines/<lineId>`.
 
-# Get voyage by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/Voyages/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+## Delivery Notes
 
-# Create voyage
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/Voyages" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Update voyage
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/LogisticsService/Voyages/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Delete voyage
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/LogisticsService/Voyages/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Lifecycle actions: Cancel, Complete, Start
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/Voyages/<id>/Cancel" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/Voyages/<id>/Complete" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/Voyages/<id>/Start" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-**REST API — Port Calls (sub-resource of Voyages, CRUD + Count):**
-```bash
-# List port calls for a voyage
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/Voyages/<voyageId>/PortCalls" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count port calls for a voyage
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/Voyages/<voyageId>/PortCalls/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get port call by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/Voyages/<voyageId>/PortCalls/<portCallId>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create port call
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/Voyages/<voyageId>/PortCalls" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Update port call
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/LogisticsService/Voyages/<voyageId>/PortCalls/<portCallId>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Delete port call
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/LogisticsService/Voyages/<voyageId>/PortCalls/<portCallId>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Proofs of Delivery
+Standard CRUD + count. **No PATCH, no actions.**
+`DeliveryNoteCreateDto`: `title`, `description`, `shipmentId`, `proofOfDeliveryId`.
 
 ```bash
-# List proofs of delivery
-absuite logistics list proofs-of-delivery --TenantId $TENANT_ID
+curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/DeliveryNotes?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "title": "DN-1001", "shipmentId": "<shipment-guid>" }'
 ```
 
-**REST API — Full CRUD + Count + actions:**
-```bash
-# List all proofs of delivery
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/ProofsOfDelivery" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+## Supplier Profiles
 
-# Count proofs of delivery
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/ProofsOfDelivery/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+Standard CRUD + count + PATCH. `SupplierProfileCreateDto`: `type`, `contactId`, `about`,
+`avatarUrl`, and generic `data`/`dataLabel` through `data9`/`data9Label` extension slots.
 
-# Get proof of delivery by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/ProofsOfDelivery/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+## Item Restocks, Retain Samples, Packing Slips, Pick Lists
 
-# Create proof of delivery
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/ProofsOfDelivery" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
+Document aggregates with entry sub-resources. All require `tenantId`.
 
-# Update proof of delivery
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/LogisticsService/ProofsOfDelivery/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Delete proof of delivery
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/LogisticsService/ProofsOfDelivery/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Actions: Dispute, Reject, Sign
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/ProofsOfDelivery/<id>/Dispute" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/ProofsOfDelivery/<id>/Reject" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/ProofsOfDelivery/<id>/Sign" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-**REST API — Proof of Delivery Lines (sub-resource, CRUD + Count):**
-```bash
-# List lines
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/ProofsOfDelivery/<id>/Lines" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count lines
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/ProofsOfDelivery/<id>/Lines/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get line by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/ProofsOfDelivery/<id>/Lines/<lineId>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create line
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/ProofsOfDelivery/<id>/Lines" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Update line
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/LogisticsService/ProofsOfDelivery/<id>/Lines/<lineId>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Delete line
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/LogisticsService/ProofsOfDelivery/<id>/Lines/<lineId>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-**REST API — Proof of Delivery → Delivery Notes (attach/detach + Count):**
-```bash
-# List attached delivery notes
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/ProofsOfDelivery/<id>/DeliveryNotes" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count attached delivery notes
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/ProofsOfDelivery/<id>/DeliveryNotes/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Attach a delivery note
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/ProofsOfDelivery/<id>/DeliveryNotes" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{"deliveryNoteId": "<noteId>"}'
-
-# Detach a delivery note
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/LogisticsService/ProofsOfDelivery/<id>/DeliveryNotes/<noteId>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Delivery Notes
+| Aggregate | Path | Entries sub-resource | PATCH |
+|-----------|------|----------------------|-------|
+| Item Restocks | `/ItemRestocks` | `/ItemRestocks/<id>/Entries` | aggregate + entry |
+| Item Pick Lists | `/ItemPickLists` | `/ItemPickLists/<id>/Entries` | aggregate + entry |
+| Item Packing Slips | `/ItemPackingSlips` | `/ItemPackingSlips/<id>/Entries` | aggregate + entry |
+| Item Retain Samples | `/ItemRetainSamples` | — (no entries) | aggregate |
 
 ```bash
-# List delivery notes
-absuite logistics list delivery-notes --TenantId $TENANT_ID
+# Create a restock
+curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemRestocks?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "name": "Q3 replenishment", "description": "" }'
+
+# Add a restock entry (itemId, warehouseId, itemRestockId required)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemRestocks/<restockId>/Entries?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "itemId": "<item-guid>", "warehouseId": "<warehouse-guid>",
+        "itemRestockId": "<restockId>", "quantity": 100, "orderItemRecordId": null }'
 ```
 
-**REST API — Full CRUD + Count:**
-```bash
-# List all delivery notes
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/DeliveryNotes" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+DTO field notes (required marked **req**):
+- `ItemRestockCreateDto`: `name`, `description`. Entry: `itemId`**req**, `warehouseId`**req**, `itemRestockId`**req**, `quantity`, `orderItemRecordId`.
+- `ItemPickListCreateDto`: `name`**req**, `description`, `orderId`. Entry: `itemId`**req**, `warehouseId`**req**, `itemPickListId`**req**, `quantity`, `orderItemRecordId`.
+- `ItemPackingSlipCreateDto`: `instructions`, `deliveryNoteId`, `orderId`. Entry: `itemId`**req**, `itemPackingSlipId`**req**, `quantity`**req**.
+- `ItemRetainSampleCreateDto`: `warehouseId`**req**, `itemId`**req**.
 
-# Count delivery notes
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/DeliveryNotes/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+## Waybills (Airway / Rail / Road / Seaway) + Lines
 
-# Get delivery note by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/DeliveryNotes/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+Four parallel transport-document families. Each has CRUD + count + PATCH, a **Lines**
+sub-resource (CRUD + count + PATCH), and lifecycle actions. The Lines DTO is shared across
+all four (`WaybillLineCreateDto`/`WaybillLineUpdateDto`).
 
-# Create delivery note
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/DeliveryNotes" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Update delivery note
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/LogisticsService/DeliveryNotes/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Delete delivery note
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/LogisticsService/DeliveryNotes/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Supplier Profiles
+| Family | Base path | Path id param | Lifecycle actions |
+|--------|-----------|---------------|-------------------|
+| Airway Bills | `/AirwayBills` | `{billId}` | Issue, Cancel, MarkInTransit, MarkArrived, MarkDelivered |
+| Rail Waybills | `/RailWaybills` | `{waybillId}` | Issue, Cancel, MarkInTransit, MarkDelivered |
+| Road Waybills | `/RoadWaybills` | `{waybillId}` | Issue, Cancel, Dispute, MarkInTransit, MarkDelivered |
+| Seaway Bills | `/SeawayBills` | `{billId}` | Issue, Cancel, MarkInTransit, MarkArrived, Release |
 
 ```bash
-# List supplier profiles
-absuite logistics list supplier-profiles --TenantId $TENANT_ID
+# Representative: create an airway bill
+curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/AirwayBills?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "documentNumber": "AWB-1001", "airwayBillType": "Master",
+        "masterAwbNumber": "020-12345675", "shipperContactId": "<contact-guid>",
+        "consigneeContactId": "<contact-guid>", "carrierId": "<courier-guid>",
+        "airlineCode": "AA", "flightNumber": "AA100",
+        "airportOfDepartureCode": "JFK", "airportOfDestinationCode": "LHR",
+        "freightTerms": "Prepaid", "freightAmount": 1500, "freightCurrencyId": "<currency-guid>",
+        "chargeableWeightKg": 250, "totalGrossWeightKg": 240, "totalPackages": 12,
+        "shipmentId": "<shipment-guid>" }'
+
+# Add a line (shared WaybillLineCreateDto)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/AirwayBills/<billId>/Lines?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "description": "Electronics", "quantity": 12, "grossWeightKg": 240, "volumeM3": 3.2,
+        "packageType": "Carton", "hsCode": "8471.30", "declaredValue": 50000,
+        "declaredValueCurrencyId": "<currency-guid>", "chargeableWeightKg": 250 }'
+
+# Lifecycle action (POST, no body) — e.g. issue then mark in transit
+curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/AirwayBills/<billId>/Issue?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/AirwayBills/<billId>/MarkInTransit?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Patch a waybill atomically
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/LogisticsService/SeawayBills/<billId>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '[ { "op": "replace", "path": "/freightTerms", "value": "Collect" } ]'
 ```
 
-**REST API — Full CRUD + Count:**
-```bash
-# List all supplier profiles
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/SupplierProfiles" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count supplier profiles
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/SupplierProfiles/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get supplier profile by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/SupplierProfiles/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create supplier profile
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/SupplierProfiles" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Update supplier profile
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/LogisticsService/SupplierProfiles/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Delete supplier profile
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/LogisticsService/SupplierProfiles/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Item Restocks
-
-```bash
-# List item restocks
-absuite logistics list item-restocks --TenantId $TENANT_ID
-```
-
-**REST API — Full CRUD + Count:**
-```bash
-# List all item restocks
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemRestocks" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count item restocks
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemRestocks/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get item restock by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemRestocks/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create item restock
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemRestocks" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Update item restock
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemRestocks/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Delete item restock
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemRestocks/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-**REST API — Item Restock Entries (sub-resource, CRUD + Count):**
-```bash
-# List entries
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemRestocks/<id>/Entries" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count entries
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemRestocks/<id>/Entries/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get entry by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemRestocks/<id>/Entries/<entryId>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create entry
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemRestocks/<id>/Entries" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Update entry
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemRestocks/<id>/Entries/<entryId>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Delete entry
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemRestocks/<id>/Entries/<entryId>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Item Retain Samples
-
-**REST API only — Full CRUD + Count:**
-```bash
-# List all item retain samples
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemRetainSamples" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count item retain samples
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemRetainSamples/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get item retain sample by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemRetainSamples/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create item retain sample
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemRetainSamples" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Update item retain sample
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemRetainSamples/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Delete item retain sample
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemRetainSamples/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Item Packing Slips
-
-```bash
-# List packing slips
-absuite logistics list packing-slips --TenantId $TENANT_ID
-```
-
-**REST API — Full CRUD + Count:**
-```bash
-# List all item packing slips
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemPackingSlips" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count item packing slips
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemPackingSlips/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get item packing slip by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemPackingSlips/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create item packing slip
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemPackingSlips" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Update item packing slip
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemPackingSlips/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Delete item packing slip
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemPackingSlips/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-**REST API — Item Packing Slip Entries (sub-resource, CRUD + Count):**
-```bash
-# List entries
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemPackingSlips/<id>/Entries" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count entries
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemPackingSlips/<id>/Entries/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get entry by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemPackingSlips/<id>/Entries/<entryId>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create entry
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemPackingSlips/<id>/Entries" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Update entry
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemPackingSlips/<id>/Entries/<entryId>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Delete entry
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemPackingSlips/<id>/Entries/<entryId>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Item Pick Lists
-
-**REST API only — Full CRUD + Count:**
-```bash
-# List all item pick lists
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemPickLists" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count item pick lists
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemPickLists/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get item pick list by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemPickLists/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create item pick list
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemPickLists" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Update item pick list
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemPickLists/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Delete item pick list
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemPickLists/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-**REST API — Item Pick List Entries (sub-resource, CRUD + Count):**
-```bash
-# List entries
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemPickLists/<id>/Entries" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count entries
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemPickLists/<id>/Entries/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get entry by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemPickLists/<id>/Entries/<entryId>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create entry
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemPickLists/<id>/Entries" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Update entry
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemPickLists/<id>/Entries/<entryId>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Delete entry
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemPickLists/<id>/Entries/<entryId>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Airway Bills
-
-**REST API only — Full CRUD + Count + lifecycle actions + Lines sub-resource:**
-```bash
-# List all airway bills
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/AirwayBills" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count airway bills
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/AirwayBills/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get airway bill by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/AirwayBills/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create airway bill
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/AirwayBills" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Update airway bill
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/LogisticsService/AirwayBills/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Delete airway bill
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/LogisticsService/AirwayBills/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Lifecycle actions: Cancel, Issue, MarkArrived, MarkDelivered, MarkInTransit
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/AirwayBills/<id>/Cancel" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/AirwayBills/<id>/Issue" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/AirwayBills/<id>/MarkArrived" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/AirwayBills/<id>/MarkDelivered" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/AirwayBills/<id>/MarkInTransit" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-**REST API — Airway Bill Lines (sub-resource, CRUD + Count):**
-```bash
-# List lines
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/AirwayBills/<id>/Lines" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count lines
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/AirwayBills/<id>/Lines/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get line by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/AirwayBills/<id>/Lines/<lineId>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create line
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/AirwayBills/<id>/Lines" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Update line
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/LogisticsService/AirwayBills/<id>/Lines/<lineId>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Delete line
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/LogisticsService/AirwayBills/<id>/Lines/<lineId>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Rail Waybills
-
-**REST API only — Full CRUD + Count + lifecycle actions + Lines sub-resource:**
-```bash
-# List all rail waybills
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/RailWaybills" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count rail waybills
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/RailWaybills/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get rail waybill by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/RailWaybills/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create rail waybill
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/RailWaybills" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Update rail waybill
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/LogisticsService/RailWaybills/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Delete rail waybill
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/LogisticsService/RailWaybills/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Lifecycle actions: Cancel, Issue, MarkDelivered, MarkInTransit
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/RailWaybills/<id>/Cancel" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/RailWaybills/<id>/Issue" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/RailWaybills/<id>/MarkDelivered" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/RailWaybills/<id>/MarkInTransit" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-**REST API — Rail Waybill Lines (sub-resource, CRUD + Count):**
-```bash
-# List lines
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/RailWaybills/<id>/Lines" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count lines
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/RailWaybills/<id>/Lines/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get line by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/RailWaybills/<id>/Lines/<lineId>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create line
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/RailWaybills/<id>/Lines" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Update line
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/LogisticsService/RailWaybills/<id>/Lines/<lineId>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Delete line
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/LogisticsService/RailWaybills/<id>/Lines/<lineId>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Road Waybills
-
-**REST API only — Full CRUD + Count + lifecycle actions + Lines sub-resource:**
-```bash
-# List all road waybills
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/RoadWaybills" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count road waybills
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/RoadWaybills/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get road waybill by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/RoadWaybills/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create road waybill
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/RoadWaybills" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Update road waybill
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/LogisticsService/RoadWaybills/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Delete road waybill
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/LogisticsService/RoadWaybills/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Lifecycle actions: Cancel, Dispute, Issue, MarkDelivered, MarkInTransit
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/RoadWaybills/<id>/Cancel" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/RoadWaybills/<id>/Dispute" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/RoadWaybills/<id>/Issue" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/RoadWaybills/<id>/MarkDelivered" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/RoadWaybills/<id>/MarkInTransit" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-**REST API — Road Waybill Lines (sub-resource, CRUD + Count):**
-```bash
-# List lines
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/RoadWaybills/<id>/Lines" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count lines
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/RoadWaybills/<id>/Lines/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get line by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/RoadWaybills/<id>/Lines/<lineId>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create line
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/RoadWaybills/<id>/Lines" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Update line
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/LogisticsService/RoadWaybills/<id>/Lines/<lineId>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Delete line
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/LogisticsService/RoadWaybills/<id>/Lines/<lineId>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Seaway Bills
-
-**REST API only — Full CRUD + Count + lifecycle actions + Lines sub-resource:**
-```bash
-# List all seaway bills
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/SeawayBills" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count seaway bills
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/SeawayBills/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get seaway bill by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/SeawayBills/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create seaway bill
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/SeawayBills" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Update seaway bill
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/LogisticsService/SeawayBills/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Delete seaway bill
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/LogisticsService/SeawayBills/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Lifecycle actions: Cancel, Issue, MarkArrived, MarkInTransit, Release
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/SeawayBills/<id>/Cancel" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/SeawayBills/<id>/Issue" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/SeawayBills/<id>/MarkArrived" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/SeawayBills/<id>/MarkInTransit" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/SeawayBills/<id>/Release" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-**REST API — Seaway Bill Lines (sub-resource, CRUD + Count):**
-```bash
-# List lines
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/SeawayBills/<id>/Lines" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count lines
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/SeawayBills/<id>/Lines/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get line by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LogisticsService/SeawayBills/<id>/Lines/<lineId>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create line
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/SeawayBills/<id>/Lines" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Update line
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/LogisticsService/SeawayBills/<id>/Lines/<lineId>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Delete line
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/LogisticsService/SeawayBills/<id>/Lines/<lineId>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
+`WaybillLineCreateDto` fields (shared): `description`, `quantity`, `grossWeightKg`,
+`volumeM3`, `packageType`, `lengthCm`, `widthCm`, `heightCm`, `hsCode`, `marksAndNumbers`,
+`declaredValue`, `declaredValueCurrencyId`, `sealNumber`, `containerNumber`,
+`chargeableWeightKg`, `iataRateClass`, `dangerousGoodsClass`, `unHazmatNumber`, `wagonNumber`.
+
+Family-specific header DTO fields of note:
+- **Airway** (`AirwayBillCreateDto`): `airwayBillType`, `masterAwbNumber`, `notifyPartyContactId`, `airlineCode`, `flightNumber`, `airportOfDepartureCode`, `airportOfDestinationCode`, `departureDate`, `arrivalDate`, `dateIssued`, `declaredValueForCarriage`, `declaredValueForCustoms`, `insuranceAmount`, `specialHandlingCodes`, `specialInstructions`.
+- **Rail** (`RailWaybillCreateDto`): `railOperatorName`, `stationOfDeparture(/Code)`, `stationOfDestination(/Code)`, `prescribedRoute`, `wagonNumbers`, `dateOfAcceptance`, `customsFormalities` (Update adds `dateOfDelivery`).
+- **Road** (`RoadWaybillCreateDto`): `roadWaybillType`, `successiveCarriers`, `truckId`, `truckDriverId`, `vehicleRegistration`, `trailerRegistration`, `placeOfTakingOver(PortId)`, `placeOfDelivery(PortId)`, `dateOfTakingOver`, `adrDangerousGoods`, `truckTripId` (Update adds `dateOfDelivery`).
+- **Seaway** (`SeawayBillCreateDto`): `vesselId`, `voyageId`, `portOfLoadingId`, `portOfDischargeId`, `placeOfReceipt`, `placeOfDelivery`, `dateIssued`, `dateShipped`, `totalWeight`.
+- Common to all four: `documentNumber`, `shipperContactId`, `consigneeContactId`, `carrierId`, `freightTerms`, `freightAmount`, `freightCurrencyId`, `totalGrossWeightKg`/`totalWeight`, `totalPackages`, `totalVolumeM3`, `remarks`, `shipmentId`.
 
 ---
+
+# Shipments
+
+The **ShipmentsService** manages shipments, shipping labels, bills of lading (with lines),
+shipping methods, couriers, regions, zones, classes, and item shipping policies. Every
+aggregate supports list / count / get / create / PUT / **PATCH** / delete. Only Bills of
+Lading have a sub-resource (Lines). **No lifecycle actions in this service.**
+
+**All Shipments endpoints require `?tenantId=<tenant-guid>` on every verb.**
 
 ## Shipments
 
-The ShipmentsService manages shipments, labels, bills of lading, shipping methods, couriers, regions, zones, policies, and classes. All resources support full CRUD + Count via REST.
-
-### Shipments
-
 ```bash
-# List shipments
-absuite shipments list --TenantId $TENANT_ID
-absuite shipments get --TenantId $TENANT_ID --ShipmentId <id>
-absuite shipments create --TenantId $TENANT_ID --CreateShipmentDto '{...}'
-absuite shipments update --TenantId $TENANT_ID --ShipmentId <id> --UpdateShipmentDto '{...}'
-absuite shipments delete --TenantId $TENANT_ID --ShipmentId <id>
+# Create (shippingTerms is an enum)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ShipmentsService/Shipments?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "trackingCode": "TRK-1001", "isInternational": true,
+        "expectedShippingDate": "2026-06-13", "expectedDeliveryDate": "2026-06-20",
+        "shippingTerms": "CIF", "orderId": "<order-guid>" }'
+
+# Patch status fields atomically
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/ShipmentsService/Shipments/<shipmentId>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '[ { "op": "replace", "path": "/shipped", "value": true },
+        { "op": "replace", "path": "/shipmentTimestamp", "value": "2026-06-13T09:00:00Z" } ]'
 ```
 
-**REST API — Full CRUD + Count:**
-```bash
-# List all shipments
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ShipmentsService/Shipments" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+`shippingTerms` enum (Incoterms): `NC|EXW|FCA|FOB|FAS|CFR|CIF|CPT|CIP|DDP|DAP|DPU`.
+`ShipmentCreateDto`: `trackingCode`, `isInternational`, `expectedShippingDate`,
+`expectedDeliveryDate`, `shippingTerms`, `orderId`. `ShipmentUpdateDto` adds `shipped`,
+`delivered`, `shipmentTimestamp`, `deliveryTimestamp`.
 
-# Count shipments
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ShipmentsService/Shipments/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+## Shipping Labels
 
-# Get shipment by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ShipmentsService/Shipments/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create shipment
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ShipmentsService/Shipments" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Update shipment
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/ShipmentsService/Shipments/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Delete shipment
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ShipmentsService/Shipments/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Shipping Labels
-
-**REST API — Full CRUD + Count:**
-```bash
-# List all shipping labels
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingLabels" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count shipping labels
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingLabels/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get shipping label by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingLabels/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create shipping label
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingLabels" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Update shipping label
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingLabels/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Delete shipping label
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingLabels/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Bills of Lading
+Standard CRUD + count + PATCH. `ShippingLabelCreateDto`: `trackingCode`**req**,
+`expectedDelivery`, `locationId`, `shipmentId`, `shippingCourierId`.
 
 ```bash
-# List bills of lading
-absuite shipments list bills-of-lading --TenantId $TENANT_ID
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingLabels?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "trackingCode": "TRK-1001", "shipmentId": "<shipment-guid>",
+        "shippingCourierId": "<courier-guid>" }'
 ```
 
-**REST API — Full CRUD + Count:**
-```bash
-# List all bills of lading
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ShipmentsService/BillsOfLading" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+## Bills of Lading (+ Lines)
 
-# Count bills of lading
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ShipmentsService/BillsOfLading/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get bill of lading by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ShipmentsService/BillsOfLading/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create bill of lading
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ShipmentsService/BillsOfLading" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Update bill of lading
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/ShipmentsService/BillsOfLading/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Delete bill of lading
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ShipmentsService/BillsOfLading/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-**REST API — Bill of Lading Lines (sub-resource, CRUD + Count):**
-```bash
-# List lines
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ShipmentsService/BillsOfLading/<id>/Lines" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count lines
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ShipmentsService/BillsOfLading/<id>/Lines/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get line by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ShipmentsService/BillsOfLading/<id>/Lines/<lineId>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create line
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ShipmentsService/BillsOfLading/<id>/Lines" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Update line
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/ShipmentsService/BillsOfLading/<id>/Lines/<lineId>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Delete line
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ShipmentsService/BillsOfLading/<id>/Lines/<lineId>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Shipping Methods
+CRUD + count + PATCH on the bill, and a **Lines** sub-resource (CRUD + count + PATCH).
 
 ```bash
-# List shipping methods
-absuite shipments list methods --TenantId $TENANT_ID
+# Create a bill of lading
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ShipmentsService/BillsOfLading?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "billOfLadingNumber": "BL-1001", "title": "Ocean BL", "billOfLadingType": "Negotiable",
+        "isNegotiable": true, "isClean": true, "numberOfOriginals": 3,
+        "freightPaymentType": "Prepaid", "shippingTerms": "CIF",
+        "shipperContactId": "<contact-guid>", "consigneeContactId": "<contact-guid>",
+        "portOfLoadingId": "<port-guid>", "portOfDischargeId": "<port-guid>",
+        "shipmentId": "<shipment-guid>", "voyageId": "<voyage-guid>",
+        "totalPackages": 100, "totalGrossWeightKg": 12000 }'
+
+# Add a line
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ShipmentsService/BillsOfLading/<billOfLadingId>/Lines?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "description": "Coffee beans", "quantity": 100, "packageType": "Bag",
+        "grossWeightKg": 12000, "volumeM3": 40, "hsCode": "0901.21", "itemId": "<item-guid>" }'
 ```
 
-**REST API — Full CRUD + Count:**
-```bash
-# List all shipping methods
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingMethods" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+`BillOfLadingCreateDto` notable fields: `billOfLadingNumber`, `title`, `description`,
+`billOfLadingType`, `isNegotiable`, `isClean`, `numberOfOriginals`, `freightPaymentType`,
+`shippingTerms`, `freightChargesDescription`, `declaredValueAmount`,
+`declaredValueCurrencyId`, `vesselName`, `voyageNumber`, `shipperContactId`,
+`consigneeContactId`, `notifyPartyContactId`, `shippingCourierId`, `portOfLoadingId`,
+`portOfDischargeId`, `placeOfReceiptId`, `placeOfDeliveryId`, `shipmentId`, `orderId`,
+`voyageId`, `marksAndNumbers`, `totalPackages`, `totalGrossWeightKg`, `totalVolumeM3`
+(Update adds `expiryDate`). `BillOfLadingLineCreateDto`: `description`, `quantity`,
+`packageType`, `grossWeightKg`, `volumeM3`, `marksAndNumbers`, `hsCode`, `itemId`.
 
-# Count shipping methods
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingMethods/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+## Shipping Methods / Couriers / Regions / Zones / Classes
 
-# Get shipping method by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingMethods/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create shipping method
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingMethods" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Update shipping method
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingMethods/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Delete shipping method
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingMethods/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Shipping Couriers
+Five flat catalogs, each CRUD + count + PATCH. Representative create bodies:
 
 ```bash
-# List shipping couriers
-absuite shipments list couriers --TenantId $TENANT_ID
+# Shipping Method (shippingClassCalculationType is an enum)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingMethods?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "name": "Standard Ground", "description": "", "cost": 9.99, "taxable": true,
+        "taxIncluded": false, "currencyId": "<currency-guid>",
+        "shippingClassCalculationType": "PerOrder" }'
+
+# Shipping Courier
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingCouriers?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "name": "Example Courier", "logoURL": "", "countryId": "<country-guid>" }'
+
+# Shipping Region
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingRegions?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "name": "Northeast", "postalCodes": "10001,10002" }'
+
+# Shipping Zone
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingZones?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "name": "Domestic", "default": true, "everywhere": false,
+        "postalCodes": "", "countryCodes": "US" }'
+
+# Shipping Class
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingClasses?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "name": "Fragile", "slug": "fragile" }'
 ```
 
-**REST API — Full CRUD + Count:**
-```bash
-# List all shipping couriers
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingCouriers" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+- `ShippingMethodCreateDto`: `name`**req**, `description`, `cost`, `taxable`, `taxIncluded`, `currencyId`, `shippingClassCalculationType` enum `PerClass|PerOrder`.
+- `ShippingCourierCreateDto`: `name`**req**, `logoURL`, `countryId`.
+- `ShippingRegionCreateDto`: `name`**req**, `postalCodes`.
+- `ShippingZoneCreateDto`: `name`**req**, `default`, `everywhere`, `postalCodes`, `countryCodes`.
+- `ShippingClassCreateDto`: `name`**req**, `slug`.
 
-# Count shipping couriers
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingCouriers/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+## Item Shipping Policies
 
-# Get shipping courier by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingCouriers/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create shipping courier
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingCouriers" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Update shipping courier
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingCouriers/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Delete shipping courier
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingCouriers/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Shipping Regions
-
-```bash
-# List shipping regions
-absuite shipments list regions --TenantId $TENANT_ID
-```
-
-**REST API — Full CRUD + Count:**
-```bash
-# List all shipping regions
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingRegions" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count shipping regions
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingRegions/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get shipping region by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingRegions/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create shipping region
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingRegions" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Update shipping region
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingRegions/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Delete shipping region
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingRegions/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Shipping Zones
+CRUD + count + PATCH. Several fields use trailing uppercase `ID` — transcribe verbatim.
 
 ```bash
-# List shipping zones
-absuite shipments list zones --TenantId $TENANT_ID
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ItemShippingPolicies?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "title": "Free over $50", "type": "Threshold", "code": "FREE50",
+        "isExpressShipmentPolicy": false, "isFree": true, "isEnabled": true,
+        "isDefault": false, "allowInternational": false, "days": 5,
+        "value": 0, "percentage": 0, "currencyID": "<currency-guid>",
+        "shippingCourierID": "<courier-guid>" }'
 ```
 
-**REST API — Full CRUD + Count:**
-```bash
-# List all shipping zones
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingZones" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count shipping zones
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingZones/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get shipping zone by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingZones/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create shipping zone
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingZones" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Update shipping zone
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingZones/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Delete shipping zone
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingZones/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Shipping Classes
-
-```bash
-# List shipping classes
-absuite shipments list classes --TenantId $TENANT_ID
-```
-
-**REST API — Full CRUD + Count:**
-```bash
-# List all shipping classes
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingClasses" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count shipping classes
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingClasses/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get shipping class by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingClasses/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create shipping class
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingClasses" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Update shipping class
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingClasses/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Delete shipping class
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingClasses/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Item Shipping Policies
-
-```bash
-# List shipping policies
-absuite shipments list policies --TenantId $TENANT_ID
-```
-
-**REST API — Full CRUD + Count:**
-```bash
-# List all item shipping policies
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ItemShippingPolicies" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count item shipping policies
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ItemShippingPolicies/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get item shipping policy by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ItemShippingPolicies/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create item shipping policy
-curl -X POST "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ItemShippingPolicies" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Update item shipping policy
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ItemShippingPolicies/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Delete item shipping policy
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ItemShippingPolicies/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
+`ItemShippingPolicyCreateDto` required fields: `title`, `type`, `code`, `currencyID`,
+`shippingCourierID`. Optional: `description`, `isExpressShipmentPolicy`, `isFree`, `reduce`,
+`isEnabled`, `isDefault`, `allowInternational`, `hours`, `days`, `weeks`, `months`, `years`,
+`value`, `percentage`, `countryID`, `countryStateID`, `customState`, `customCity`, `cityID`.
 
 ---
 
-## Sales
+# Sales
 
-The SalesService manages stores, point-of-sale terminals, loyalty programs, sales literature, and margins.
+The **SalesService** manages stores, point-of-sale terminals, loyalty programs, sales
+literature, and exposes a read-only margin lookup. The four collection aggregates support
+list / count / get / create / PUT / **PATCH** / delete. **No lifecycle actions.**
 
-### Stores
+**All Sales collection endpoints require `?tenantId=<tenant-guid>` on every verb.** The
+`Margins/<marginId>/Details` lookup takes **no** `tenantId` param.
+
+## Stores
 
 ```bash
-# List stores and get store details
-absuite sales list stores --TenantId $TENANT_ID
-absuite sales get store --TenantId $TENANT_ID --StoreId <id>
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SalesService/Stores?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "name": "Flagship Store", "eCommerce": true, "currencyId": "<currency-guid>" }'
+
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/SalesService/Stores/<storeId>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '[ { "op": "replace", "path": "/eCommerce", "value": false } ]'
 ```
 
-**REST API — Full CRUD + Count:**
+`StoreCreateDto`: `name`**req**, `eCommerce`, `currencyId`.
+
+## Point of Sales
+
 ```bash
-# List all stores
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SalesService/Stores" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count stores
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SalesService/Stores/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get store by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SalesService/Stores/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create store
-curl -X POST "$ABSUITE_HOST_URL/api/v2/SalesService/Stores" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Update store
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/SalesService/Stores/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Delete store
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SalesService/Stores/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SalesService/PointOfSales?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "title": "Register 1", "code": "POS-1", "description": "",
+        "priceListId": "<pricelist-guid>", "locationId": "<location-guid>" }'
 ```
 
-### Loyalty Programs
+`PointOfSaleCreateDto`: `title`**req**, `code`, `description`, `priceListId`, `locationId`.
+
+## Loyalty Programs
 
 ```bash
-# List loyalty programs
-absuite sales list loyalty-programs --TenantId $TENANT_ID
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SalesService/LoyaltyPrograms?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "title": "Gold Tier", "description": "", "priceListId": "<pricelist-guid>" }'
 ```
 
-**REST API — Full CRUD + Count:**
+`LoyaltyProgramCreateDto`: `title`**req**, `description`, `priceListId`.
+
+## Sales Literatures
+
+CRUD + count + PATCH, plus a collection-level **Extended** read
+(`GET /SalesLiteratures/Extended`, returns literatures with related data; tenantId required).
+There is **no** per-id `/Extended` endpoint.
+
 ```bash
-# List all loyalty programs
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SalesService/LoyaltyPrograms" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SalesService/SalesLiteratures/Extended?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Count loyalty programs
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SalesService/LoyaltyPrograms/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get loyalty program by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SalesService/LoyaltyPrograms/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create loyalty program
-curl -X POST "$ABSUITE_HOST_URL/api/v2/SalesService/LoyaltyPrograms" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Update loyalty program
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/SalesService/LoyaltyPrograms/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Delete loyalty program
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SalesService/LoyaltyPrograms/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SalesService/SalesLiteratures?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "title": "Product Brochure", "content": "...", "description": "",
+        "expirationDate": "2026-12-31", "salesLiteratureTypeId": "<type-guid>" }'
 ```
 
-### Point of Sales
+`SalesLiteratureCreateDto`: `title`, `content`, `description`, `modifiedDate`,
+`expirationDate`, `salesLiteratureTypeId`.
+
+## Margins (read-only)
 
 ```bash
-# List point of sales
-absuite sales list point-of-sales --TenantId $TENANT_ID
-```
-
-**REST API — Full CRUD + Count:**
-```bash
-# List all point of sales
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SalesService/PointOfSales" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count point of sales
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SalesService/PointOfSales/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get point of sale by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SalesService/PointOfSales/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create point of sale
-curl -X POST "$ABSUITE_HOST_URL/api/v2/SalesService/PointOfSales" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Update point of sale
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/SalesService/PointOfSales/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Delete point of sale
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SalesService/PointOfSales/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Sales Literatures
-
-```bash
-# List sales literatures
-absuite sales list sales-literatures --TenantId $TENANT_ID
-```
-
-**REST API — Full CRUD + Count + Extended:**
-```bash
-# List all sales literatures
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SalesService/SalesLiteratures" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count sales literatures
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SalesService/SalesLiteratures/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get sales literature by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SalesService/SalesLiteratures/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get extended sales literature (includes related data)
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SalesService/SalesLiteratures/<id>/Extended" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create sales literature
-curl -X POST "$ABSUITE_HOST_URL/api/v2/SalesService/SalesLiteratures" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Update sales literature
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/SalesService/SalesLiteratures/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-
-# Delete sales literature
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SalesService/SalesLiteratures/<id>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Margins
-
-```bash
-# Get margin details
-absuite sales get quote --TenantId $TENANT_ID --QuoteId <quote-guid>
-```
-
-**REST API — Get margin details:**
-```bash
-# Get margin details by ID
+# Get margin details (no tenantId param)
 curl -X GET "$ABSUITE_HOST_URL/api/v2/SalesService/Margins/<marginId>/Details" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ---
 
-## Marketplace
+# Marketplace
 
-The marketplace service currently has **no commands available** via the CLI.
+The **MarketplaceService** currently exposes **no tenant-domain REST endpoints** — its
+OpenAPI surface contains only shared host endpoints (login/register/health and the AI
+Completions helper), which are not part of this skill. There is nothing to create, list,
+or update here yet; re-check the manifest when the service gains resources.
+
+---
+
+# End-to-end workflow (create → add lines → issue → patch)
+
+A typical outbound-air shipment, using only verified endpoints (tenantId required throughout):
 
 ```bash
-# Check for updates
-absuite marketplace list-commands
+# 1) Create a shipment
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ShipmentsService/Shipments?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "trackingCode": "TRK-2001", "isInternational": true, "shippingTerms": "CIF",
+        "orderId": "<order-guid>" }'   # -> result.id = <shipment-guid>
+
+# 2) Create the airway bill for that shipment
+curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/AirwayBills?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "documentNumber": "AWB-2001", "shipperContactId": "<contact-guid>",
+        "consigneeContactId": "<contact-guid>", "carrierId": "<courier-guid>",
+        "shipmentId": "<shipment-guid>" }'   # -> result.id = <billId>
+
+# 3) Add a line
+curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/AirwayBills/<billId>/Lines?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "description": "Electronics", "quantity": 12, "grossWeightKg": 240, "hsCode": "8471.30" }'
+
+# 4) Issue, then mark in transit
+curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/AirwayBills/<billId>/Issue?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/AirwayBills/<billId>/MarkInTransit?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# 5) Patch the shipment's status atomically when it ships
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/ShipmentsService/Shipments/<shipment-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '[ { "op": "replace", "path": "/shipped", "value": true } ]'
 ```
 
 ---
 
-## API Endpoints Quick Reference
-
-### InventoryService
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v2/InventoryService/Inventory/:stockItemId/Details` | Get inventory details for a stock item |
-
-### LogisticsService — Warehouses
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v2/LogisticsService/Warehouses` | List all warehouses |
-| GET | `/api/v2/LogisticsService/Warehouses/Count` | Count warehouses |
-| GET | `/api/v2/LogisticsService/Warehouses/:id` | Get warehouse by ID |
-| POST | `/api/v2/LogisticsService/Warehouses` | Create warehouse |
-| PUT | `/api/v2/LogisticsService/Warehouses/:id` | Update warehouse |
-| DELETE | `/api/v2/LogisticsService/Warehouses/:id` | Delete warehouse |
-
-### LogisticsService — Ports
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v2/LogisticsService/Ports` | List all ports |
-| GET | `/api/v2/LogisticsService/Ports/Count` | Count ports |
-| GET | `/api/v2/LogisticsService/Ports/:id` | Get port by ID |
-| POST | `/api/v2/LogisticsService/Ports` | Create port |
-| PUT | `/api/v2/LogisticsService/Ports/:id` | Update port |
-| DELETE | `/api/v2/LogisticsService/Ports/:id` | Delete port |
-
-### LogisticsService — Vessels
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v2/LogisticsService/Vessels` | List all vessels |
-| GET | `/api/v2/LogisticsService/Vessels/Count` | Count vessels |
-| GET | `/api/v2/LogisticsService/Vessels/:id` | Get vessel by ID |
-| POST | `/api/v2/LogisticsService/Vessels` | Create vessel |
-| PUT | `/api/v2/LogisticsService/Vessels/:id` | Update vessel |
-| DELETE | `/api/v2/LogisticsService/Vessels/:id` | Delete vessel |
-
-### LogisticsService — Trucks & Trips
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v2/LogisticsService/Trucks` | List all trucks |
-| GET | `/api/v2/LogisticsService/Trucks/Count` | Count trucks |
-| GET | `/api/v2/LogisticsService/Trucks/:id` | Get truck by ID |
-| POST | `/api/v2/LogisticsService/Trucks` | Create truck |
-| PUT | `/api/v2/LogisticsService/Trucks/:id` | Update truck |
-| DELETE | `/api/v2/LogisticsService/Trucks/:id` | Delete truck |
-| GET | `/api/v2/LogisticsService/Trucks/:id/Trips` | List trips for a truck |
-| GET | `/api/v2/LogisticsService/Trucks/:id/Trips/Count` | Count trips for a truck |
-| GET | `/api/v2/LogisticsService/Trucks/:id/Trips/:tripId` | Get trip by ID |
-| POST | `/api/v2/LogisticsService/Trucks/:id/Trips` | Create trip |
-| PUT | `/api/v2/LogisticsService/Trucks/:id/Trips/:tripId` | Update trip |
-| DELETE | `/api/v2/LogisticsService/Trucks/:id/Trips/:tripId` | Delete trip |
-| POST | `/api/v2/LogisticsService/Trucks/:id/Trips/:tripId/Arrive` | Mark trip arrived |
-| POST | `/api/v2/LogisticsService/Trucks/:id/Trips/:tripId/Cancel` | Cancel trip |
-| POST | `/api/v2/LogisticsService/Trucks/:id/Trips/:tripId/Deliver` | Mark trip delivered |
-| POST | `/api/v2/LogisticsService/Trucks/:id/Trips/:tripId/Depart` | Depart trip |
-| POST | `/api/v2/LogisticsService/Trucks/:id/Trips/:tripId/Dispatch` | Dispatch trip |
-
-### LogisticsService — Truck Drivers
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v2/LogisticsService/TruckDrivers` | List all truck drivers |
-| GET | `/api/v2/LogisticsService/TruckDrivers/Count` | Count truck drivers |
-| GET | `/api/v2/LogisticsService/TruckDrivers/:id` | Get truck driver by ID |
-| POST | `/api/v2/LogisticsService/TruckDrivers` | Create truck driver |
-| PUT | `/api/v2/LogisticsService/TruckDrivers/:id` | Update truck driver |
-| DELETE | `/api/v2/LogisticsService/TruckDrivers/:id` | Delete truck driver |
-| POST | `/api/v2/LogisticsService/TruckDrivers/:id/Activate` | Activate driver |
-| POST | `/api/v2/LogisticsService/TruckDrivers/:id/Deactivate` | Deactivate driver |
-
-### LogisticsService — Voyages & Port Calls
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v2/LogisticsService/Voyages` | List all voyages |
-| GET | `/api/v2/LogisticsService/Voyages/Count` | Count voyages |
-| GET | `/api/v2/LogisticsService/Voyages/:id` | Get voyage by ID |
-| POST | `/api/v2/LogisticsService/Voyages` | Create voyage |
-| PUT | `/api/v2/LogisticsService/Voyages/:id` | Update voyage |
-| DELETE | `/api/v2/LogisticsService/Voyages/:id` | Delete voyage |
-| POST | `/api/v2/LogisticsService/Voyages/:id/Cancel` | Cancel voyage |
-| POST | `/api/v2/LogisticsService/Voyages/:id/Complete` | Complete voyage |
-| POST | `/api/v2/LogisticsService/Voyages/:id/Start` | Start voyage |
-| GET | `/api/v2/LogisticsService/Voyages/:id/PortCalls` | List port calls |
-| GET | `/api/v2/LogisticsService/Voyages/:id/PortCalls/Count` | Count port calls |
-| GET | `/api/v2/LogisticsService/Voyages/:id/PortCalls/:pcId` | Get port call by ID |
-| POST | `/api/v2/LogisticsService/Voyages/:id/PortCalls` | Create port call |
-| PUT | `/api/v2/LogisticsService/Voyages/:id/PortCalls/:pcId` | Update port call |
-| DELETE | `/api/v2/LogisticsService/Voyages/:id/PortCalls/:pcId` | Delete port call |
-
-### LogisticsService — Proofs of Delivery
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v2/LogisticsService/ProofsOfDelivery` | List all proofs of delivery |
-| GET | `/api/v2/LogisticsService/ProofsOfDelivery/Count` | Count proofs of delivery |
-| GET | `/api/v2/LogisticsService/ProofsOfDelivery/:id` | Get proof by ID |
-| POST | `/api/v2/LogisticsService/ProofsOfDelivery` | Create proof |
-| PUT | `/api/v2/LogisticsService/ProofsOfDelivery/:id` | Update proof |
-| DELETE | `/api/v2/LogisticsService/ProofsOfDelivery/:id` | Delete proof |
-| POST | `/api/v2/LogisticsService/ProofsOfDelivery/:id/Dispute` | Dispute proof |
-| POST | `/api/v2/LogisticsService/ProofsOfDelivery/:id/Reject` | Reject proof |
-| POST | `/api/v2/LogisticsService/ProofsOfDelivery/:id/Sign` | Sign proof |
-| GET | `/api/v2/LogisticsService/ProofsOfDelivery/:id/Lines` | List lines |
-| GET | `/api/v2/LogisticsService/ProofsOfDelivery/:id/Lines/Count` | Count lines |
-| GET | `/api/v2/LogisticsService/ProofsOfDelivery/:id/Lines/:lineId` | Get line by ID |
-| POST | `/api/v2/LogisticsService/ProofsOfDelivery/:id/Lines` | Create line |
-| PUT | `/api/v2/LogisticsService/ProofsOfDelivery/:id/Lines/:lineId` | Update line |
-| DELETE | `/api/v2/LogisticsService/ProofsOfDelivery/:id/Lines/:lineId` | Delete line |
-| GET | `/api/v2/LogisticsService/ProofsOfDelivery/:id/DeliveryNotes` | List attached notes |
-| GET | `/api/v2/LogisticsService/ProofsOfDelivery/:id/DeliveryNotes/Count` | Count attached notes |
-| POST | `/api/v2/LogisticsService/ProofsOfDelivery/:id/DeliveryNotes` | Attach delivery note |
-| DELETE | `/api/v2/LogisticsService/ProofsOfDelivery/:id/DeliveryNotes/:noteId` | Detach delivery note |
-
-### LogisticsService — Delivery Notes
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v2/LogisticsService/DeliveryNotes` | List all delivery notes |
-| GET | `/api/v2/LogisticsService/DeliveryNotes/Count` | Count delivery notes |
-| GET | `/api/v2/LogisticsService/DeliveryNotes/:id` | Get delivery note by ID |
-| POST | `/api/v2/LogisticsService/DeliveryNotes` | Create delivery note |
-| PUT | `/api/v2/LogisticsService/DeliveryNotes/:id` | Update delivery note |
-| DELETE | `/api/v2/LogisticsService/DeliveryNotes/:id` | Delete delivery note |
-
-### LogisticsService — Supplier Profiles
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v2/LogisticsService/SupplierProfiles` | List all supplier profiles |
-| GET | `/api/v2/LogisticsService/SupplierProfiles/Count` | Count supplier profiles |
-| GET | `/api/v2/LogisticsService/SupplierProfiles/:id` | Get supplier profile by ID |
-| POST | `/api/v2/LogisticsService/SupplierProfiles` | Create supplier profile |
-| PUT | `/api/v2/LogisticsService/SupplierProfiles/:id` | Update supplier profile |
-| DELETE | `/api/v2/LogisticsService/SupplierProfiles/:id` | Delete supplier profile |
-
-### LogisticsService — Item Restocks & Entries
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v2/LogisticsService/ItemRestocks` | List all item restocks |
-| GET | `/api/v2/LogisticsService/ItemRestocks/Count` | Count item restocks |
-| GET | `/api/v2/LogisticsService/ItemRestocks/:id` | Get item restock by ID |
-| POST | `/api/v2/LogisticsService/ItemRestocks` | Create item restock |
-| PUT | `/api/v2/LogisticsService/ItemRestocks/:id` | Update item restock |
-| DELETE | `/api/v2/LogisticsService/ItemRestocks/:id` | Delete item restock |
-| GET | `/api/v2/LogisticsService/ItemRestocks/:id/Entries` | List entries |
-| GET | `/api/v2/LogisticsService/ItemRestocks/:id/Entries/Count` | Count entries |
-| GET | `/api/v2/LogisticsService/ItemRestocks/:id/Entries/:entryId` | Get entry by ID |
-| POST | `/api/v2/LogisticsService/ItemRestocks/:id/Entries` | Create entry |
-| PUT | `/api/v2/LogisticsService/ItemRestocks/:id/Entries/:entryId` | Update entry |
-| DELETE | `/api/v2/LogisticsService/ItemRestocks/:id/Entries/:entryId` | Delete entry |
-
-### LogisticsService — Item Retain Samples
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v2/LogisticsService/ItemRetainSamples` | List all retain samples |
-| GET | `/api/v2/LogisticsService/ItemRetainSamples/Count` | Count retain samples |
-| GET | `/api/v2/LogisticsService/ItemRetainSamples/:id` | Get retain sample by ID |
-| POST | `/api/v2/LogisticsService/ItemRetainSamples` | Create retain sample |
-| PUT | `/api/v2/LogisticsService/ItemRetainSamples/:id` | Update retain sample |
-| DELETE | `/api/v2/LogisticsService/ItemRetainSamples/:id` | Delete retain sample |
-
-### LogisticsService — Item Packing Slips & Entries
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v2/LogisticsService/ItemPackingSlips` | List all packing slips |
-| GET | `/api/v2/LogisticsService/ItemPackingSlips/Count` | Count packing slips |
-| GET | `/api/v2/LogisticsService/ItemPackingSlips/:id` | Get packing slip by ID |
-| POST | `/api/v2/LogisticsService/ItemPackingSlips` | Create packing slip |
-| PUT | `/api/v2/LogisticsService/ItemPackingSlips/:id` | Update packing slip |
-| DELETE | `/api/v2/LogisticsService/ItemPackingSlips/:id` | Delete packing slip |
-| GET | `/api/v2/LogisticsService/ItemPackingSlips/:id/Entries` | List entries |
-| GET | `/api/v2/LogisticsService/ItemPackingSlips/:id/Entries/Count` | Count entries |
-| GET | `/api/v2/LogisticsService/ItemPackingSlips/:id/Entries/:entryId` | Get entry by ID |
-| POST | `/api/v2/LogisticsService/ItemPackingSlips/:id/Entries` | Create entry |
-| PUT | `/api/v2/LogisticsService/ItemPackingSlips/:id/Entries/:entryId` | Update entry |
-| DELETE | `/api/v2/LogisticsService/ItemPackingSlips/:id/Entries/:entryId` | Delete entry |
-
-### LogisticsService — Item Pick Lists & Entries
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v2/LogisticsService/ItemPickLists` | List all pick lists |
-| GET | `/api/v2/LogisticsService/ItemPickLists/Count` | Count pick lists |
-| GET | `/api/v2/LogisticsService/ItemPickLists/:id` | Get pick list by ID |
-| POST | `/api/v2/LogisticsService/ItemPickLists` | Create pick list |
-| PUT | `/api/v2/LogisticsService/ItemPickLists/:id` | Update pick list |
-| DELETE | `/api/v2/LogisticsService/ItemPickLists/:id` | Delete pick list |
-| GET | `/api/v2/LogisticsService/ItemPickLists/:id/Entries` | List entries |
-| GET | `/api/v2/LogisticsService/ItemPickLists/:id/Entries/Count` | Count entries |
-| GET | `/api/v2/LogisticsService/ItemPickLists/:id/Entries/:entryId` | Get entry by ID |
-| POST | `/api/v2/LogisticsService/ItemPickLists/:id/Entries` | Create entry |
-| PUT | `/api/v2/LogisticsService/ItemPickLists/:id/Entries/:entryId` | Update entry |
-| DELETE | `/api/v2/LogisticsService/ItemPickLists/:id/Entries/:entryId` | Delete entry |
-
-### LogisticsService — Airway Bills & Lines
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v2/LogisticsService/AirwayBills` | List all airway bills |
-| GET | `/api/v2/LogisticsService/AirwayBills/Count` | Count airway bills |
-| GET | `/api/v2/LogisticsService/AirwayBills/:id` | Get airway bill by ID |
-| POST | `/api/v2/LogisticsService/AirwayBills` | Create airway bill |
-| PUT | `/api/v2/LogisticsService/AirwayBills/:id` | Update airway bill |
-| DELETE | `/api/v2/LogisticsService/AirwayBills/:id` | Delete airway bill |
-| POST | `/api/v2/LogisticsService/AirwayBills/:id/Cancel` | Cancel airway bill |
-| POST | `/api/v2/LogisticsService/AirwayBills/:id/Issue` | Issue airway bill |
-| POST | `/api/v2/LogisticsService/AirwayBills/:id/MarkArrived` | Mark arrived |
-| POST | `/api/v2/LogisticsService/AirwayBills/:id/MarkDelivered` | Mark delivered |
-| POST | `/api/v2/LogisticsService/AirwayBills/:id/MarkInTransit` | Mark in transit |
-| GET | `/api/v2/LogisticsService/AirwayBills/:id/Lines` | List lines |
-| GET | `/api/v2/LogisticsService/AirwayBills/:id/Lines/Count` | Count lines |
-| GET | `/api/v2/LogisticsService/AirwayBills/:id/Lines/:lineId` | Get line by ID |
-| POST | `/api/v2/LogisticsService/AirwayBills/:id/Lines` | Create line |
-| PUT | `/api/v2/LogisticsService/AirwayBills/:id/Lines/:lineId` | Update line |
-| DELETE | `/api/v2/LogisticsService/AirwayBills/:id/Lines/:lineId` | Delete line |
-
-### LogisticsService — Rail Waybills & Lines
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v2/LogisticsService/RailWaybills` | List all rail waybills |
-| GET | `/api/v2/LogisticsService/RailWaybills/Count` | Count rail waybills |
-| GET | `/api/v2/LogisticsService/RailWaybills/:id` | Get rail waybill by ID |
-| POST | `/api/v2/LogisticsService/RailWaybills` | Create rail waybill |
-| PUT | `/api/v2/LogisticsService/RailWaybills/:id` | Update rail waybill |
-| DELETE | `/api/v2/LogisticsService/RailWaybills/:id` | Delete rail waybill |
-| POST | `/api/v2/LogisticsService/RailWaybills/:id/Cancel` | Cancel rail waybill |
-| POST | `/api/v2/LogisticsService/RailWaybills/:id/Issue` | Issue rail waybill |
-| POST | `/api/v2/LogisticsService/RailWaybills/:id/MarkDelivered` | Mark delivered |
-| POST | `/api/v2/LogisticsService/RailWaybills/:id/MarkInTransit` | Mark in transit |
-| GET | `/api/v2/LogisticsService/RailWaybills/:id/Lines` | List lines |
-| GET | `/api/v2/LogisticsService/RailWaybills/:id/Lines/Count` | Count lines |
-| GET | `/api/v2/LogisticsService/RailWaybills/:id/Lines/:lineId` | Get line by ID |
-| POST | `/api/v2/LogisticsService/RailWaybills/:id/Lines` | Create line |
-| PUT | `/api/v2/LogisticsService/RailWaybills/:id/Lines/:lineId` | Update line |
-| DELETE | `/api/v2/LogisticsService/RailWaybills/:id/Lines/:lineId` | Delete line |
-
-### LogisticsService — Road Waybills & Lines
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v2/LogisticsService/RoadWaybills` | List all road waybills |
-| GET | `/api/v2/LogisticsService/RoadWaybills/Count` | Count road waybills |
-| GET | `/api/v2/LogisticsService/RoadWaybills/:id` | Get road waybill by ID |
-| POST | `/api/v2/LogisticsService/RoadWaybills` | Create road waybill |
-| PUT | `/api/v2/LogisticsService/RoadWaybills/:id` | Update road waybill |
-| DELETE | `/api/v2/LogisticsService/RoadWaybills/:id` | Delete road waybill |
-| POST | `/api/v2/LogisticsService/RoadWaybills/:id/Cancel` | Cancel road waybill |
-| POST | `/api/v2/LogisticsService/RoadWaybills/:id/Dispute` | Dispute road waybill |
-| POST | `/api/v2/LogisticsService/RoadWaybills/:id/Issue` | Issue road waybill |
-| POST | `/api/v2/LogisticsService/RoadWaybills/:id/MarkDelivered` | Mark delivered |
-| POST | `/api/v2/LogisticsService/RoadWaybills/:id/MarkInTransit` | Mark in transit |
-| GET | `/api/v2/LogisticsService/RoadWaybills/:id/Lines` | List lines |
-| GET | `/api/v2/LogisticsService/RoadWaybills/:id/Lines/Count` | Count lines |
-| GET | `/api/v2/LogisticsService/RoadWaybills/:id/Lines/:lineId` | Get line by ID |
-| POST | `/api/v2/LogisticsService/RoadWaybills/:id/Lines` | Create line |
-| PUT | `/api/v2/LogisticsService/RoadWaybills/:id/Lines/:lineId` | Update line |
-| DELETE | `/api/v2/LogisticsService/RoadWaybills/:id/Lines/:lineId` | Delete line |
-
-### LogisticsService — Seaway Bills & Lines
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v2/LogisticsService/SeawayBills` | List all seaway bills |
-| GET | `/api/v2/LogisticsService/SeawayBills/Count` | Count seaway bills |
-| GET | `/api/v2/LogisticsService/SeawayBills/:id` | Get seaway bill by ID |
-| POST | `/api/v2/LogisticsService/SeawayBills` | Create seaway bill |
-| PUT | `/api/v2/LogisticsService/SeawayBills/:id` | Update seaway bill |
-| DELETE | `/api/v2/LogisticsService/SeawayBills/:id` | Delete seaway bill |
-| POST | `/api/v2/LogisticsService/SeawayBills/:id/Cancel` | Cancel seaway bill |
-| POST | `/api/v2/LogisticsService/SeawayBills/:id/Issue` | Issue seaway bill |
-| POST | `/api/v2/LogisticsService/SeawayBills/:id/MarkArrived` | Mark arrived |
-| POST | `/api/v2/LogisticsService/SeawayBills/:id/MarkInTransit` | Mark in transit |
-| POST | `/api/v2/LogisticsService/SeawayBills/:id/Release` | Release seaway bill |
-| GET | `/api/v2/LogisticsService/SeawayBills/:id/Lines` | List lines |
-| GET | `/api/v2/LogisticsService/SeawayBills/:id/Lines/Count` | Count lines |
-| GET | `/api/v2/LogisticsService/SeawayBills/:id/Lines/:lineId` | Get line by ID |
-| POST | `/api/v2/LogisticsService/SeawayBills/:id/Lines` | Create line |
-| PUT | `/api/v2/LogisticsService/SeawayBills/:id/Lines/:lineId` | Update line |
-| DELETE | `/api/v2/LogisticsService/SeawayBills/:id/Lines/:lineId` | Delete line |
-
-### ShipmentsService — Shipments
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v2/ShipmentsService/Shipments` | List all shipments |
-| GET | `/api/v2/ShipmentsService/Shipments/Count` | Count shipments |
-| GET | `/api/v2/ShipmentsService/Shipments/:id` | Get shipment by ID |
-| POST | `/api/v2/ShipmentsService/Shipments` | Create shipment |
-| PUT | `/api/v2/ShipmentsService/Shipments/:id` | Update shipment |
-| DELETE | `/api/v2/ShipmentsService/Shipments/:id` | Delete shipment |
-
-### ShipmentsService — Shipping Labels
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v2/ShipmentsService/ShippingLabels` | List all shipping labels |
-| GET | `/api/v2/ShipmentsService/ShippingLabels/Count` | Count shipping labels |
-| GET | `/api/v2/ShipmentsService/ShippingLabels/:id` | Get shipping label by ID |
-| POST | `/api/v2/ShipmentsService/ShippingLabels` | Create shipping label |
-| PUT | `/api/v2/ShipmentsService/ShippingLabels/:id` | Update shipping label |
-| DELETE | `/api/v2/ShipmentsService/ShippingLabels/:id` | Delete shipping label |
-
-### ShipmentsService — Bills of Lading & Lines
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v2/ShipmentsService/BillsOfLading` | List all bills of lading |
-| GET | `/api/v2/ShipmentsService/BillsOfLading/Count` | Count bills of lading |
-| GET | `/api/v2/ShipmentsService/BillsOfLading/:id` | Get bill of lading by ID |
-| POST | `/api/v2/ShipmentsService/BillsOfLading` | Create bill of lading |
-| PUT | `/api/v2/ShipmentsService/BillsOfLading/:id` | Update bill of lading |
-| DELETE | `/api/v2/ShipmentsService/BillsOfLading/:id` | Delete bill of lading |
-| GET | `/api/v2/ShipmentsService/BillsOfLading/:id/Lines` | List lines |
-| GET | `/api/v2/ShipmentsService/BillsOfLading/:id/Lines/Count` | Count lines |
-| GET | `/api/v2/ShipmentsService/BillsOfLading/:id/Lines/:lineId` | Get line by ID |
-| POST | `/api/v2/ShipmentsService/BillsOfLading/:id/Lines` | Create line |
-| PUT | `/api/v2/ShipmentsService/BillsOfLading/:id/Lines/:lineId` | Update line |
-| DELETE | `/api/v2/ShipmentsService/BillsOfLading/:id/Lines/:lineId` | Delete line |
-
-### ShipmentsService — Shipping Methods
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v2/ShipmentsService/ShippingMethods` | List all shipping methods |
-| GET | `/api/v2/ShipmentsService/ShippingMethods/Count` | Count shipping methods |
-| GET | `/api/v2/ShipmentsService/ShippingMethods/:id` | Get shipping method by ID |
-| POST | `/api/v2/ShipmentsService/ShippingMethods` | Create shipping method |
-| PUT | `/api/v2/ShipmentsService/ShippingMethods/:id` | Update shipping method |
-| DELETE | `/api/v2/ShipmentsService/ShippingMethods/:id` | Delete shipping method |
-
-### ShipmentsService — Shipping Couriers
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v2/ShipmentsService/ShippingCouriers` | List all shipping couriers |
-| GET | `/api/v2/ShipmentsService/ShippingCouriers/Count` | Count shipping couriers |
-| GET | `/api/v2/ShipmentsService/ShippingCouriers/:id` | Get shipping courier by ID |
-| POST | `/api/v2/ShipmentsService/ShippingCouriers` | Create shipping courier |
-| PUT | `/api/v2/ShipmentsService/ShippingCouriers/:id` | Update shipping courier |
-| DELETE | `/api/v2/ShipmentsService/ShippingCouriers/:id` | Delete shipping courier |
-
-### ShipmentsService — Shipping Regions
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v2/ShipmentsService/ShippingRegions` | List all shipping regions |
-| GET | `/api/v2/ShipmentsService/ShippingRegions/Count` | Count shipping regions |
-| GET | `/api/v2/ShipmentsService/ShippingRegions/:id` | Get shipping region by ID |
-| POST | `/api/v2/ShipmentsService/ShippingRegions` | Create shipping region |
-| PUT | `/api/v2/ShipmentsService/ShippingRegions/:id` | Update shipping region |
-| DELETE | `/api/v2/ShipmentsService/ShippingRegions/:id` | Delete shipping region |
-
-### ShipmentsService — Shipping Zones
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v2/ShipmentsService/ShippingZones` | List all shipping zones |
-| GET | `/api/v2/ShipmentsService/ShippingZones/Count` | Count shipping zones |
-| GET | `/api/v2/ShipmentsService/ShippingZones/:id` | Get shipping zone by ID |
-| POST | `/api/v2/ShipmentsService/ShippingZones` | Create shipping zone |
-| PUT | `/api/v2/ShipmentsService/ShippingZones/:id` | Update shipping zone |
-| DELETE | `/api/v2/ShipmentsService/ShippingZones/:id` | Delete shipping zone |
-
-### ShipmentsService — Shipping Classes
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v2/ShipmentsService/ShippingClasses` | List all shipping classes |
-| GET | `/api/v2/ShipmentsService/ShippingClasses/Count` | Count shipping classes |
-| GET | `/api/v2/ShipmentsService/ShippingClasses/:id` | Get shipping class by ID |
-| POST | `/api/v2/ShipmentsService/ShippingClasses` | Create shipping class |
-| PUT | `/api/v2/ShipmentsService/ShippingClasses/:id` | Update shipping class |
-| DELETE | `/api/v2/ShipmentsService/ShippingClasses/:id` | Delete shipping class |
-
-### ShipmentsService — Item Shipping Policies
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v2/ShipmentsService/ItemShippingPolicies` | List all shipping policies |
-| GET | `/api/v2/ShipmentsService/ItemShippingPolicies/Count` | Count shipping policies |
-| GET | `/api/v2/ShipmentsService/ItemShippingPolicies/:id` | Get shipping policy by ID |
-| POST | `/api/v2/ShipmentsService/ItemShippingPolicies` | Create shipping policy |
-| PUT | `/api/v2/ShipmentsService/ItemShippingPolicies/:id` | Update shipping policy |
-| DELETE | `/api/v2/ShipmentsService/ItemShippingPolicies/:id` | Delete shipping policy |
-
-### SalesService — Stores
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v2/SalesService/Stores` | List all stores |
-| GET | `/api/v2/SalesService/Stores/Count` | Count stores |
-| GET | `/api/v2/SalesService/Stores/:id` | Get store by ID |
-| POST | `/api/v2/SalesService/Stores` | Create store |
-| PUT | `/api/v2/SalesService/Stores/:id` | Update store |
-| DELETE | `/api/v2/SalesService/Stores/:id` | Delete store |
-
-### SalesService — Loyalty Programs
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v2/SalesService/LoyaltyPrograms` | List all loyalty programs |
-| GET | `/api/v2/SalesService/LoyaltyPrograms/Count` | Count loyalty programs |
-| GET | `/api/v2/SalesService/LoyaltyPrograms/:id` | Get loyalty program by ID |
-| POST | `/api/v2/SalesService/LoyaltyPrograms` | Create loyalty program |
-| PUT | `/api/v2/SalesService/LoyaltyPrograms/:id` | Update loyalty program |
-| DELETE | `/api/v2/SalesService/LoyaltyPrograms/:id` | Delete loyalty program |
-
-### SalesService — Point of Sales
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v2/SalesService/PointOfSales` | List all point of sales |
-| GET | `/api/v2/SalesService/PointOfSales/Count` | Count point of sales |
-| GET | `/api/v2/SalesService/PointOfSales/:id` | Get point of sale by ID |
-| POST | `/api/v2/SalesService/PointOfSales` | Create point of sale |
-| PUT | `/api/v2/SalesService/PointOfSales/:id` | Update point of sale |
-| DELETE | `/api/v2/SalesService/PointOfSales/:id` | Delete point of sale |
-
-### SalesService — Sales Literatures
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v2/SalesService/SalesLiteratures` | List all sales literatures |
-| GET | `/api/v2/SalesService/SalesLiteratures/Count` | Count sales literatures |
-| GET | `/api/v2/SalesService/SalesLiteratures/:id` | Get sales literature by ID |
-| GET | `/api/v2/SalesService/SalesLiteratures/:id/Extended` | Get extended sales literature |
-| POST | `/api/v2/SalesService/SalesLiteratures` | Create sales literature |
-| PUT | `/api/v2/SalesService/SalesLiteratures/:id` | Update sales literature |
-| DELETE | `/api/v2/SalesService/SalesLiteratures/:id` | Delete sales literature |
-
-### SalesService — Margins
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v2/SalesService/Margins/:marginId/Details` | Get margin details |
-
-## Critical Rules
-
-- These services have limited CLI coverage — check `list-commands` periodically for new additions.
-- Use the REST API for resources not yet available through the CLI.
-- Use dedicated services for full functionality (e.g., `absuite quotes` for quote management, `absuite catalog` for product catalog).
-- All REST endpoints require a valid bearer token (see [REST API Authentication](#rest-api-authentication)).
-- All list endpoints support OData query parameters (`$filter`, `$orderby`, `$top`, `$skip`) for filtering and pagination.
+# API Endpoints Quick Reference
+
+`:id`/`:lineId`/`:entryId`/`:tripId` etc. are path params. Unless noted, all
+LogisticsService / ShipmentsService / SalesService paths require `?tenantId=<tenant-guid>`.
+
+## InventoryService
+
+| Action | Method | Path |
+|--------|--------|------|
+| Get stock-item inventory details (no tenantId) | GET | `/api/v2/InventoryService/Inventory/:stockItemId/Details` |
+
+## LogisticsService — Warehouses
+
+| Action | Method | Path |
+|--------|--------|------|
+| List | GET | `/api/v2/LogisticsService/Warehouses` |
+| Count | GET | `/api/v2/LogisticsService/Warehouses/Count` |
+| Get | GET | `/api/v2/LogisticsService/Warehouses/:id` |
+| Create | POST | `/api/v2/LogisticsService/Warehouses` |
+| Update | PUT | `/api/v2/LogisticsService/Warehouses/:id` |
+| Patch | PATCH | `/api/v2/LogisticsService/Warehouses/:id` |
+| Delete | DELETE | `/api/v2/LogisticsService/Warehouses/:id` |
+
+## LogisticsService — Ports / Vessels / Supplier Profiles (identical CRUD shape)
+
+| Action | Method | Path (Ports shown; swap `Ports`→`Vessels`/`SupplierProfiles`) |
+|--------|--------|------|
+| List | GET | `/api/v2/LogisticsService/Ports` |
+| Count | GET | `/api/v2/LogisticsService/Ports/Count` |
+| Get | GET | `/api/v2/LogisticsService/Ports/:id` |
+| Create | POST | `/api/v2/LogisticsService/Ports` |
+| Update | PUT | `/api/v2/LogisticsService/Ports/:id` |
+| Patch | PATCH | `/api/v2/LogisticsService/Ports/:id` |
+| Delete | DELETE | `/api/v2/LogisticsService/Ports/:id` |
+
+## LogisticsService — Trucks & Trips
+
+| Action | Method | Path |
+|--------|--------|------|
+| List / Count / Get / Create / Update / Patch / Delete | (CRUD) | `/api/v2/LogisticsService/Trucks[/Count|/:id]` |
+| List trips | GET | `/api/v2/LogisticsService/Trucks/:truckId/Trips` |
+| Count trips | GET | `/api/v2/LogisticsService/Trucks/:truckId/Trips/Count` |
+| Create trip | POST | `/api/v2/LogisticsService/Trucks/:truckId/Trips` |
+| Update trip | PUT | `/api/v2/LogisticsService/Trucks/:truckId/Trips/:tripId` |
+| Patch trip | PATCH | `/api/v2/LogisticsService/Trucks/:truckId/Trips/:tripId` |
+| Delete trip | DELETE | `/api/v2/LogisticsService/Trucks/:truckId/Trips/:tripId` |
+| Trip action | POST | `/api/v2/LogisticsService/Trucks/:truckId/Trips/:tripId/{Arrive\|Cancel\|Deliver\|Depart\|Dispatch}` |
+
+> Note: Trucks has **no `GET /Trips/:tripId`** single-trip read in the manifest.
+
+## LogisticsService — Truck Drivers
+
+| Action | Method | Path |
+|--------|--------|------|
+| CRUD + Count | (CRUD) | `/api/v2/LogisticsService/TruckDrivers[/Count|/:id]` (+ PATCH `/:id`) |
+| Activate | POST | `/api/v2/LogisticsService/TruckDrivers/:id/Activate` |
+| Deactivate | POST | `/api/v2/LogisticsService/TruckDrivers/:id/Deactivate` |
+
+## LogisticsService — Voyages & Port Calls
+
+| Action | Method | Path |
+|--------|--------|------|
+| CRUD + Count + Patch | (CRUD) | `/api/v2/LogisticsService/Voyages[/Count|/:id]` |
+| Lifecycle | POST | `/api/v2/LogisticsService/Voyages/:id/{Start\|Complete\|Cancel}` |
+| Port calls CRUD + Count + Patch | (CRUD) | `/api/v2/LogisticsService/Voyages/:id/PortCalls[/Count|/:portCallId]` |
+
+## LogisticsService — Proofs of Delivery
+
+| Action | Method | Path |
+|--------|--------|------|
+| CRUD + Count + Patch | (CRUD) | `/api/v2/LogisticsService/ProofsOfDelivery[/Count|/:id]` |
+| Sign / Reject / Dispute | POST | `/api/v2/LogisticsService/ProofsOfDelivery/:id/{Sign\|Reject\|Dispute}` |
+| Lines CRUD + Count + Patch | (CRUD) | `/api/v2/LogisticsService/ProofsOfDelivery/:id/Lines[/Count|/:lineId]` |
+| List / Count delivery notes | GET | `/api/v2/LogisticsService/ProofsOfDelivery/:id/DeliveryNotes[/Count]` |
+| Attach delivery note | POST | `/api/v2/LogisticsService/ProofsOfDelivery/:id/DeliveryNotes/:noteId` |
+| Detach delivery note | DELETE | `/api/v2/LogisticsService/ProofsOfDelivery/:id/DeliveryNotes/:noteId` |
+
+## LogisticsService — Delivery Notes
+
+| Action | Method | Path |
+|--------|--------|------|
+| List / Count / Get / Create / Update / Delete (no PATCH) | (CRUD) | `/api/v2/LogisticsService/DeliveryNotes[/Count|/:id]` |
+
+## LogisticsService — Item Restocks / Pick Lists / Packing Slips (with Entries)
+
+| Action | Method | Path (Restocks shown) |
+|--------|--------|------|
+| CRUD + Count + Patch | (CRUD) | `/api/v2/LogisticsService/ItemRestocks[/Count|/:id]` |
+| Entries CRUD + Count + Patch | (CRUD) | `/api/v2/LogisticsService/ItemRestocks/:id/Entries[/Count|/:entryId]` |
+
+Swap `ItemRestocks`→`ItemPickLists` or `ItemPackingSlips` (same shape).
+
+## LogisticsService — Item Retain Samples
+
+| Action | Method | Path |
+|--------|--------|------|
+| CRUD + Count + Patch (no entries) | (CRUD) | `/api/v2/LogisticsService/ItemRetainSamples[/Count|/:id]` |
+
+## LogisticsService — Waybills (Airway / Rail / Road / Seaway) + Lines
+
+| Action | Method | Path (`AirwayBills`/`:billId` shown) |
+|--------|--------|------|
+| CRUD + Count + Patch | (CRUD) | `/api/v2/LogisticsService/AirwayBills[/Count|/:billId]` |
+| Lines CRUD + Count + Patch | (CRUD) | `/api/v2/LogisticsService/AirwayBills/:billId/Lines[/Count|/:lineId]` |
+| Airway actions | POST | `.../AirwayBills/:billId/{Issue\|Cancel\|MarkInTransit\|MarkArrived\|MarkDelivered}` |
+| Rail actions | POST | `.../RailWaybills/:waybillId/{Issue\|Cancel\|MarkInTransit\|MarkDelivered}` |
+| Road actions | POST | `.../RoadWaybills/:waybillId/{Issue\|Cancel\|Dispute\|MarkInTransit\|MarkDelivered}` |
+| Seaway actions | POST | `.../SeawayBills/:billId/{Issue\|Cancel\|MarkInTransit\|MarkArrived\|Release}` |
+
+> Rail/Road use `:waybillId`, Airway/Seaway use `:billId`. Lines paths and DTO are identical across all four families.
+
+## ShipmentsService
+
+| Action | Method | Path |
+|--------|--------|------|
+| Shipments CRUD + Count + Patch | (CRUD) | `/api/v2/ShipmentsService/Shipments[/Count|/:id]` |
+| Shipping Labels CRUD + Count + Patch | (CRUD) | `/api/v2/ShipmentsService/ShippingLabels[/Count|/:id]` |
+| Bills of Lading CRUD + Count + Patch | (CRUD) | `/api/v2/ShipmentsService/BillsOfLading[/Count|/:id]` |
+| BoL Lines CRUD + Count + Patch | (CRUD) | `/api/v2/ShipmentsService/BillsOfLading/:id/Lines[/Count|/:lineId]` |
+| Shipping Methods CRUD + Count + Patch | (CRUD) | `/api/v2/ShipmentsService/ShippingMethods[/Count|/:id]` |
+| Shipping Couriers CRUD + Count + Patch | (CRUD) | `/api/v2/ShipmentsService/ShippingCouriers[/Count|/:id]` |
+| Shipping Regions CRUD + Count + Patch | (CRUD) | `/api/v2/ShipmentsService/ShippingRegions[/Count|/:id]` |
+| Shipping Zones CRUD + Count + Patch | (CRUD) | `/api/v2/ShipmentsService/ShippingZones[/Count|/:id]` |
+| Shipping Classes CRUD + Count + Patch | (CRUD) | `/api/v2/ShipmentsService/ShippingClasses[/Count|/:id]` |
+| Item Shipping Policies CRUD + Count + Patch | (CRUD) | `/api/v2/ShipmentsService/ItemShippingPolicies[/Count|/:id]` |
+
+Where `(CRUD)` = GET (list), GET `/Count`, GET `/:id`, POST, PUT `/:id`, PATCH `/:id`, DELETE `/:id`.
+
+## SalesService
+
+| Action | Method | Path |
+|--------|--------|------|
+| Stores CRUD + Count + Patch | (CRUD) | `/api/v2/SalesService/Stores[/Count|/:id]` |
+| Point of Sales CRUD + Count + Patch | (CRUD) | `/api/v2/SalesService/PointOfSales[/Count|/:id]` |
+| Loyalty Programs CRUD + Count + Patch | (CRUD) | `/api/v2/SalesService/LoyaltyPrograms[/Count|/:id]` |
+| Sales Literatures CRUD + Count + Patch | (CRUD) | `/api/v2/SalesService/SalesLiteratures[/Count|/:id]` |
+| Sales Literatures (extended list) | GET | `/api/v2/SalesService/SalesLiteratures/Extended` |
+| Margin details (no tenantId) | GET | `/api/v2/SalesService/Margins/:marginId/Details` |
+
+## MarketplaceService
+
+No tenant-domain REST endpoints currently exposed.
+
+---
+
+## Critical rules
+
+- Always check `isSuccess` and read data from `result`.
+- Send `?tenantId=<tenant-guid>` on **every** Logistics / Shipments / Sales call (incl. writes,
+  `/Count`, `/Extended`, actions). Do **not** send it to `Inventory/.../Details` or
+  `Margins/.../Details`.
+- PATCH bodies are JSON-Patch arrays (`[{op,path,value}]`); PUT bodies are full DTO objects.
+- Create/Update body keys are camelCase as transcribed — except ItemShippingPolicies, which
+  use `currencyID`/`countryID`/`countryStateID`/`cityID`/`shippingCourierID` (uppercase `ID`).
+- `shippingTerms` (Shipments) and `shippingClassCalculationType` (Shipping Methods) are enums —
+  use only the listed values.
+- For the CLI equivalent see `absuite-misc-cli`; for general REST conventions see `absuite-rest`.

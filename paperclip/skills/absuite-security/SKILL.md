@@ -2,496 +2,590 @@
 name: absuite-security
 description: >
   Manage security roles, permissions, business applications, OAuth applications,
-  OAuth authorizations, security certificates, security logs, and webhook requests
-  in the Alliance Business Suite (ABS) using the `absuite` CLI. Covers RBAC
-  assignment/revocation for enrollments, roles, and applications. Requires an
-  authenticated CLI session.
+  OAuth authorizations, certificates, security/tenant logs, and webhook requests via
+  the Alliance Business Suite (ABS) REST API. Covers full RBAC assignment/revocation
+  across roles, permissions, enrollments, and applications, including atomic PATCH
+  (JSON Patch) updates. All operations are tenant-scoped and require a bearer token
+  (see the absuite-login skill to authenticate).
 ---
 
-# Alliance Business Suite — Security Skill
+# Alliance Business Suite — Security (REST API)
 
-Manage security through the `absuite` CLI's `security` service. All operations are tenant-scoped.
+Manage the ABS **SecurityService** purely over HTTP with `curl`. This service governs the
+tenant's RBAC graph: **roles**, **permissions**, **business applications**, and
+**OAuth applications/authorizations**, plus read-only **certificates**, **logs**, and
+**webhook requests**. Permissions and roles are wired to **enrollments** (a user's
+membership in a tenant) and to applications to control access.
 
-## Prerequisites
+Every SecurityService endpoint is **tenant-scoped** (`tenantId` is required on every
+verb, including writes). Send a bearer token on every call.
 
-1. **Authenticate first** using `absuite login` (see the `absuite-login` skill).
-2. **Set your tenant**: `absuite config set --tenant-id <tenant-guid>` or pass `--TenantId` on each call.
-3. **Discover commands**: `absuite security list-commands`
+> For the CLI equivalent, see `absuite-security-cli`. For general REST conventions
+> (auth, the response envelope, tenant scoping), see `absuite-rest`.
 
-## REST API Authentication
+## Authentication
 
-All REST examples below assume a valid bearer token. To obtain one:
+```bash
+# 1. Obtain a bearer token
+curl -X POST "$ABSUITE_HOST_URL/login" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"<your-email>","password":"<your-password>"}'
+# -> { "accessToken": "...", ... }   (export it as $ABSUITE_ACCESS_TOKEN)
 
-1. **Obtain bearer token**: `POST $ABSUITE_HOST_URL/login` with `{"email":"...","password":"..."}`
-2. **Use in requests**: `-H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"`
-3. **Base URL**: `$ABSUITE_HOST_URL/api/v2/`
+# 2. Send it on every request
+#    -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+- **Base path:** `$ABSUITE_HOST_URL/api/v2/SecurityService/<Resource>`
+- **Response envelope:** every response is
+  `{ "isSuccess": bool, "errorMessage": str|null, "correlationId": str, "timestamp": str, "result": <data|array|int|null> }`.
+  Always check `isSuccess`; read the payload from `result`.
+- **Tenant scoping:** every SecurityService endpoint requires `?tenantId=<tenant-guid>`
+  on **every** verb (GET/POST/PUT/PATCH/DELETE). Omitting it on a write returns `400`.
+  The query param and the `X-TenantId: <tenant-guid>` header are interchangeable — examples
+  below use the query param.
+
+## Key Concepts
+
+- **Role** (`SecurityRole`) — a named bundle of permissions. Fields: `Name` (required),
+  `Description`.
+- **Permission** (`SecurityPermission`) — a single named capability. Fields: `Name`
+  (required), `Description`.
+- **Business Application** (`Applications`) — an app registered in the tenant that roles
+  and permissions can be granted to. Rich DTO (`Name` required; many optional flags for
+  OAuth login, SPA hosting, git repo, etc.).
+- **OAuth Application** (`OAuthApplications`) — an OpenIddict-style OAuth client.
+  `DisplayName` is required; carries `ClientId`, `ClientSecret`, `RedirectUris`, etc.
+- **OAuth Authorization** — a granted authorization record (read-only); listable and
+  filterable by `userId`.
+- **Enrollment** — a user's membership in the tenant. Roles and permissions are assigned
+  to enrollments to grant a user access.
+- **Certificates / Logs / Security Logs / Webhooks** — read-only telemetry and audit
+  surfaces (list + count only).
+- **RBAC is bidirectional** — you can assign permission→role or role→permission; both
+  reach the same edge.
+- **Never print real secrets.** When reading OAuth applications, treat `ClientSecret` as
+  sensitive; use placeholders in any examples or logs.
+
+---
 
 ## Roles
 
 ```bash
-# List
-absuite security list roles --TenantId $TENANT_ID
-
-# Count
-absuite security count roles --TenantId $TENANT_ID
-
-# Get by ID
-absuite security get role --TenantId $TENANT_ID --RoleId <role-guid>
-
-# Create
-absuite security create role --TenantId $TENANT_ID --SecurityRoleCreateDto '{
-  "Name": "Sales Manager",
-  "Description": "Can manage sales pipeline and customer data"
-}'
-
-# Update
-absuite security update role --TenantId $TENANT_ID --RoleId <role-guid> --SecurityRoleUpdateDto '{...}'
-
-# Delete
-absuite security delete role --TenantId $TENANT_ID --RoleId <role-guid>
-```
-
-**REST API equivalent:**
-```bash
 # List roles
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Roles" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Roles?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Count roles
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Roles/Count" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Roles/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Get role by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Roles/$ROLE_ID" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Roles/<role-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Create role
-curl -X POST "$ABSUITE_HOST_URL/api/v2/SecurityService/Roles" \
+# Create role  (Name required)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SecurityService/Roles?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"Name": "Sales Manager", "Description": "Can manage sales pipeline"}'
+  -d '{
+    "Name": "Sales Manager",
+    "Description": "Can manage the sales pipeline and customer data"
+  }'
 
-# Update role
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/SecurityService/Roles/$ROLE_ID" \
+# Update role (PUT — full replace; Name required)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/SecurityService/Roles/<role-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
+  -H "Content-Type: application/json" \
+  -d '{
+    "Name": "Senior Sales Manager",
+    "Description": "Expanded sales pipeline access"
+  }'
+
+# Patch role (PATCH — JSON Patch; see PATCH section)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/SecurityService/Roles/<role-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[{ "op": "replace", "path": "/description", "value": "Updated description" }]'
 
 # Delete role
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SecurityService/Roles/$ROLE_ID" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SecurityService/Roles/<role-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
+
+`SecurityRoleCreateDto` / `SecurityRoleUpdateDto` fields: `Name` (required),
+`Description`. (Create also accepts optional `Id`, `Timestamp`.)
 
 ## Permissions
 
 ```bash
-# List
-absuite security list permissions --TenantId $TENANT_ID
-
-# Count
-absuite security count permissions --TenantId $TENANT_ID
-
-# Get by ID
-absuite security get permission --TenantId $TENANT_ID --PermissionId <perm-guid>
-
-# Create
-absuite security create permission --TenantId $TENANT_ID --SecurityPermissionCreateDto '{
-  "Name": "orders.read",
-  "Description": "Read access to orders"
-}'
-
-# Update
-absuite security update permission --TenantId $TENANT_ID --PermissionId <perm-guid> --SecurityPermissionUpdateDto '{...}'
-
-# Delete
-absuite security delete permission --TenantId $TENANT_ID --PermissionId <perm-guid>
-```
-
-### Permissions by Role
-
-```bash
-absuite security list role-permissions --TenantId $TENANT_ID --RoleId <role-guid>
-```
-
-**REST API equivalent (Permissions CRUD + by Role):**
-```bash
 # List permissions
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Permissions" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Permissions?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Count permissions
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Permissions/Count" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Permissions/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Get permission by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Permissions/$PERM_ID" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Permissions/<permission-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Create permission
-curl -X POST "$ABSUITE_HOST_URL/api/v2/SecurityService/Permissions" \
+# Create permission  (Name required)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SecurityService/Permissions?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"Name": "orders.read", "Description": "Read access to orders"}'
+  -d '{
+    "Name": "orders.read",
+    "Description": "Read access to orders"
+  }'
 
-# Update / Delete
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/SecurityService/Permissions/$PERM_ID" \
+# Update permission (PUT — full replace; Name required)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/SecurityService/Permissions/<permission-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SecurityService/Permissions/$PERM_ID" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+  -H "Content-Type: application/json" \
+  -d '{
+    "Name": "orders.read",
+    "Description": "Read-only access to orders"
+  }'
 
-# Permissions by role
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Roles/$ROLE_ID/Permissions" \
+# Patch permission (PATCH — JSON Patch)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/SecurityService/Permissions/<permission-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[{ "op": "replace", "path": "/description", "value": "Read-only access to orders" }]'
+
+# Delete permission
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SecurityService/Permissions/<permission-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
+`SecurityPermissionCreateDto` / `SecurityPermissionUpdateDto` fields: `Name` (required),
+`Description`. (Create also accepts optional `Id`, `Timestamp`.)
+
+---
+
 ## RBAC: Assign & Revoke
+
+These edges have **no request body** — the resources are identified entirely by path
+GUIDs. Always include `?tenantId=`.
 
 ### Permission ↔ Role
 
 ```bash
 # Assign permission to role
-absuite security set permission-to-role --TenantId $TENANT_ID --RoleId <role-guid> --PermissionId <perm-guid>
-
-# Revoke permission from role
-absuite security revoke-permission-from-role --TenantId $TENANT_ID --RoleId <role-guid> --PermissionId <perm-guid>
-
-# Get roles that have a permission
-absuite security get roles-by-permission --TenantId $TENANT_ID --PermissionId <perm-guid>
-
-# Assign role to permission (reverse direction)
-absuite security set role-to-permission --TenantId $TENANT_ID --PermissionId <perm-guid> --RoleId <role-guid>
-absuite security revoke-role-from-permission --TenantId $TENANT_ID --PermissionId <perm-guid> --RoleId <role-guid>
-```
-
-**REST API equivalent:**
-```bash
-# Assign permission to role
-curl -X POST "$ABSUITE_HOST_URL/api/v2/SecurityService/Roles/$ROLE_ID/Permissions/$PERM_ID" \
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SecurityService/Roles/<role-guid>/Permissions/<permission-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Revoke permission from role
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SecurityService/Roles/$ROLE_ID/Permissions/$PERM_ID" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SecurityService/Roles/<role-guid>/Permissions/<permission-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Roles that have a permission
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Permissions/$PERM_ID/Roles" \
+# Permissions on a role
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Roles/<role-guid>/Permissions?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Assign role to permission (reverse)
-curl -X POST "$ABSUITE_HOST_URL/api/v2/SecurityService/Permissions/$PERM_ID/Roles/$ROLE_ID" \
+# Reverse direction — assign role to permission
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SecurityService/Permissions/<permission-guid>/Roles/<role-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Revoke role from permission
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SecurityService/Permissions/$PERM_ID/Roles/$ROLE_ID" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SecurityService/Permissions/<permission-guid>/Roles/<role-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Roles that hold a permission
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Permissions/<permission-guid>/Roles?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Role/Permission ↔ Enrollment
+### Role / Permission ↔ Enrollment
 
 ```bash
-# Assign role to enrollment
-absuite security set role-to-enrollment --TenantId $TENANT_ID --EnrollmentId <enrollment-guid> --RoleId <role-guid>
-
-# Revoke role from enrollment
-absuite security revoke-role-from-enrollment --TenantId $TENANT_ID --EnrollmentId <enrollment-guid> --RoleId <role-guid>
-
-# Assign permission to enrollment
-absuite security set permission-to-enrollment --TenantId $TENANT_ID --EnrollmentId <enrollment-guid> --PermissionId <perm-guid>
-
-# Revoke permission from enrollment
-absuite security revoke-permission-from-enrollment --TenantId $TENANT_ID --EnrollmentId <enrollment-guid> --PermissionId <perm-guid>
-
-# Query
-absuite security get roles-by-enrollment --TenantId $TENANT_ID --EnrollmentId <enrollment-guid>
-absuite security get permissions-by-enrollment --TenantId $TENANT_ID --EnrollmentId <enrollment-guid>
-absuite security get enrollments-by-role --TenantId $TENANT_ID --RoleId <role-guid>
-absuite security get enrollments-by-permission --TenantId $TENANT_ID --PermissionId <perm-guid>
-```
-
-**REST API equivalent:**
-```bash
-# Assign role to enrollment
-curl -X POST "$ABSUITE_HOST_URL/api/v2/SecurityService/Roles/$ROLE_ID/Enrollments/$ENROLLMENT_ID" \
+# Assign / revoke role to/from an enrollment
+curl -X POST   "$ABSUITE_HOST_URL/api/v2/SecurityService/Roles/<role-guid>/Enrollments/<enrollment-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SecurityService/Roles/<role-guid>/Enrollments/<enrollment-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Revoke role from enrollment
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SecurityService/Roles/$ROLE_ID/Enrollments/$ENROLLMENT_ID" \
+# Assign / revoke permission to/from an enrollment
+curl -X POST   "$ABSUITE_HOST_URL/api/v2/SecurityService/Permissions/<permission-guid>/Enrollments/<enrollment-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SecurityService/Permissions/<permission-guid>/Enrollments/<enrollment-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Assign permission to enrollment
-curl -X POST "$ABSUITE_HOST_URL/api/v2/SecurityService/Permissions/$PERM_ID/Enrollments/$ENROLLMENT_ID" \
+# Enrollments holding a role / permission
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Roles/<role-guid>/Enrollments?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Permissions/<permission-guid>/Enrollments?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Revoke permission from enrollment
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SecurityService/Permissions/$PERM_ID/Enrollments/$ENROLLMENT_ID" \
+# Roles / permissions held by an enrollment
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Roles/ByEnrollment/<enrollment-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Query: roles/permissions by enrollment
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Roles/ByEnrollment/$ENROLLMENT_ID" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Permissions/ByEnrollment/$ENROLLMENT_ID" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Query: enrollments by role/permission
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Roles/$ROLE_ID/Enrollments" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Permissions/$PERM_ID/Enrollments" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Permissions/ByEnrollment/<enrollment-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Role/Permission ↔ Business Application
+### Role / Permission ↔ Business Application
 
 ```bash
-# Assign
-absuite security set role-to-business-application --TenantId $TENANT_ID --BusinessApplicationId <app-guid> --RoleId <role-guid>
-absuite security set permission-to-business-application --TenantId $TENANT_ID --BusinessApplicationId <app-guid> --PermissionId <perm-guid>
-
-# Revoke
-absuite security revoke-role-from-business-application --TenantId $TENANT_ID --BusinessApplicationId <app-guid> --RoleId <role-guid>
-absuite security revoke-permission-from-business-application --TenantId $TENANT_ID --BusinessApplicationId <app-guid> --PermissionId <perm-guid>
-
-# Query
-absuite security get applications-by-role --TenantId $TENANT_ID --RoleId <role-guid>
-absuite security get applications-by-permission --TenantId $TENANT_ID --PermissionId <perm-guid>
-```
-
-**REST API equivalent:**
-```bash
-# Assign role to application
-curl -X POST "$ABSUITE_HOST_URL/api/v2/SecurityService/Roles/$ROLE_ID/Applications/$APP_ID" \
+# Assign / revoke role to/from a business application
+curl -X POST   "$ABSUITE_HOST_URL/api/v2/SecurityService/Roles/<role-guid>/Applications/<application-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SecurityService/Roles/<role-guid>/Applications/<application-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Assign permission to application
-curl -X POST "$ABSUITE_HOST_URL/api/v2/SecurityService/Permissions/$PERM_ID/Applications/$APP_ID" \
+# Assign / revoke permission to/from a business application
+curl -X POST   "$ABSUITE_HOST_URL/api/v2/SecurityService/Permissions/<permission-guid>/Applications/<application-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SecurityService/Permissions/<permission-guid>/Applications/<application-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Revoke role from application
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SecurityService/Roles/$ROLE_ID/Applications/$APP_ID" \
+# Applications holding a role / permission
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Roles/<role-guid>/Applications?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Revoke permission from application
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SecurityService/Permissions/$PERM_ID/Applications/$APP_ID" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Query: applications by role/permission
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Roles/$ROLE_ID/Applications" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Permissions/$PERM_ID/Applications" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Permissions/<permission-guid>/Applications?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
+
+---
 
 ## Business Applications
 
 ```bash
-absuite security list business-applications --TenantId $TENANT_ID
-absuite security count business-applications --TenantId $TENANT_ID
-absuite security get business-application-by-id --TenantId $TENANT_ID --BusinessApplicationId <app-guid>
-absuite security create business-application --TenantId $TENANT_ID --BusinessApplicationCreateDto '{
-  "Name": "CRM Portal",
-  "Description": "Customer-facing CRM application"
-}'
-absuite security update business-application --TenantId $TENANT_ID --BusinessApplicationId <app-guid> --BusinessApplicationUpdateDto '{...}'
-absuite security delete business-application --TenantId $TENANT_ID --BusinessApplicationId <app-guid>
-```
-
-**REST API equivalent:**
-```bash
 # List / Count
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Applications" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Applications?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Applications/Count" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Applications/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Get by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Applications/$APP_ID" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Applications/<application-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/SecurityService/Applications" \
+# Create  (Name required; all other fields optional)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SecurityService/Applications?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"Name": "CRM Portal", "Description": "Customer-facing CRM application"}'
+  -d '{
+    "Name": "CRM Portal",
+    "Namespace": "crm.portal",
+    "DisplayName": "CRM Portal",
+    "WebsiteUrl": "https://crm.example.com",
+    "ContactEmail": "ops@example.com",
+    "IsMultiTenant": false,
+    "RequireHttps": true,
+    "EnableWebOAuthLogin": true
+  }'
 
-# Update / Delete
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/SecurityService/Applications/$APP_ID" \
+# Update (PUT — full replace)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/SecurityService/Applications/<application-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SecurityService/Applications/$APP_ID" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "Name": "CRM Portal",
+    "DisplayName": "CRM Portal (v2)",
+    "IsVerified": true,
+    "MarkedForPublish": true
+  }'
+
+# Patch (PATCH — JSON Patch)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/SecurityService/Applications/<application-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[
+    { "op": "replace", "path": "/isVerified", "value": true },
+    { "op": "replace", "path": "/displayName", "value": "CRM Portal (v2)" }
+  ]'
+
+# Delete
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SecurityService/Applications/<application-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Permissions & Roles by Application
+`BusinessApplicationCreateDto` / `BusinessApplicationUpdateDto` — `Name` is the only
+required field. Other fields (all optional): `Namespace`, `DisplayName`, `AvatarURL`,
+`WebsiteUrl`, `IsMultiTenant`, `IsVerified`, `IsDisabled`, `IsSinglePageApplication`,
+`IsNativeOrDesktopApp`, `ContactEmail`, `PrivacyPolicyURL`, `TermsAndConditionsURL`,
+`RequireHttps`, `RequireAppSecret`, `EnableClientOauthLogin`, `EnableWebOAuthLogin`,
+`EnableDeviceOAuthLogin`, `AllowAccessToSuiteSettings`, `RequireWebOAuthReauthentication`,
+`RequireTwoFactorReauthorization`, `EnableEmbeddedBrowserOAuthLogin`,
+`UseStrictModeForRedirectURIs`, `CountryRestricted`, `SpaUIEngine`,
+`SpaStaticFilesRootPath`, `SpaRelativeAppPath`, `SpaNpmStartScript`,
+`SpaNpmPublishScript`, `SpaRelativeSourcePath`, `SpaRelativeOutputPath`,
+`UseProxyToSpaDevelopmentServer`, `SpaDevelopmentServerUri`, `EnableGitRepoManagement`,
+`GitRepoUrl`. The **Update** DTO additionally accepts `MarkedForPublish`; it does **not**
+accept `Id`/`Timestamp` (those are Create-only).
+
+### Permissions & Roles granted to a Business Application
 
 ```bash
 # Permissions granted to a business application
-absuite security get permissions-by-application --TenantId $TENANT_ID --BusinessApplicationId <app-guid>
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Applications/<application-guid>/Permissions?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Roles granted to a business application
-absuite security get roles-by-application --TenantId $TENANT_ID --BusinessApplicationId <app-guid>
-```
-
-**REST API equivalent:**
-```bash
-# Permissions by application
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Applications/$APP_ID/Permissions" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Roles by application
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Applications/$APP_ID/Roles" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Applications/<application-guid>/Roles?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
+
+---
 
 ## OAuth Applications & Authorizations
 
 ```bash
-# OAuth applications
-absuite security list o-auth-applications --TenantId $TENANT_ID
-absuite security count o-auth-applications --TenantId $TENANT_ID
-absuite security get o-auth-application-by-id --TenantId $TENANT_ID --OAuthApplicationId <oauth-app-guid>
-absuite security create o-auth-application --TenantId $TENANT_ID --OAuthApplicationCreateDto '{...}'
-absuite security update o-auth-application --TenantId $TENANT_ID --OAuthApplicationId <oauth-app-guid> --OAuthApplicationUpdateDto '{...}'
-absuite security delete o-auth-application --TenantId $TENANT_ID --OAuthApplicationId <oauth-app-guid>
+# OAuth applications — List / Count
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/OAuthApplications?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/OAuthApplications/Count?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# OAuth authorizations
-absuite security list o-auth-authorizations --TenantId $TENANT_ID
-absuite security count o-auth-authorizations --TenantId $TENANT_ID
-absuite security get o-auth-authorization-by-id --TenantId $TENANT_ID --OAuthAuthorizationId <auth-guid>
-```
+# Get by ID  (path segment is the OAuth application id)
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/OAuthApplications/<oauth-application-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-**REST API equivalent:**
-```bash
-# OAuth Applications CRUD
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/OAuthApplications" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/OAuthApplications/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/OAuthApplications/$OAUTH_APP_ID" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-curl -X POST "$ABSUITE_HOST_URL/api/v2/SecurityService/OAuthApplications" \
+# Create  (DisplayName required; never echo a real ClientSecret)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SecurityService/OAuthApplications?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/SecurityService/OAuthApplications/$OAUTH_APP_ID" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "DisplayName": "Mobile App Client",
+    "ClientId": "<client-id>",
+    "ClientSecret": "<client-secret>",
+    "ConsentType": "explicit",
+    "RedirectUris": "https://app.example.com/callback",
+    "PostLogoutRedirectUris": "https://app.example.com/signout"
+  }'
+
+# Update (PUT — full replace)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/SecurityService/OAuthApplications/<oauth-application-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SecurityService/OAuthApplications/$OAUTH_APP_ID" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+  -H "Content-Type: application/json" \
+  -d '{
+    "DisplayName": "Mobile App Client (prod)",
+    "ConsentType": "explicit",
+    "RedirectUris": "https://app.example.com/callback"
+  }'
 
-# OAuth Authorizations
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/OAuthApplications/Authorizations" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/OAuthApplications/Authorizations/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/OAuthApplications/Authorizations/$AUTH_ID" \
+# Patch (PATCH — JSON Patch)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/SecurityService/OAuthApplications/<oauth-application-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[{ "op": "replace", "path": "/displayName", "value": "Mobile App Client (prod)" }]'
+
+# Delete
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SecurityService/OAuthApplications/<oauth-application-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-## Security Logs & Certificates
+`OAuthApplicationCreateDto` fields: `DisplayName` (required), `ClientId`, `ClientSecret`,
+`ConsentType`, `Permissions`, `Requirements`, `RedirectUris`, `PostLogoutRedirectUris`,
+`Logo` (plus optional `Id`, `Timestamp`). `OAuthApplicationUpdateDto` drops
+`Id`/`Timestamp`/`ClientId` and keeps `DisplayName`, `ClientSecret`, `ConsentType`,
+`Permissions`, `Requirements`, `RedirectUris`, `PostLogoutRedirectUris`, `Logo`.
 
 ```bash
-# Logs
-absuite security list logs --TenantId $TENANT_ID
-absuite security count logs --TenantId $TENANT_ID
-
-# Security Audit Logs
-absuite security list security-logs --TenantId $TENANT_ID
-absuite security count security-logs --TenantId $TENANT_ID
-
-# Certificates
-absuite security list certificates --TenantId $TENANT_ID
-absuite security count certificates --TenantId $TENANT_ID
-```
-
-**REST API equivalent:**
-```bash
-# Security Logs
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Logs" \
+# OAuth authorizations — List (optionally filter by userId)
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/OAuthApplications/Authorizations?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Logs/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/SecurityLogs" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/SecurityLogs/Count" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/OAuthApplications/Authorizations?tenantId=<tenant-guid>&userId=<user-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Security Certificates
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/SecurityCertificates" \
+# OAuth authorizations — Count (optionally filter by userId)
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/OAuthApplications/Authorizations/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/SecurityCertificates/Count" \
+
+# OAuth authorization — Get by ID
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/OAuthApplications/Authorizations/<authorization-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-## Webhook Requests
+OAuth authorizations are **read-only** (list / count / get-by-id). They have no
+create/update/delete endpoints.
+
+---
+
+## Logs, Certificates & Webhooks (read-only)
+
+All of the following are **list + count only** — no create/update/delete.
 
 ```bash
-absuite security list webhook-requests --TenantId $TENANT_ID
-absuite security count webhook-requests --TenantId $TENANT_ID
+# Tenant logs
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Logs?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Logs/Count?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Security (audit) logs
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/SecurityLogs?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/SecurityLogs/Count?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Security certificates
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/SecurityCertificates?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/SecurityCertificates/Count?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Webhook requests
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Webhooks?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Webhooks/Count?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-**REST API equivalent:**
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Webhooks" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Webhooks/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
+---
 
-## Command Quick Reference
+## PATCH (JSON Patch / RFC 6902)
 
-| Action | CLI Command |
+PATCH lets you change a couple of fields atomically without resending the whole object —
+safer than PUT under concurrent edits. The body is a JSON **array** of operations with
+`Content-Type: application/json`:
+
+- `op` ∈ `add | remove | replace | move | copy | test`
+- `path` / `from` are JSON-Pointer strings (leading `/`, **camelCase** field name)
+
+Four SecurityService aggregates support PATCH:
+
+| Aggregate | PATCH path |
 |---|---|
-| List roles | `absuite security list roles --TenantId <guid>` |
-| Create role | `absuite security create role --TenantId <guid> --SecurityRoleCreateDto '{...}'` |
-| List permissions | `absuite security list permissions --TenantId <guid>` |
-| Create permission | `absuite security create permission --TenantId <guid> --SecurityPermissionCreateDto '{...}'` |
-| Assign perm to role | `absuite security set permission-to-role --TenantId <guid> --RoleId <guid> --PermissionId <guid>` |
-| Assign role to enrollment | `absuite security set role-to-enrollment --TenantId <guid> --EnrollmentId <guid> --RoleId <guid>` |
-| Revoke role from enrollment | `absuite security revoke-role-from-enrollment --TenantId <guid> --EnrollmentId <guid> --RoleId <guid>` |
-| View security logs | `absuite security list logs --TenantId <guid>` |
+| Role | `/api/v2/SecurityService/Roles/<role-guid>` |
+| Permission | `/api/v2/SecurityService/Permissions/<permission-guid>` |
+| Business Application | `/api/v2/SecurityService/Applications/<application-guid>` |
+| OAuth Application | `/api/v2/SecurityService/OAuthApplications/<oauth-application-guid>` |
+
+Example — verify-and-rename a business application in one atomic request:
+
+```bash
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/SecurityService/Applications/<application-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[
+    { "op": "test",    "path": "/isDisabled",  "value": false },
+    { "op": "replace", "path": "/isVerified",  "value": true },
+    { "op": "replace", "path": "/displayName", "value": "CRM Portal (verified)" }
+  ]'
+```
+
+> Note: JSON-Patch `path` uses **camelCase** field names (e.g. `/displayName`,
+> `/isVerified`), whereas the PUT/POST request bodies use **PascalCase** keys
+> (e.g. `"DisplayName"`, `"IsVerified"`).
+
+---
+
+## End-to-end workflow: grant a user access via a role
+
+```bash
+T="<tenant-guid>"
+AUTH="-H Authorization:Bearer $ABSUITE_ACCESS_TOKEN"
+
+# 1. Create a permission
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SecurityService/Permissions?tenantId=$T" $AUTH \
+  -H "Content-Type: application/json" \
+  -d '{"Name":"orders.read","Description":"Read access to orders"}'
+# -> result.id = <permission-guid>
+
+# 2. Create a role
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SecurityService/Roles?tenantId=$T" $AUTH \
+  -H "Content-Type: application/json" \
+  -d '{"Name":"Sales Manager","Description":"Sales pipeline access"}'
+# -> result.id = <role-guid>
+
+# 3. Attach the permission to the role
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SecurityService/Roles/<role-guid>/Permissions/<permission-guid>?tenantId=$T" $AUTH
+
+# 4. Assign the role to a user's enrollment
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SecurityService/Roles/<role-guid>/Enrollments/<enrollment-guid>?tenantId=$T" $AUTH
+
+# 5. Verify what the enrollment now holds
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Roles/ByEnrollment/<enrollment-guid>?tenantId=$T" $AUTH
+curl -X GET "$ABSUITE_HOST_URL/api/v2/SecurityService/Permissions/ByEnrollment/<enrollment-guid>?tenantId=$T" $AUTH
+
+# 6. Tweak the role description atomically (PATCH)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/SecurityService/Roles/<role-guid>?tenantId=$T" $AUTH \
+  -H "Content-Type: application/json" \
+  -d '[{"op":"replace","path":"/description","value":"Sales pipeline + order read"}]'
+```
+
+---
 
 ## API Endpoints Quick Reference
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| CRUD | `/api/v2/SecurityService/Roles` | Security roles |
-| CRUD | `/api/v2/SecurityService/Permissions` | Security permissions |
-| CRUD | `/api/v2/SecurityService/Applications` | Business applications |
-| CRUD | `/api/v2/SecurityService/OAuthApplications` | OAuth applications |
-| GET | `/api/v2/SecurityService/Roles/Count` | Count roles |
-| GET | `/api/v2/SecurityService/Permissions/Count` | Count permissions |
-| GET | `/api/v2/SecurityService/Applications/Count` | Count business applications |
-| GET | `/api/v2/SecurityService/OAuthApplications/Count` | Count OAuth applications |
-| GET | `/api/v2/SecurityService/Applications/:id/Permissions` | Permissions by application |
-| GET | `/api/v2/SecurityService/Applications/:id/Roles` | Roles by application |
-| GET | `/api/v2/SecurityService/Roles/:id/Permissions` | Permissions by role |
-| POST/DELETE | `/api/v2/SecurityService/Roles/:id/Permissions/:permId` | Assign/revoke perm ↔ role |
-| POST/DELETE | `/api/v2/SecurityService/Permissions/:id/Roles/:roleId` | Assign/revoke role ↔ perm |
-| POST/DELETE | `/api/v2/SecurityService/Roles/:id/Enrollments/:enrollId` | Assign/revoke role ↔ enrollment |
-| POST/DELETE | `/api/v2/SecurityService/Permissions/:id/Enrollments/:enrollId` | Assign/revoke perm ↔ enrollment |
-| POST/DELETE | `/api/v2/SecurityService/Roles/:id/Applications/:appId` | Assign/revoke role ↔ app |
-| POST/DELETE | `/api/v2/SecurityService/Permissions/:id/Applications/:appId` | Assign/revoke perm ↔ app |
-| GET | `/api/v2/SecurityService/Roles/:id/Enrollments` | Enrollments by role |
-| GET | `/api/v2/SecurityService/Permissions/:id/Enrollments` | Enrollments by permission |
-| GET | `/api/v2/SecurityService/Roles/ByEnrollment/:enrollmentId` | Roles by enrollment |
-| GET | `/api/v2/SecurityService/Permissions/ByEnrollment/:enrollmentId` | Permissions by enrollment |
-| GET | `/api/v2/SecurityService/Roles/:id/Applications` | Applications by role |
-| GET | `/api/v2/SecurityService/Permissions/:id/Applications` | Applications by permission |
-| GET | `/api/v2/SecurityService/OAuthApplications/Authorizations` | OAuth authorizations |
-| GET | `/api/v2/SecurityService/OAuthApplications/Authorizations/:authId` | OAuth authorization by ID |
-| GET | `/api/v2/SecurityService/OAuthApplications/Authorizations/Count` | Count OAuth authorizations |
-| GET | `/api/v2/SecurityService/Logs` | Tenant logs |
-| GET | `/api/v2/SecurityService/Logs/Count` | Count tenant logs |
-| GET | `/api/v2/SecurityService/SecurityLogs` | Security audit logs |
-| GET | `/api/v2/SecurityService/SecurityLogs/Count` | Count security audit logs |
-| GET | `/api/v2/SecurityService/SecurityCertificates` | Security certificates |
-| GET | `/api/v2/SecurityService/SecurityCertificates/Count` | Count security certificates |
-| GET | `/api/v2/SecurityService/Webhooks` | Webhook requests |
-| GET | `/api/v2/SecurityService/Webhooks/Count` | Count webhook requests |
-
-> **CRUD** = GET (list), GET (count), GET (by ID), POST (create), PUT (update), DELETE
+| Action | Method | Path |
+|---|---|---|
+| List roles | GET | `/api/v2/SecurityService/Roles` |
+| Count roles | GET | `/api/v2/SecurityService/Roles/Count` |
+| Get role | GET | `/api/v2/SecurityService/Roles/{securityRoleId}` |
+| Create role | POST | `/api/v2/SecurityService/Roles` |
+| Update role | PUT | `/api/v2/SecurityService/Roles/{securityRoleId}` |
+| **Patch role** | **PATCH** | `/api/v2/SecurityService/Roles/{securityRoleId}` |
+| Delete role | DELETE | `/api/v2/SecurityService/Roles/{securityRoleId}` |
+| Permissions on role | GET | `/api/v2/SecurityService/Roles/{securityRoleId}/Permissions` |
+| Assign permission to role | POST | `/api/v2/SecurityService/Roles/{securityRoleId}/Permissions/{securityPermissionId}` |
+| Revoke permission from role | DELETE | `/api/v2/SecurityService/Roles/{securityRoleId}/Permissions/{securityPermissionId}` |
+| Applications on role | GET | `/api/v2/SecurityService/Roles/{securityRoleId}/Applications` |
+| Assign role to application | POST | `/api/v2/SecurityService/Roles/{securityRoleId}/Applications/{applicationId}` |
+| Revoke role from application | DELETE | `/api/v2/SecurityService/Roles/{securityRoleId}/Applications/{applicationId}` |
+| Enrollments on role | GET | `/api/v2/SecurityService/Roles/{securityRoleId}/Enrollments` |
+| Assign role to enrollment | POST | `/api/v2/SecurityService/Roles/{securityRoleId}/Enrollments/{enrollmentId}` |
+| Revoke role from enrollment | DELETE | `/api/v2/SecurityService/Roles/{securityRoleId}/Enrollments/{enrollmentId}` |
+| Roles by enrollment | GET | `/api/v2/SecurityService/Roles/ByEnrollment/{enrollmentId}` |
+| List permissions | GET | `/api/v2/SecurityService/Permissions` |
+| Count permissions | GET | `/api/v2/SecurityService/Permissions/Count` |
+| Get permission | GET | `/api/v2/SecurityService/Permissions/{securityPermissionId}` |
+| Create permission | POST | `/api/v2/SecurityService/Permissions` |
+| Update permission | PUT | `/api/v2/SecurityService/Permissions/{securityPermissionId}` |
+| **Patch permission** | **PATCH** | `/api/v2/SecurityService/Permissions/{securityPermissionId}` |
+| Delete permission | DELETE | `/api/v2/SecurityService/Permissions/{securityPermissionId}` |
+| Roles on permission | GET | `/api/v2/SecurityService/Permissions/{securityPermissionId}/Roles` |
+| Assign role to permission | POST | `/api/v2/SecurityService/Permissions/{securityPermissionId}/Roles/{securityRoleId}` |
+| Revoke role from permission | DELETE | `/api/v2/SecurityService/Permissions/{securityPermissionId}/Roles/{securityRoleId}` |
+| Applications on permission | GET | `/api/v2/SecurityService/Permissions/{securityPermissionId}/Applications` |
+| Assign permission to application | POST | `/api/v2/SecurityService/Permissions/{securityPermissionId}/Applications/{applicationId}` |
+| Revoke permission from application | DELETE | `/api/v2/SecurityService/Permissions/{securityPermissionId}/Applications/{applicationId}` |
+| Enrollments on permission | GET | `/api/v2/SecurityService/Permissions/{securityPermissionId}/Enrollments` |
+| Assign permission to enrollment | POST | `/api/v2/SecurityService/Permissions/{securityPermissionId}/Enrollments/{enrollmentId}` |
+| Revoke permission from enrollment | DELETE | `/api/v2/SecurityService/Permissions/{securityPermissionId}/Enrollments/{enrollmentId}` |
+| Permissions by enrollment | GET | `/api/v2/SecurityService/Permissions/ByEnrollment/{enrollmentId}` |
+| List business applications | GET | `/api/v2/SecurityService/Applications` |
+| Count business applications | GET | `/api/v2/SecurityService/Applications/Count` |
+| Get business application | GET | `/api/v2/SecurityService/Applications/{applicationId}` |
+| Create business application | POST | `/api/v2/SecurityService/Applications` |
+| Update business application | PUT | `/api/v2/SecurityService/Applications/{applicationId}` |
+| **Patch business application** | **PATCH** | `/api/v2/SecurityService/Applications/{applicationId}` |
+| Delete business application | DELETE | `/api/v2/SecurityService/Applications/{applicationId}` |
+| Permissions by application | GET | `/api/v2/SecurityService/Applications/{applicationId}/Permissions` |
+| Roles by application | GET | `/api/v2/SecurityService/Applications/{applicationId}/Roles` |
+| List OAuth applications | GET | `/api/v2/SecurityService/OAuthApplications` |
+| Count OAuth applications | GET | `/api/v2/SecurityService/OAuthApplications/Count` |
+| Get OAuth application | GET | `/api/v2/SecurityService/OAuthApplications/{applicationId}` |
+| Create OAuth application | POST | `/api/v2/SecurityService/OAuthApplications` |
+| Update OAuth application | PUT | `/api/v2/SecurityService/OAuthApplications/{applicationId}` |
+| **Patch OAuth application** | **PATCH** | `/api/v2/SecurityService/OAuthApplications/{applicationId}` |
+| Delete OAuth application | DELETE | `/api/v2/SecurityService/OAuthApplications/{applicationId}` |
+| List OAuth authorizations | GET | `/api/v2/SecurityService/OAuthApplications/Authorizations` |
+| Count OAuth authorizations | GET | `/api/v2/SecurityService/OAuthApplications/Authorizations/Count` |
+| Get OAuth authorization | GET | `/api/v2/SecurityService/OAuthApplications/Authorizations/{authorizationId}` |
+| List tenant logs | GET | `/api/v2/SecurityService/Logs` |
+| Count tenant logs | GET | `/api/v2/SecurityService/Logs/Count` |
+| List security logs | GET | `/api/v2/SecurityService/SecurityLogs` |
+| Count security logs | GET | `/api/v2/SecurityService/SecurityLogs/Count` |
+| List security certificates | GET | `/api/v2/SecurityService/SecurityCertificates` |
+| Count security certificates | GET | `/api/v2/SecurityService/SecurityCertificates/Count` |
+| List webhook requests | GET | `/api/v2/SecurityService/Webhooks` |
+| Count webhook requests | GET | `/api/v2/SecurityService/Webhooks/Count` |
 
 ## Critical Rules
 
-- **Authenticate first.** Always provide a tenant context.
-- **Create roles and permissions first** before assigning them.
-- **RBAC is bidirectional** — you can assign permission-to-role or role-to-permission.
-- **Enrollments** are user memberships in a tenant — assign roles/permissions to enrollments to control access.
+- **Authenticate first** and send `Authorization: Bearer $ABSUITE_ACCESS_TOKEN` on every call.
+- **Always pass `?tenantId=<tenant-guid>`** — on every verb, including POST/PUT/PATCH/DELETE.
+  Omitting it on a write returns `400`. (`X-TenantId: <tenant-guid>` header is equivalent.)
+- **Create roles and permissions before assigning them.**
+- **RBAC is bidirectional** — `Roles/{id}/Permissions/{permId}` and
+  `Permissions/{id}/Roles/{roleId}` reach the same edge; use whichever is convenient.
+- **PATCH bodies are JSON-Patch arrays** with **camelCase** `path`; PUT/POST bodies are
+  objects with **PascalCase** keys.
+- **Never print real OAuth client secrets** or other credentials — use placeholders.
+- **Logs, certificates, webhooks, and OAuth authorizations are read-only** (list/count,
+  plus get-by-id for authorizations).

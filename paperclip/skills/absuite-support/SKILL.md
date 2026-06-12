@@ -1,25 +1,27 @@
 ---
 name: absuite-support
 description: >
-  Manage customer support tickets, support requests, request attachments, ticket
-  conversations, ticket priorities, ticket types, and support entitlements in the
-  Alliance Business Suite (ABS) using the `absuite` CLI. Requires an authenticated
-  CLI session.
+  Manage customer support — tickets, support requests, request attachments, ticket
+  conversations, ticket priorities, ticket types, entitlements, refund/return/warranty
+  requests and policies, knowledge articles, inquiry requests, and maintenance visits —
+  via the Alliance Business Suite (ABS) REST API, including atomic PATCH (JSON Patch)
+  updates. All operations are tenant-scoped and require a bearer token (see the
+  absuite-login skill to authenticate). For the CLI equivalent, see `absuite-support-cli`.
 ---
 
-# Alliance Business Suite — Support Skill
+# Alliance Business Suite — Support (REST API)
 
-Manage customer support through the `absuite` CLI's `support` service. All operations are tenant-scoped.
+Drive the ABS `SupportService` directly over HTTP with `curl`. This skill covers the full
+support surface: support tickets and their conversations, support requests and their
+attachments, ticket priorities, ticket types, support entitlements, refund/return/warranty
+requests and policies, knowledge articles, inquiry requests, and maintenance visits — plus
+**atomic PATCH (RFC 6902 JSON Patch)** for partial updates.
 
-## Prerequisites
+Every `SupportService` endpoint is tenant-scoped: `tenantId` is **required** as a query
+parameter on **every** verb (GET/POST/PUT/PATCH/DELETE). For general REST conventions and
+raw-HTTP guidance shared across modules, see `absuite-rest`.
 
-1. **Authenticate first** using `absuite login` (see the `absuite-login` skill).
-2. **Set your tenant**: `absuite config set --tenant-id <tenant-guid>` or pass `--TenantId` on each call.
-3. **Discover commands**: `absuite support list-commands`
-
-## REST API Authentication
-
-To call the API directly via REST instead of the CLI:
+## Authentication
 
 1. **Obtain a bearer token:**
 ```bash
@@ -27,1040 +29,1048 @@ curl -X POST "$ABSUITE_HOST_URL/login" \
   -H "Content-Type: application/json" \
   -d '{"email": "'$ABSUITE_USER_EMAIL'", "password": "'$ABSUITE_USER_PASSWORD'"}'
 ```
-Extract the `accessToken` from the JSON response.
+Extract `accessToken` from the JSON response.
 
-2. **Use the token in all subsequent requests:**
+2. **Send the token on every subsequent request:**
 ```bash
 -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-3. **All REST endpoints use the base path:** `$ABSUITE_HOST_URL/api/v2/`
+3. **Base path:** all resources live under `$ABSUITE_HOST_URL/api/v2/SupportService/`.
+
+4. **Tenant scoping:** pass `?tenantId=<tenant-guid>` on **every** call (the `X-TenantId:
+   <tenant-guid>` request header is the accepted equivalent). Omitting it on writes returns
+   a 400.
+
+5. **Response envelope** — every response is wrapped:
+```json
+{
+  "isSuccess": true,
+  "errorMessage": null,
+  "correlationId": "…",
+  "timestamp": "…",
+  "result": <data | array | int | null>
+}
+```
+Always check `isSuccess`; read the payload from `result`.
+
+## Key Concepts
+
+- **Support Ticket** — a tracked customer support case. `supportTicketStatus` is an enum:
+  `New | OpenAndWaitingForAgent | OpenAndWaitingForCustomer | Closed`. A ticket links to a
+  contact (`contactId`), a ticket type (`supportTicketTypeId`), an entitlement
+  (`supportEntitlementId`), and a priority (`supportPriorityId`).
+- **Ticket Conversation** — a threaded discussion attached to a ticket. Conversations carry
+  messages (read-only, paged).
+- **Support Ticket Priority / Type** — tenant-defined classification lookups referenced by
+  tickets.
+- **Support Request** — a higher-level customer request that can spawn tickets and carry
+  attachments. Links to a contact and an entitlement.
+- **Support Request Attachment** — a file/folder record attached to a support request.
+- **Support Entitlement** — the support plan / SLA a customer is entitled to (quantities,
+  renewal, billing, trial, usage-threshold, and many free-form `data*`/`data*Label` slots).
+- **Refund / Return / Warranty Request** — customer-initiated requests, each tied to a
+  contact, an entitlement, and the relevant policy. Carry `approved` / `approvedTimestamp`.
+- **Refund / Return / Warranty Policy** — the rules governing each request type (duration in
+  hours/days/weeks/months/years, `value`/`percentage`, currency, geography, `isDefault`,
+  `isEnabled`, etc.). Return and warranty policies add `shippingCourierId` /
+  `isExtendedWarranty` respectively.
+- **Knowledge Article** — self-service knowledge-base content (title, slug, content, SEO,
+  `published`/`enable`).
+- **Inquiry Request** — a general inbound inquiry/lead (name, email, organization, message).
+- **Maintenance Visit** — a scheduled maintenance record.
+
+> **Field names below are the JSON body field names from the OpenAPI spec.** Request bodies
+> in this skill use those exact names. ABS accepts both PascalCase and camelCase keys; the
+> spec field names are camelCase and are used verbatim here.
+
+---
 
 ## Support Tickets
 
 ```bash
 # List
-absuite support list tickets --TenantId $TENANT_ID
-
-# Count
-absuite support count tickets --TenantId $TENANT_ID
-
-# Get by ID
-absuite support get ticket --TenantId $TENANT_ID --SupportTicketId <ticket-guid>
-
-# Create
-absuite support create ticket --TenantId $TENANT_ID --SupportTicketCreateDto '{
-  "Description": "Cannot access billing portal",
-  "ContactID": "<contact-guid>",
-  "SupportTicketTypeID": "<type-guid>",
-  "SupportPriorityID": "<priority-guid>",
-  "SupportEntitlementID": "<entitlement-guid>"
-}'
-
-# Update
-absuite support update ticket --TenantId $TENANT_ID --SupportTicketId <ticket-guid> --SupportTicketUpdateDto '{...}'
-
-# Delete
-absuite support delete ticket --TenantId $TENANT_ID --SupportTicketId <ticket-guid>
-```
-
-**REST API equivalents:**
-
-```bash
-# List
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTickets" \
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTickets?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Count
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTickets/Count" \
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTickets/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Get by ID
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTickets/<ticket-guid>" \
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTickets/<ticket-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTickets" \
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTickets?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "Description": "Cannot access billing portal",
-    "ContactID": "<contact-guid>",
-    "SupportTicketTypeID": "<type-guid>",
-    "SupportPriorityID": "<priority-guid>",
-    "SupportEntitlementID": "<entitlement-guid>"
+    "title": "Cannot access billing portal",
+    "description": "User receives a 403 when opening Billing.",
+    "supportTicketStatus": "New",
+    "contactId": "<contact-guid>",
+    "supportTicketTypeId": "<type-guid>",
+    "supportEntitlementId": "<entitlement-guid>",
+    "supportPriorityId": "<priority-guid>"
   }'
 
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTickets/<ticket-guid>" \
+# Update (PUT — full replace)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTickets/<ticket-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{...}'
+  -d '{
+    "title": "Cannot access billing portal",
+    "description": "Confirmed RBAC misconfiguration.",
+    "supportTicketStatus": "OpenAndWaitingForCustomer",
+    "contactId": "<contact-guid>",
+    "supportTicketTypeId": "<type-guid>",
+    "supportEntitlementId": "<entitlement-guid>",
+    "supportPriorityId": "<priority-guid>"
+  }'
+
+# Patch (PATCH — partial update, JSON Patch; see PATCH section)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTickets/<ticket-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[{ "op": "replace", "path": "/supportTicketStatus", "value": "Closed" }]'
 
 # Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTickets/<ticket-guid>" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTickets/<ticket-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
+
+**Create/Update body fields** (`SupportTicketCreateDto` / `SupportTicketUpdateDto`):
+`id`, `timestamp`, `title`, `description`,
+`supportTicketStatus` (enum `New | OpenAndWaitingForAgent | OpenAndWaitingForCustomer | Closed`),
+`contactId`, `supportTicketTypeId`, `supportEntitlementId`, `supportPriorityId`.
+(`id`/`timestamp` are create-only.)
 
 ### Ticket Conversations
 
 ```bash
 # List conversations for a ticket
-absuite support list ticket-conversations --TenantId $TENANT_ID --SupportTicketId <ticket-guid>
-
-# Get a specific conversation
-absuite support get ticket-conversation --TenantId $TENANT_ID --SupportTicketId <ticket-guid> --ConversationId <conv-guid>
-
-# Create a conversation on a ticket
-absuite support relate-support-ticket-to-conversation --TenantId $TENANT_ID --SupportTicketId <ticket-guid> --ConversationCreateDto '{...}'
-
-# List messages in a conversation
-absuite support list ticket-conversation-messages --TenantId $TENANT_ID --ConversationId <conv-guid>
-
-# Delete a conversation
-absuite support delete ticket-conversation --TenantId $TENANT_ID --SupportTicketId <ticket-guid> --ConversationId <conv-guid>
-```
-
-**REST API equivalents:**
-
-```bash
-# List conversations for a ticket
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTickets/<ticket-guid>/Conversations" \
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTickets/<ticket-guid>/Conversations?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Get a specific conversation
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTickets/<ticket-guid>/Conversations/<conv-guid>" \
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTickets/<ticket-guid>/Conversations/<conversation-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Create a conversation on a ticket
-curl -X POST "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTickets/<ticket-guid>/Conversations" \
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTickets/<ticket-guid>/Conversations?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" -d '{...}'
+  -H "Content-Type: application/json" \
+  -d '{
+    "topic": "Billing access follow-up",
+    "closed": false,
+    "socialProfileId": "<social-profile-guid>"
+  }'
 
-# List messages in a conversation
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTickets/<ticket-guid>/Conversations/<conv-guid>/Messages" \
+# List messages in a conversation (supports paging)
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTickets/<ticket-guid>/Conversations/<conversation-guid>/Messages?tenantId=<tenant-guid>&pageNumber=1&pageSize=25" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Delete a conversation
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTickets/<ticket-guid>/Conversations/<conv-guid>" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTickets/<ticket-guid>/Conversations/<conversation-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
+
+**Conversation create body fields** (`SupportTicketConversationCreateDto`):
+`id`, `timestamp`, `topic`, `closed`, `closedTimestamp`, `socialProfileId`.
 
 ### Ticket Priorities
 
 ```bash
-absuite support list ticket-priorities --TenantId $TENANT_ID
-absuite support count ticket-priorities --TenantId $TENANT_ID
-absuite support get ticket-priority --TenantId $TENANT_ID --SupportTicketPriorityId <priority-guid>
-absuite support create ticket-priority --TenantId $TENANT_ID --SupportTicketPriorityCreateDto '{
-  "Name": "Critical",
-  "Description": "System-down or data-loss scenarios"
-}'
-absuite support update ticket-priority --TenantId $TENANT_ID --SupportTicketPriorityId <priority-guid> --SupportTicketPriorityUpdateDto '{...}'
-absuite support delete ticket-priority --TenantId $TENANT_ID --SupportTicketPriorityId <priority-guid>
-```
-
-**REST API equivalents:**
-
-```bash
 # List
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTicketPriorities" \
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTicketPriorities?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Count
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTicketPriorities/Count" \
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTicketPriorities/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Get by ID
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTicketPriorities/<priority-guid>" \
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTicketPriorities/<priority-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTicketPriorities" \
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTicketPriorities?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "Name": "Critical",
-    "Description": "System-down or data-loss scenarios"
+    "title": "Critical",
+    "description": "System-down or data-loss scenarios",
+    "supportEntitlementId": "<entitlement-guid>"
   }'
 
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTicketPriorities/<priority-guid>" \
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTicketPriorities/<priority-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{...}'
+  -d '{ "title": "Critical", "description": "Sev-1", "supportEntitlementId": "<entitlement-guid>" }'
+
+# Patch (PATCH)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTicketPriorities/<priority-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[{ "op": "replace", "path": "/title", "value": "Sev-1" }]'
 
 # Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTicketPriorities/<priority-guid>" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTicketPriorities/<priority-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
+
+**Create/Update body fields** (`SupportTicketPriorityCreateDto` / `SupportTicketPriorityUpdateDto`):
+`id`, `timestamp`, `title`, `description`, `supportEntitlementId`.
+(`id`/`timestamp` are create-only.)
 
 ### Ticket Types
 
 ```bash
-absuite support list ticket-types --TenantId $TENANT_ID
-absuite support count ticket-types --TenantId $TENANT_ID
-absuite support get ticket-type --TenantId $TENANT_ID --SupportTicketTypeId <type-guid>
-absuite support create ticket-type --TenantId $TENANT_ID --SupportTicketTypeCreateDto '{
-  "Name": "Bug Report",
-  "Description": "Software defect or error"
-}'
-absuite support update ticket-type --TenantId $TENANT_ID --SupportTicketTypeId <type-guid> --SupportTicketTypeUpdateDto '{...}'
-absuite support delete ticket-type --TenantId $TENANT_ID --SupportTicketTypeId <type-guid>
-```
-
-**REST API equivalents:**
-
-```bash
 # List
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTicketTypes" \
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTicketTypes?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Count
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTicketTypes/Count" \
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTicketTypes/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Get by ID
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTicketTypes/<type-guid>" \
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTicketTypes/<type-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTicketTypes" \
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTicketTypes?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{
-    "Name": "Bug Report",
-    "Description": "Software defect or error"
-  }'
+  -d '{ "title": "Bug Report", "description": "Software defect or error" }'
 
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTicketTypes/<type-guid>" \
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTicketTypes/<type-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{...}'
+  -d '{ "title": "Bug Report", "description": "Reproducible software defect" }'
+
+# Patch (PATCH)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTicketTypes/<type-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[{ "op": "replace", "path": "/description", "value": "Reproducible software defect" }]'
 
 # Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTicketTypes/<type-guid>" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTicketTypes/<type-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
+
+**Create/Update body fields** (`SupportTicketTypeCreateDto` / `SupportTicketTypeUpdateDto`):
+`id`, `timestamp`, `title`, `description`.
+
+---
 
 ## Support Requests
 
 ```bash
 # List
-absuite support list requests --TenantId $TENANT_ID
-
-# Count
-absuite support count requests --TenantId $TENANT_ID
-
-# Get by ID
-absuite support get request --TenantId $TENANT_ID --SupportRequestId <request-guid>
-
-# Create
-absuite support create request --TenantId $TENANT_ID --SupportRequestCreateDto '{
-  "Description": "Need assistance with invoice reconciliation"
-}'
-
-# Update
-absuite support update request --TenantId $TENANT_ID --SupportRequestId <request-guid> --SupportRequestUpdateDto '{...}'
-
-# Delete
-absuite support delete request --TenantId $TENANT_ID --SupportRequestId <request-guid>
-
-# List tickets for a request
-absuite support list request-tickets --TenantId $TENANT_ID --SupportRequestId <request-guid>
-```
-
-**REST API equivalents:**
-
-```bash
-# List
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequests" \
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequests?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Count
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequests/Count" \
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequests/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Get by ID
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequests/<request-guid>" \
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequests/<request-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequests" \
+# Create  (title is required)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequests?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "Description": "Need assistance with invoice reconciliation"
+    "title": "Invoice reconciliation help",
+    "description": "Need assistance reconciling last month'\''s invoices.",
+    "approved": false,
+    "supportEntitlementId": "<entitlement-guid>",
+    "contactId": "<contact-guid>"
   }'
 
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequests/<request-guid>" \
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequests/<request-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{...}'
+  -d '{
+    "title": "Invoice reconciliation help",
+    "description": "Resolved with finance.",
+    "approved": true,
+    "approvedTimestamp": "2026-06-12T00:00:00Z",
+    "supportEntitlementId": "<entitlement-guid>"
+  }'
+
+# Patch (PATCH)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequests/<request-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[{ "op": "replace", "path": "/approved", "value": true }]'
 
 # Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequests/<request-guid>" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequests/<request-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # List tickets for a request
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequests/<request-guid>/Tickets" \
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequests/<request-guid>/Tickets?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
 
-# Attachments for a specific request
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequests/<request-guid>/Attachments" \
+**Create body fields** (`SupportRequestCreateDto`):
+`id`, `timestamp`, `title` (**required**), `description`, `approved`, `approvedTimestamp`,
+`supportEntitlementId`, `contactId`.
+**Update body fields** (`SupportRequestUpdateDto`):
+`title`, `description`, `approved`, `approvedTimestamp`, `supportEntitlementId`.
+(Note: `contactId` is create-only — it is not part of the update DTO.)
+
+### Attachments scoped to a request
+
+```bash
+# List attachments for a request
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequests/<request-guid>/Attachments?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create attachment for a request
-curl -X POST "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequests/<request-guid>/Attachments" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{...}'
 
 # Count attachments for a request
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequests/<request-guid>/Attachments/Count" \
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequests/<request-guid>/Attachments/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get one attachment of a request
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequests/<request-guid>/Attachments/<attachment-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Add (relate) an attachment to a request — body is a SupportRequestAttachmentCreateDto
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequests/<request-guid>/Attachments?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Error log",
+    "fileName": "error.log",
+    "filePath": "/uploads/error.log",
+    "supportRequestId": "<request-guid>"
+  }'
 ```
 
-### Request Attachments
+### Request Attachments (top-level resource)
 
 ```bash
 # List all
-absuite support list request-attachments --TenantId $TENANT_ID
-
-# Count
-absuite support count request-attachments --TenantId $TENANT_ID
-
-# Get by ID
-absuite support get request-attachment --TenantId $TENANT_ID --SupportRequestAttachmentId <attachment-guid>
-
-# Get attachments for a request
-absuite support get request-attachments-by-request --TenantId $TENANT_ID --SupportRequestId <request-guid>
-absuite support get request-attachments-count-by-request --TenantId $TENANT_ID --SupportRequestId <request-guid>
-absuite support get request-attachment-by-request --TenantId $TENANT_ID --SupportRequestId <request-guid> --SupportRequestAttachmentId <attachment-guid>
-
-# Create
-absuite support create request-attachment --TenantId $TENANT_ID --SupportRequestAttachmentCreateDto '{...}'
-
-# Relate attachment to request
-absuite support relate-support-request-to-attachment --TenantId $TENANT_ID --SupportRequestId <request-guid> --SupportRequestAttachmentId <attachment-guid>
-
-# Update
-absuite support update request-attachment --TenantId $TENANT_ID --SupportRequestAttachmentId <attachment-guid> --SupportRequestAttachmentUpdateDto '{...}'
-
-# Delete
-absuite support delete request-attachment --TenantId $TENANT_ID --SupportRequestAttachmentId <attachment-guid>
-```
-
-**REST API equivalents:**
-
-```bash
-# List all
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequestAttachments" \
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequestAttachments?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Count
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequestAttachments/Count" \
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequestAttachments/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Get by ID
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequestAttachments/<attachment-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get attachments for a request
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequests/<request-guid>/Attachments" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get attachment count for a request
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequests/<request-guid>/Attachments/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get a specific attachment for a request
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequests/<request-guid>/Attachments/<attachment-guid>" \
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequestAttachments/<attachment-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequestAttachments" \
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequestAttachments?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{...}'
+  -d '{
+    "title": "Error log",
+    "fileName": "error.log",
+    "filePath": "/uploads/error.log",
+    "supportRequestId": "<request-guid>"
+  }'
 
-# Relate attachment to request
-curl -X POST "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequests/<request-guid>/Attachments" \
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequestAttachments/<attachment-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"SupportRequestAttachmentId": "<attachment-guid>"}'
+  -d '{ "title": "Error log (redacted)", "validResponse": true }'
 
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequestAttachments/<attachment-guid>" \
+# Patch (PATCH)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequestAttachments/<attachment-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{...}'
+  -d '[{ "op": "replace", "path": "/validResponse", "value": true }]'
 
 # Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequestAttachments/<attachment-guid>" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequestAttachments/<attachment-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
+
+**Create body fields** (`SupportRequestAttachmentCreateDto`):
+`id`, `timestamp`, `notes`, `title`, `author`, `isFolder`, `fileName`, `abstract`,
+`keyWords`, `validResponse`, `parentFileUploadId`, `filePath`, `metadata`, `supportRequestId`.
+**Update body fields** (`SupportRequestAttachmentUpdateDto`):
+`notes`, `metadata`, `title`, `author`, `isFolder`, `fileName`, `abstract`, `keyWords`,
+`validResponse`, `parentFileUploadID`, `filePath`, `contentType`, `fileLength`.
+(Spec note: update uses `parentFileUploadID` while create uses `parentFileUploadId`;
+update adds `contentType`/`fileLength` and has no `supportRequestId`.)
+
+---
 
 ## Support Entitlements
 
-Define what level of support a customer is entitled to.
+Define the support plan / SLA a customer is entitled to.
 
 ```bash
 # List
-absuite support list entitlements --TenantId $TENANT_ID
-
-# Count
-absuite support count entitlements --TenantId $TENANT_ID
-
-# Get by ID
-absuite support get entitlement --TenantId $TENANT_ID --SupportEntitlementId <entitlement-guid>
-
-# Create
-absuite support create entitlement --TenantId $TENANT_ID --SupportEntitlementCreateDto '{
-  "Name": "Premium Support",
-  "Description": "24/7 support with 1-hour SLA"
-}'
-
-# Update
-absuite support update entitlement --TenantId $TENANT_ID --SupportEntitlementId <entitlement-guid> --SupportEntitlementUpdateDto '{...}'
-
-# Delete
-absuite support delete entitlement --TenantId $TENANT_ID --SupportEntitlementId <entitlement-guid>
-```
-
-**REST API equivalents:**
-
-```bash
-# List
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportEntitlements" \
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportEntitlements?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Count
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportEntitlements/Count" \
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportEntitlements/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Get by ID
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportEntitlements/<entitlement-guid>" \
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportEntitlements/<entitlement-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/SupportService/SupportEntitlements" \
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SupportService/SupportEntitlements?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "Name": "Premium Support",
-    "Description": "24/7 support with 1-hour SLA"
+    "title": "Premium Support",
+    "description": "24/7 support with 1-hour SLA",
+    "startDateTime": "2026-01-01T00:00:00Z",
+    "endDateTime": "2026-12-31T23:59:59Z",
+    "quantity": 1,
+    "enableAutomaticRenew": true,
+    "freeTrialInDays": 14,
+    "individualId": "<individual-guid>"
   }'
 
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/SupportService/SupportEntitlements/<entitlement-guid>" \
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/SupportService/SupportEntitlements/<entitlement-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{...}'
+  -d '{ "title": "Premium Support", "description": "Upgraded to 30-minute SLA", "enableAutomaticRenew": true }'
+
+# Patch (PATCH)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/SupportService/SupportEntitlements/<entitlement-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[{ "op": "replace", "path": "/enableAutomaticRenew", "value": false }]'
 
 # Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/SupportEntitlements/<entitlement-guid>" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/SupportEntitlements/<entitlement-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
+
+**Body fields** (`SupportEntitlementCreateDto` / `SupportEntitlementUpdateDto`):
+`title`, `description`, `startDateTime` (create-only), `endDateTime`, `nextInvoiceDateTime`,
+`code`, `signature`, `quantity`, `repetitions`, `chargeAttempts`, `freeTrialInDays`,
+`gracePeriodInDays`, `customRenewalPeriod`, `enableAutomaticRenew`, `enableProRateBilling`,
+`enableUsageThreshold`, `enableAutomaticDisable`, `enableAutomaticPayments`, `usageThreshold`,
+`data` … `data9` and `dataLabel` … `data9Label` (ten free-form value/label slot pairs),
+`individualId`, `organizationId`, `receiverTenantId`, `paymentTokenId`, `walletAccountId`,
+`securityCertificateId`. (Create-only extras: `id`, `timestamp`, `startDateTime`.)
+
+---
 
 ## Refund Requests
 
-Manage customer refund requests.
-
 ```bash
 # List
-absuite support list refund-requests --TenantId $TENANT_ID
-
-# Count
-absuite support count refund-requests --TenantId $TENANT_ID
-
-# Get by ID
-absuite support get refund-request --TenantId $TENANT_ID --RefundRequestId <refund-request-guid>
-
-# Create
-absuite support create refund-request --TenantId $TENANT_ID --RefundRequestCreateDto '{
-  "Reason": "Product arrived damaged",
-  "Amount": 49.99
-}'
-
-# Update
-absuite support update refund-request --TenantId $TENANT_ID --RefundRequestId <refund-request-guid> --RefundRequestUpdateDto '{...}'
-
-# Delete
-absuite support delete refund-request --TenantId $TENANT_ID --RefundRequestId <refund-request-guid>
-```
-
-**REST API equivalents:**
-
-```bash
-# List
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/RefundRequests" \
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/RefundRequests?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Count
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/RefundRequests/Count" \
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/RefundRequests/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Get by ID
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/RefundRequests/<refund-request-guid>" \
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/RefundRequests/<refund-request-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/SupportService/RefundRequests" \
+# Create  (title is required)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SupportService/RefundRequests?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "Reason": "Product arrived damaged",
-    "Amount": 49.99
+    "title": "Damaged on arrival",
+    "description": "Product arrived damaged; requesting full refund.",
+    "supportEntitlementId": "<entitlement-guid>",
+    "contactId": "<contact-guid>",
+    "refundPolicyId": "<refund-policy-guid>",
+    "paymentId": "<payment-guid>"
   }'
 
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/SupportService/RefundRequests/<refund-request-guid>" \
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/SupportService/RefundRequests/<refund-request-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{...}'
+  -d '{ "title": "Damaged on arrival", "approved": true, "approvedTimestamp": "2026-06-12T00:00:00Z", "refundPolicyId": "<refund-policy-guid>", "paymentId": "<payment-guid>" }'
+
+# Patch (PATCH)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/SupportService/RefundRequests/<refund-request-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[{ "op": "replace", "path": "/approved", "value": true }]'
 
 # Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/RefundRequests/<refund-request-guid>" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/RefundRequests/<refund-request-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
+
+**Create body fields** (`RefundRequestCreateDto`):
+`id`, `timestamp`, `title` (**required**), `description`, `approved`, `approvedTimestamp`,
+`supportEntitlementId`, `contactId`, `refundPolicyId`, `paymentId`.
+**Update body fields** (`RefundRequestUpdateDto`):
+`title`, `description`, `approved`, `approvedTimestamp`, `supportEntitlementId`,
+`refundPolicyId`, `paymentId`. (`contactId` is create-only.)
 
 ## Refund Policies
 
-Define the rules governing when and how refunds are issued.
-
 ```bash
-# List
-absuite support list refund-policies --TenantId $TENANT_ID
-
-# Count
-absuite support count refund-policies --TenantId $TENANT_ID
-
-# Get by ID
-absuite support get refund-policy --TenantId $TENANT_ID --RefundPolicyId <refund-policy-guid>
-
-# Create
-absuite support create refund-policy --TenantId $TENANT_ID --RefundPolicyCreateDto '{
-  "Name": "30-Day Full Refund",
-  "Description": "Full refund within 30 days of purchase"
-}'
-
-# Update
-absuite support update refund-policy --TenantId $TENANT_ID --RefundPolicyId <refund-policy-guid> --RefundPolicyUpdateDto '{...}'
-
-# Delete
-absuite support delete refund-policy --TenantId $TENANT_ID --RefundPolicyId <refund-policy-guid>
-```
-
-**REST API equivalents:**
-
-```bash
-# List
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/RefundPolicies" \
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/RefundPolicies?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/RefundPolicies/Count?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/RefundPolicies/<refund-policy-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Count
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/RefundPolicies/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get by ID
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/RefundPolicies/<refund-policy-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/SupportService/RefundPolicies" \
+# Create  (title is required)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SupportService/RefundPolicies?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "Name": "30-Day Full Refund",
-    "Description": "Full refund within 30 days of purchase"
+    "title": "30-Day Full Refund",
+    "description": "Full refund within 30 days of purchase.",
+    "isFree": true,
+    "isEnabled": true,
+    "isDefault": true,
+    "days": 30,
+    "percentage": 100,
+    "currencyId": "<currency-id>"
   }'
 
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/SupportService/RefundPolicies/<refund-policy-guid>" \
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/SupportService/RefundPolicies/<refund-policy-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{...}'
+  -d '{ "title": "30-Day Full Refund", "days": 30, "percentage": 100, "isEnabled": true }'
+
+# Patch (PATCH)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/SupportService/RefundPolicies/<refund-policy-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[{ "op": "replace", "path": "/isEnabled", "value": false }]'
 
 # Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/RefundPolicies/<refund-policy-guid>" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/RefundPolicies/<refund-policy-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-## Knowledge Articles
+**Body fields** (`ItemRefundPolicyCreateDto` / `ItemRefundPolicyUpdateDto`):
+`title` (**required** on create), `description`, `isFree`, `reduce`, `isEnabled`, `isDefault`,
+`allowInternational`, `hours`, `days`, `weeks`, `months`, `years`, `value`, `percentage`,
+`currencyId`, `countryId`, `countryStateId`, `customState`, `customCity`, `cityId`.
+(Create-only extras: `id`, `timestamp`.)
 
-Manage self-service knowledge base articles for customer support.
-
-```bash
-# List
-absuite support list knowledge-articles --TenantId $TENANT_ID
-
-# Count
-absuite support count knowledge-articles --TenantId $TENANT_ID
-
-# Get by ID
-absuite support get knowledge-article --TenantId $TENANT_ID --KnowledgeArticleId <article-guid>
-
-# Create
-absuite support create knowledge-article --TenantId $TENANT_ID --KnowledgeArticleCreateDto '{
-  "Title": "How to reset your password",
-  "Content": "Navigate to Settings > Security > Reset Password..."
-}'
-
-# Update
-absuite support update knowledge-article --TenantId $TENANT_ID --KnowledgeArticleId <article-guid> --KnowledgeArticleUpdateDto '{...}'
-
-# Delete
-absuite support delete knowledge-article --TenantId $TENANT_ID --KnowledgeArticleId <article-guid>
-```
-
-**REST API equivalents:**
-
-```bash
-# List
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/KnowledgeArticles" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/KnowledgeArticles/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get by ID
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/KnowledgeArticles/<article-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/SupportService/KnowledgeArticles" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "Title": "How to reset your password",
-    "Content": "Navigate to Settings > Security > Reset Password..."
-  }'
-
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/SupportService/KnowledgeArticles/<article-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{...}'
-
-# Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/KnowledgeArticles/<article-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-## Warranty Requests
-
-Manage warranty claim requests from customers.
-
-```bash
-# List
-absuite support list warranty-requests --TenantId $TENANT_ID
-
-# Count
-absuite support count warranty-requests --TenantId $TENANT_ID
-
-# Get by ID
-absuite support get warranty-request --TenantId $TENANT_ID --WarrantyRequestId <warranty-request-guid>
-
-# Create
-absuite support create warranty-request --TenantId $TENANT_ID --WarrantyRequestCreateDto '{
-  "Description": "Device stopped charging after 3 months"
-}'
-
-# Update
-absuite support update warranty-request --TenantId $TENANT_ID --WarrantyRequestId <warranty-request-guid> --WarrantyRequestUpdateDto '{...}'
-
-# Delete
-absuite support delete warranty-request --TenantId $TENANT_ID --WarrantyRequestId <warranty-request-guid>
-```
-
-**REST API equivalents:**
-
-```bash
-# List
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/WarrantyRequests" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/WarrantyRequests/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get by ID
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/WarrantyRequests/<warranty-request-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/SupportService/WarrantyRequests" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "Description": "Device stopped charging after 3 months"
-  }'
-
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/SupportService/WarrantyRequests/<warranty-request-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{...}'
-
-# Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/WarrantyRequests/<warranty-request-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-## Warranty Policies
-
-Define the warranty terms and conditions for products or services.
-
-```bash
-# List
-absuite support list warranty-policies --TenantId $TENANT_ID
-
-# Count
-absuite support count warranty-policies --TenantId $TENANT_ID
-
-# Get by ID
-absuite support get warranty-policy --TenantId $TENANT_ID --WarrantyPolicyId <warranty-policy-guid>
-
-# Create
-absuite support create warranty-policy --TenantId $TENANT_ID --WarrantyPolicyCreateDto '{
-  "Name": "1-Year Limited Warranty",
-  "Description": "Covers manufacturer defects for 12 months from purchase"
-}'
-
-# Update
-absuite support update warranty-policy --TenantId $TENANT_ID --WarrantyPolicyId <warranty-policy-guid> --WarrantyPolicyUpdateDto '{...}'
-
-# Delete
-absuite support delete warranty-policy --TenantId $TENANT_ID --WarrantyPolicyId <warranty-policy-guid>
-```
-
-**REST API equivalents:**
-
-```bash
-# List
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/WarrantyPolicies" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/WarrantyPolicies/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get by ID
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/WarrantyPolicies/<warranty-policy-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/SupportService/WarrantyPolicies" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "Name": "1-Year Limited Warranty",
-    "Description": "Covers manufacturer defects for 12 months from purchase"
-  }'
-
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/SupportService/WarrantyPolicies/<warranty-policy-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{...}'
-
-# Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/WarrantyPolicies/<warranty-policy-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
+---
 
 ## Return Requests
 
-Manage product return requests from customers.
-
 ```bash
-# List
-absuite support list return-requests --TenantId $TENANT_ID
-
-# Count
-absuite support count return-requests --TenantId $TENANT_ID
-
-# Get by ID
-absuite support get return-request --TenantId $TENANT_ID --ReturnRequestId <return-request-guid>
-
-# Create
-absuite support create return-request --TenantId $TENANT_ID --ReturnRequestCreateDto '{
-  "Reason": "Wrong item shipped"
-}'
-
-# Update
-absuite support update return-request --TenantId $TENANT_ID --ReturnRequestId <return-request-guid> --ReturnRequestUpdateDto '{...}'
-
-# Delete
-absuite support delete return-request --TenantId $TENANT_ID --ReturnRequestId <return-request-guid>
-```
-
-**REST API equivalents:**
-
-```bash
-# List
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/ReturnRequests" \
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/ReturnRequests?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/ReturnRequests/Count?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/ReturnRequests/<return-request-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Count
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/ReturnRequests/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get by ID
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/ReturnRequests/<return-request-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/SupportService/ReturnRequests" \
+# Create  (title is required)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SupportService/ReturnRequests?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "Reason": "Wrong item shipped"
+    "title": "Wrong item shipped",
+    "description": "Received item B instead of item A.",
+    "supportEntitlementId": "<entitlement-guid>",
+    "contactId": "<contact-guid>",
+    "returnPolicyId": "<return-policy-guid>"
   }'
 
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/SupportService/ReturnRequests/<return-request-guid>" \
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/SupportService/ReturnRequests/<return-request-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{...}'
+  -d '{ "title": "Wrong item shipped", "approved": true, "approvedTimestamp": "2026-06-12T00:00:00Z", "returnPolicyId": "<return-policy-guid>" }'
+
+# Patch (PATCH)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/SupportService/ReturnRequests/<return-request-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[{ "op": "replace", "path": "/approved", "value": true }]'
 
 # Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/ReturnRequests/<return-request-guid>" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/ReturnRequests/<return-request-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
+
+**Create body fields** (`ReturnRequestCreateDto`):
+`id`, `timestamp`, `title` (**required**), `description`, `approved`, `approvedTimestamp`,
+`supportEntitlementId`, `contactId`, `returnPolicyId`.
+**Update body fields** (`ReturnRequestUpdateDto`):
+`title`, `description`, `approved`, `approvedTimestamp`, `supportEntitlementId`,
+`returnPolicyId`. (`contactId` is create-only.)
 
 ## Return Policies
 
-Define the rules governing product returns.
-
 ```bash
-# List
-absuite support list return-policies --TenantId $TENANT_ID
-
-# Count
-absuite support count return-policies --TenantId $TENANT_ID
-
-# Get by ID
-absuite support get return-policy --TenantId $TENANT_ID --ReturnPolicyId <return-policy-guid>
-
-# Create
-absuite support create return-policy --TenantId $TENANT_ID --ReturnPolicyCreateDto '{
-  "Name": "Standard Return Policy",
-  "Description": "Returns accepted within 14 days, original packaging required"
-}'
-
-# Update
-absuite support update return-policy --TenantId $TENANT_ID --ReturnPolicyId <return-policy-guid> --ReturnPolicyUpdateDto '{...}'
-
-# Delete
-absuite support delete return-policy --TenantId $TENANT_ID --ReturnPolicyId <return-policy-guid>
-```
-
-**REST API equivalents:**
-
-```bash
-# List
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/ReturnPolicies" \
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/ReturnPolicies?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/ReturnPolicies/Count?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/ReturnPolicies/<return-policy-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Count
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/ReturnPolicies/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get by ID
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/ReturnPolicies/<return-policy-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/SupportService/ReturnPolicies" \
+# Create  (title is required)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SupportService/ReturnPolicies?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "Name": "Standard Return Policy",
-    "Description": "Returns accepted within 14 days, original packaging required"
+    "title": "Standard Return Policy",
+    "description": "Returns accepted within 14 days, original packaging required.",
+    "days": 14,
+    "isEnabled": true,
+    "shippingCourierId": "<courier-guid>"
   }'
 
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/SupportService/ReturnPolicies/<return-policy-guid>" \
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/SupportService/ReturnPolicies/<return-policy-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{...}'
+  -d '{ "title": "Standard Return Policy", "days": 14, "isEnabled": true }'
+
+# Patch (PATCH)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/SupportService/ReturnPolicies/<return-policy-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[{ "op": "replace", "path": "/days", "value": 30 }]'
 
 # Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/ReturnPolicies/<return-policy-guid>" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/ReturnPolicies/<return-policy-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
+
+**Body fields** (`ItemReturnPolicyCreateDto` / `ItemReturnPolicyUpdateDto`):
+`title` (**required** on create), `description`, `shippingCourierId`, `isFree`, `reduce`,
+`isEnabled`, `isDefault`, `allowInternational`, `hours`, `days`, `weeks`, `months`, `years`,
+`value`, `percentage`, `currencyId`, `countryId`, `countryStateId`, `customState`,
+`customCity`, `cityId`. (Create-only extras: `id`, `timestamp`.)
+
+---
+
+## Warranty Requests
+
+```bash
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/WarrantyRequests?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/WarrantyRequests/Count?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/WarrantyRequests/<warranty-request-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create  (title is required)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SupportService/WarrantyRequests?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Device stopped charging",
+    "description": "Unit stopped charging after 3 months.",
+    "supportEntitlementId": "<entitlement-guid>",
+    "contactId": "<contact-guid>",
+    "warrantyPolicyId": "<warranty-policy-guid>"
+  }'
+
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/SupportService/WarrantyRequests/<warranty-request-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "title": "Device stopped charging", "approved": true, "approvedTimestamp": "2026-06-12T00:00:00Z", "warrantyPolicyId": "<warranty-policy-guid>" }'
+
+# Patch (PATCH)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/SupportService/WarrantyRequests/<warranty-request-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[{ "op": "replace", "path": "/approved", "value": true }]'
+
+# Delete
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/WarrantyRequests/<warranty-request-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+**Create body fields** (`WarrantyRequestCreateDto`):
+`id`, `timestamp`, `title` (**required**), `description`, `approved`, `approvedTimestamp`,
+`supportEntitlementId`, `contactId`, `warrantyPolicyId`.
+**Update body fields** (`WarrantyRequestUpdateDto`):
+`title`, `description`, `approved`, `approvedTimestamp`, `supportEntitlementId`,
+`warrantyPolicyId`. (`contactId` is create-only.)
+
+## Warranty Policies
+
+```bash
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/WarrantyPolicies?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/WarrantyPolicies/Count?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/WarrantyPolicies/<warranty-policy-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create  (title is required)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SupportService/WarrantyPolicies?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "1-Year Limited Warranty",
+    "description": "Covers manufacturer defects for 12 months from purchase.",
+    "isExtendedWarranty": false,
+    "months": 12,
+    "isEnabled": true
+  }'
+
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/SupportService/WarrantyPolicies/<warranty-policy-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "title": "1-Year Limited Warranty", "months": 12, "isEnabled": true }'
+
+# Patch (PATCH)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/SupportService/WarrantyPolicies/<warranty-policy-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[{ "op": "replace", "path": "/months", "value": 24 }]'
+
+# Delete
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/WarrantyPolicies/<warranty-policy-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+**Body fields** (`ItemWarrantyPolicyCreateDto` / `ItemWarrantyPolicyUpdateDto`):
+`title` (**required** on create), `description`, `isExtendedWarranty`, `isFree`, `reduce`,
+`isEnabled`, `isDefault`, `allowInternational`, `hours`, `days`, `weeks`, `months`, `years`,
+`value`, `percentage`, `currencyId`, `countryId`, `countryStateId`, `customState`,
+`customCity`, `cityId`. (Create-only extras: `id`, `timestamp`.)
+
+---
+
+## Knowledge Articles
+
+```bash
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/KnowledgeArticles?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/KnowledgeArticles/Count?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/KnowledgeArticles/<article-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create  (title is required)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SupportService/KnowledgeArticles?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "How to reset your password",
+    "slug": "reset-password",
+    "excerpt": "Steps to reset your account password.",
+    "content": "Navigate to Settings > Security > Reset Password...",
+    "published": true,
+    "enable": true
+  }'
+
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/SupportService/KnowledgeArticles/<article-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "title": "How to reset your password", "content": "Updated steps...", "published": true }'
+
+# Patch (PATCH)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/SupportService/KnowledgeArticles/<article-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[{ "op": "replace", "path": "/published", "value": false }]'
+
+# Delete
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/KnowledgeArticles/<article-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+**Body fields** (`KnowledgeArticleCreateDto` / `KnowledgeArticleUpdateDto`):
+`title` (**required** on create), `slug`, `excerpt`, `description`, `content`,
+`highlightImage`, `seoTitle`, `seoKeyWords`, `metaDescription`, `published`, `enable`.
+(Create-only extras: `id`, `timestamp`.)
+
+---
 
 ## Inquiry Requests
 
-Manage general inquiry requests from customers.
-
 ```bash
-# List
-absuite support list inquiry-requests --TenantId $TENANT_ID
-
-# Count
-absuite support count inquiry-requests --TenantId $TENANT_ID
-
-# Get by ID
-absuite support get inquiry-request --TenantId $TENANT_ID --InquiryRequestId <inquiry-request-guid>
-
-# Create
-absuite support create inquiry-request --TenantId $TENANT_ID --InquiryRequestCreateDto '{
-  "Subject": "Pricing for enterprise plan",
-  "Description": "We would like details on volume licensing"
-}'
-
-# Update
-absuite support update inquiry-request --TenantId $TENANT_ID --InquiryRequestId <inquiry-request-guid> --InquiryRequestUpdateDto '{...}'
-
-# Delete
-absuite support delete inquiry-request --TenantId $TENANT_ID --InquiryRequestId <inquiry-request-guid>
-```
-
-**REST API equivalents:**
-
-```bash
-# List
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/InquiryRequests" \
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/InquiryRequests?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/InquiryRequests/Count?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/InquiryRequests/<inquiry-request-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Count
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/InquiryRequests/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get by ID
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/InquiryRequests/<inquiry-request-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/SupportService/InquiryRequests" \
+# Create  (name, email, message are required)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SupportService/InquiryRequests?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "Subject": "Pricing for enterprise plan",
-    "Description": "We would like details on volume licensing"
+    "type": "Sales",
+    "name": "<first-name>",
+    "lastName": "<last-name>",
+    "email": "<email>",
+    "organizationName": "<org-name>",
+    "message": "We would like details on volume licensing.",
+    "countryId": "<country-id>",
+    "phone": "<phone>"
   }'
 
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/SupportService/InquiryRequests/<inquiry-request-guid>" \
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/SupportService/InquiryRequests/<inquiry-request-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{...}'
+  -d '{ "type": "Sales", "message": "Updated: requesting an enterprise quote." }'
+
+# Patch (PATCH)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/SupportService/InquiryRequests/<inquiry-request-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[{ "op": "replace", "path": "/type", "value": "Partnership" }]'
 
 # Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/InquiryRequests/<inquiry-request-guid>" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/InquiryRequests/<inquiry-request-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
+
+**Create body fields** (`InquiryRequestCreateDto`):
+`id`, `timestamp`, `type`, `name` (**required**), `lastName`, `email` (**required**),
+`organizationName`, `jobRole`, `organizationDomain`, `countryId`, `phone`,
+`message` (**required**), `socialProfileId`.
+**Update body fields** (`InquiryRequestUpdateDto`):
+`type`, `name`, `lastName`, `email`, `organizationName`, `jobRole`, `organizationDomain`,
+`countryId`, `phone`, `message`, `socialProfileId`.
+
+---
 
 ## Maintenance Visits
 
-Schedule and manage on-site or remote maintenance visits.
-
 ```bash
-# List
-absuite support list maintenance-visits --TenantId $TENANT_ID
-
-# Count
-absuite support count maintenance-visits --TenantId $TENANT_ID
-
-# Get by ID
-absuite support get maintenance-visit --TenantId $TENANT_ID --MaintenanceVisitId <visit-guid>
-
-# Create
-absuite support create maintenance-visit --TenantId $TENANT_ID --MaintenanceVisitCreateDto '{
-  "Description": "Quarterly server maintenance",
-  "ScheduledDate": "2025-03-15T10:00:00Z"
-}'
-
-# Update
-absuite support update maintenance-visit --TenantId $TENANT_ID --MaintenanceVisitId <visit-guid> --MaintenanceVisitUpdateDto '{...}'
-
-# Delete
-absuite support delete maintenance-visit --TenantId $TENANT_ID --MaintenanceVisitId <visit-guid>
-```
-
-**REST API equivalents:**
-
-```bash
-# List
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/MaintenanceVisits" \
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/MaintenanceVisits?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/MaintenanceVisits/Count" \
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/MaintenanceVisits/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get by ID
-curl "$ABSUITE_HOST_URL/api/v2/SupportService/MaintenanceVisits/<visit-guid>" \
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/MaintenanceVisits/<visit-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/SupportService/MaintenanceVisits" \
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SupportService/MaintenanceVisits?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
+  -d '{ "id": "<visit-guid>", "timestamp": "2026-06-12T10:00:00Z" }'
+
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/SupportService/MaintenanceVisits/<visit-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+
+# Patch (PATCH)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/SupportService/MaintenanceVisits/<visit-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[{ "op": "replace", "path": "/timestamp", "value": "2026-07-01T10:00:00Z" }]'
+
+# Delete
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/MaintenanceVisits/<visit-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+> **Spec note:** the OpenAPI spec exposes only `id` and `timestamp` on
+> `MaintenanceVisitCreateDto`, and `MaintenanceVisitUpdateDto` has **no documented body
+> fields**. Send only fields confirmed by the spec; do not invent a `description` or
+> `scheduledDate` field (the old skill showed those — they are not in the spec).
+
+---
+
+## PATCH (JSON Patch, RFC 6902)
+
+Every primary `SupportService` aggregate supports `PATCH` for **atomic partial updates** —
+safer than `PUT` under concurrent edits because you send only the fields you intend to change.
+
+- **Content-Type:** `application/json`
+- **Body:** a JSON **array** of operations. Each op has `op`, `path`, and (for most ops)
+  `value`. `op` ∈ `add | remove | replace | move | copy | test`. `path`/`from` are
+  JSON-Pointer strings (leading `/`, camelCase field names).
+- **Tenant:** `?tenantId=<tenant-guid>` is still required on the PATCH request.
+
+Example — close a ticket and re-point its priority in one atomic request:
+```bash
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTickets/<ticket-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[
+    { "op": "replace", "path": "/supportTicketStatus", "value": "Closed" },
+    { "op": "replace", "path": "/supportPriorityId", "value": "<priority-guid>" }
+  ]'
+```
+
+**Resources that support PATCH** (path `…/{resource}/{id}`):
+SupportTickets, SupportRequests, SupportRequestAttachments, SupportEntitlements,
+SupportTicketPriorities, SupportTicketTypes, RefundRequests, RefundPolicies,
+ReturnRequests, ReturnPolicies, WarrantyRequests, WarrantyPolicies, KnowledgeArticles,
+InquiryRequests, MaintenanceVisits.
+
+> Sub-resources (ticket conversations, conversation messages, and the per-request
+> attachment relations) do **not** expose PATCH. Use their POST/GET/DELETE endpoints.
+
+---
+
+## End-to-End Workflow
+
+Stand up the classification lookups and an entitlement, open a ticket, discuss it, then close
+it atomically — all with verified endpoints:
+
+```bash
+# 1. Create a ticket type
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTicketTypes?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "title": "Bug Report", "description": "Software defect" }'
+
+# 2. Create a priority
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTicketPriorities?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "title": "High", "description": "Major impact" }'
+
+# 3. Create an entitlement
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SupportService/SupportEntitlements?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "title": "Premium Support", "description": "24/7, 1-hour SLA", "quantity": 1 }'
+
+# 4. Open a ticket referencing them
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTickets?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
   -d '{
-    "Description": "Quarterly server maintenance",
-    "ScheduledDate": "2025-03-15T10:00:00Z"
+    "title": "Login fails with 403",
+    "description": "User cannot reach the billing portal.",
+    "supportTicketStatus": "New",
+    "contactId": "<contact-guid>",
+    "supportTicketTypeId": "<type-guid>",
+    "supportEntitlementId": "<entitlement-guid>",
+    "supportPriorityId": "<priority-guid>"
   }'
 
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/SupportService/MaintenanceVisits/<visit-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{...}'
+# 5. Start a conversation on the ticket
+curl -X POST "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTickets/<ticket-guid>/Conversations?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "topic": "Troubleshooting 403", "closed": false }'
 
-# Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/MaintenanceVisits/<visit-guid>" \
+# 6. Read the conversation messages (paged)
+curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTickets/<ticket-guid>/Conversations/<conversation-guid>/Messages?tenantId=<tenant-guid>&pageNumber=1&pageSize=25" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# 7. Close the ticket atomically (PATCH)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTickets/<ticket-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '[{ "op": "replace", "path": "/supportTicketStatus", "value": "Closed" }]'
 ```
 
-## Command Quick Reference
-
-| Action | CLI Command |
-|---|---|
-| List tickets | `absuite support list tickets --TenantId <guid>` |
-| Create ticket | `absuite support create ticket --TenantId <guid> --SupportTicketCreateDto '{...}'` |
-| List conversations | `absuite support list ticket-conversations --TenantId <guid> --SupportTicketId <guid>` |
-| List requests | `absuite support list requests --TenantId <guid>` |
-| Create request | `absuite support create request --TenantId <guid> --SupportRequestCreateDto '{...}'` |
-| List priorities | `absuite support list ticket-priorities --TenantId <guid>` |
-| List types | `absuite support list ticket-types --TenantId <guid>` |
-| List entitlements | `absuite support list entitlements --TenantId <guid>` |
+---
 
 ## API Endpoints Quick Reference
 
-All endpoints are relative to `$ABSUITE_HOST_URL/api/v2/SupportService/`.
+All paths are relative to `$ABSUITE_HOST_URL/api/v2/SupportService/`. `tenantId` is a
+**required** query param on every operation (omitted from the table for brevity).
 
-| Resource | POST | GET (list) | GET (by ID) | PUT | DELETE | GET Count |
-|---|---|---|---|---|---|---|
-| SupportTickets | `POST /SupportTickets` | `GET /SupportTickets` | `GET /SupportTickets/:id` | `PUT /SupportTickets/:id` | `DELETE /SupportTickets/:id` | `GET /SupportTickets/Count` |
-| Ticket Conversations | `POST /SupportTickets/:id/Conversations` | `GET /SupportTickets/:id/Conversations` | `GET /SupportTickets/:id/Conversations/:convId` | — | `DELETE /SupportTickets/:id/Conversations/:convId` | — |
-| Conversation Messages | — | `GET /SupportTickets/:id/Conversations/:convId/Messages` | — | — | — | — |
-| SupportTicketPriorities | `POST /SupportTicketPriorities` | `GET /SupportTicketPriorities` | `GET /SupportTicketPriorities/:id` | `PUT /SupportTicketPriorities/:id` | `DELETE /SupportTicketPriorities/:id` | `GET /SupportTicketPriorities/Count` |
-| SupportTicketTypes | `POST /SupportTicketTypes` | `GET /SupportTicketTypes` | `GET /SupportTicketTypes/:id` | `PUT /SupportTicketTypes/:id` | `DELETE /SupportTicketTypes/:id` | `GET /SupportTicketTypes/Count` |
-| SupportRequests | `POST /SupportRequests` | `GET /SupportRequests` | `GET /SupportRequests/:id` | `PUT /SupportRequests/:id` | `DELETE /SupportRequests/:id` | `GET /SupportRequests/Count` |
-| Request Attachments | `POST /SupportRequestAttachments` | `GET /SupportRequestAttachments` | `GET /SupportRequestAttachments/:id` | `PUT /SupportRequestAttachments/:id` | `DELETE /SupportRequestAttachments/:id` | `GET /SupportRequestAttachments/Count` |
-| Request → Attachments | `POST /SupportRequests/:id/Attachments` | `GET /SupportRequests/:id/Attachments` | `GET /SupportRequests/:id/Attachments/:attId` | — | — | `GET /SupportRequests/:id/Attachments/Count` |
-| Request → Tickets | — | `GET /SupportRequests/:id/Tickets` | — | — | — | — |
-| SupportEntitlements | `POST /SupportEntitlements` | `GET /SupportEntitlements` | `GET /SupportEntitlements/:id` | `PUT /SupportEntitlements/:id` | `DELETE /SupportEntitlements/:id` | `GET /SupportEntitlements/Count` |
-| RefundRequests | `POST /RefundRequests` | `GET /RefundRequests` | `GET /RefundRequests/:id` | `PUT /RefundRequests/:id` | `DELETE /RefundRequests/:id` | `GET /RefundRequests/Count` |
-| RefundPolicies | `POST /RefundPolicies` | `GET /RefundPolicies` | `GET /RefundPolicies/:id` | `PUT /RefundPolicies/:id` | `DELETE /RefundPolicies/:id` | `GET /RefundPolicies/Count` |
-| ReturnRequests | `POST /ReturnRequests` | `GET /ReturnRequests` | `GET /ReturnRequests/:id` | `PUT /ReturnRequests/:id` | `DELETE /ReturnRequests/:id` | `GET /ReturnRequests/Count` |
-| ReturnPolicies | `POST /ReturnPolicies` | `GET /ReturnPolicies` | `GET /ReturnPolicies/:id` | `PUT /ReturnPolicies/:id` | `DELETE /ReturnPolicies/:id` | `GET /ReturnPolicies/Count` |
-| WarrantyRequests | `POST /WarrantyRequests` | `GET /WarrantyRequests` | `GET /WarrantyRequests/:id` | `PUT /WarrantyRequests/:id` | `DELETE /WarrantyRequests/:id` | `GET /WarrantyRequests/Count` |
-| WarrantyPolicies | `POST /WarrantyPolicies` | `GET /WarrantyPolicies` | `GET /WarrantyPolicies/:id` | `PUT /WarrantyPolicies/:id` | `DELETE /WarrantyPolicies/:id` | `GET /WarrantyPolicies/Count` |
-| KnowledgeArticles | `POST /KnowledgeArticles` | `GET /KnowledgeArticles` | `GET /KnowledgeArticles/:id` | `PUT /KnowledgeArticles/:id` | `DELETE /KnowledgeArticles/:id` | `GET /KnowledgeArticles/Count` |
-| InquiryRequests | `POST /InquiryRequests` | `GET /InquiryRequests` | `GET /InquiryRequests/:id` | `PUT /InquiryRequests/:id` | `DELETE /InquiryRequests/:id` | `GET /InquiryRequests/Count` |
-| MaintenanceVisits | `POST /MaintenanceVisits` | `GET /MaintenanceVisits` | `GET /MaintenanceVisits/:id` | `PUT /MaintenanceVisits/:id` | `DELETE /MaintenanceVisits/:id` | `GET /MaintenanceVisits/Count` |
+### Support Tickets and sub-resources
+
+| Action | Method | Path |
+|---|---|---|
+| List tickets | GET | `/SupportTickets` |
+| Count tickets | GET | `/SupportTickets/Count` |
+| Get ticket | GET | `/SupportTickets/{supportTicketId}` |
+| Create ticket | POST | `/SupportTickets` |
+| Update ticket | PUT | `/SupportTickets/{supportTicketId}` |
+| Patch ticket | PATCH | `/SupportTickets/{supportTicketId}` |
+| Delete ticket | DELETE | `/SupportTickets/{supportTicketId}` |
+| List conversations | GET | `/SupportTickets/{supportTicketId}/Conversations` |
+| Get conversation | GET | `/SupportTickets/{supportTicketId}/Conversations/{supportTicketConversationId}` |
+| Create conversation | POST | `/SupportTickets/{supportTicketId}/Conversations` |
+| Delete conversation | DELETE | `/SupportTickets/{supportTicketId}/Conversations/{supportTicketConversationId}` |
+| List conversation messages | GET | `/SupportTickets/{supportTicketId}/Conversations/{supportTicketConversationId}/Messages` (`pageNumber`, `pageSize` optional) |
+
+### Support Ticket Priorities / Types
+
+| Action | Method | Path |
+|---|---|---|
+| List priorities | GET | `/SupportTicketPriorities` |
+| Count priorities | GET | `/SupportTicketPriorities/Count` |
+| Get priority | GET | `/SupportTicketPriorities/{supportTicketPriorityId}` |
+| Create priority | POST | `/SupportTicketPriorities` |
+| Update priority | PUT | `/SupportTicketPriorities/{supportTicketPriorityId}` |
+| Patch priority | PATCH | `/SupportTicketPriorities/{supportTicketPriorityId}` |
+| Delete priority | DELETE | `/SupportTicketPriorities/{supportTicketPriorityId}` |
+| List types | GET | `/SupportTicketTypes` |
+| Count types | GET | `/SupportTicketTypes/Count` |
+| Get type | GET | `/SupportTicketTypes/{supportTicketTypeId}` |
+| Create type | POST | `/SupportTicketTypes` |
+| Update type | PUT | `/SupportTicketTypes/{supportTicketTypeId}` |
+| Patch type | PATCH | `/SupportTicketTypes/{supportTicketTypeId}` |
+| Delete type | DELETE | `/SupportTicketTypes/{supportTicketTypeId}` |
+
+### Support Requests and Attachments
+
+| Action | Method | Path |
+|---|---|---|
+| List requests | GET | `/SupportRequests` |
+| Count requests | GET | `/SupportRequests/Count` |
+| Get request | GET | `/SupportRequests/{supportRequestId}` |
+| Create request | POST | `/SupportRequests` |
+| Update request | PUT | `/SupportRequests/{supportRequestId}` |
+| Patch request | PATCH | `/SupportRequests/{supportRequestId}` |
+| Delete request | DELETE | `/SupportRequests/{supportRequestId}` |
+| List request tickets | GET | `/SupportRequests/{supportRequestId}/Tickets` |
+| List request attachments | GET | `/SupportRequests/{supportRequestId}/Attachments` |
+| Count request attachments | GET | `/SupportRequests/{supportRequestId}/Attachments/Count` |
+| Get one request attachment | GET | `/SupportRequests/{supportRequestId}/Attachments/{attachmentId}` |
+| Add attachment to request | POST | `/SupportRequests/{supportRequestId}/Attachments` |
+| List all attachments | GET | `/SupportRequestAttachments` |
+| Count attachments | GET | `/SupportRequestAttachments/Count` |
+| Get attachment | GET | `/SupportRequestAttachments/{supportRequestAttachmentId}` |
+| Create attachment | POST | `/SupportRequestAttachments` |
+| Update attachment | PUT | `/SupportRequestAttachments/{supportRequestAttachmentId}` |
+| Patch attachment | PATCH | `/SupportRequestAttachments/{supportRequestAttachmentId}` |
+| Delete attachment | DELETE | `/SupportRequestAttachments/{supportRequestAttachmentId}` |
+
+### Entitlements, Requests, Policies, KB, Inquiries, Visits
+
+| Resource | List | Count | Get | Create | Update | Patch | Delete |
+|---|---|---|---|---|---|---|---|
+| SupportEntitlements | `GET /SupportEntitlements` | `GET /SupportEntitlements/Count` | `GET /SupportEntitlements/{id}` | `POST /SupportEntitlements` | `PUT /SupportEntitlements/{id}` | `PATCH /SupportEntitlements/{id}` | `DELETE /SupportEntitlements/{id}` |
+| RefundRequests | `GET /RefundRequests` | `GET /RefundRequests/Count` | `GET /RefundRequests/{id}` | `POST /RefundRequests` | `PUT /RefundRequests/{id}` | `PATCH /RefundRequests/{id}` | `DELETE /RefundRequests/{id}` |
+| RefundPolicies | `GET /RefundPolicies` | `GET /RefundPolicies/Count` | `GET /RefundPolicies/{id}` | `POST /RefundPolicies` | `PUT /RefundPolicies/{id}` | `PATCH /RefundPolicies/{id}` | `DELETE /RefundPolicies/{id}` |
+| ReturnRequests | `GET /ReturnRequests` | `GET /ReturnRequests/Count` | `GET /ReturnRequests/{id}` | `POST /ReturnRequests` | `PUT /ReturnRequests/{id}` | `PATCH /ReturnRequests/{id}` | `DELETE /ReturnRequests/{id}` |
+| ReturnPolicies | `GET /ReturnPolicies` | `GET /ReturnPolicies/Count` | `GET /ReturnPolicies/{id}` | `POST /ReturnPolicies` | `PUT /ReturnPolicies/{id}` | `PATCH /ReturnPolicies/{id}` | `DELETE /ReturnPolicies/{id}` |
+| WarrantyRequests | `GET /WarrantyRequests` | `GET /WarrantyRequests/Count` | `GET /WarrantyRequests/{id}` | `POST /WarrantyRequests` | `PUT /WarrantyRequests/{id}` | `PATCH /WarrantyRequests/{id}` | `DELETE /WarrantyRequests/{id}` |
+| WarrantyPolicies | `GET /WarrantyPolicies` | `GET /WarrantyPolicies/Count` | `GET /WarrantyPolicies/{id}` | `POST /WarrantyPolicies` | `PUT /WarrantyPolicies/{id}` | `PATCH /WarrantyPolicies/{id}` | `DELETE /WarrantyPolicies/{id}` |
+| KnowledgeArticles | `GET /KnowledgeArticles` | `GET /KnowledgeArticles/Count` | `GET /KnowledgeArticles/{id}` | `POST /KnowledgeArticles` | `PUT /KnowledgeArticles/{id}` | `PATCH /KnowledgeArticles/{id}` | `DELETE /KnowledgeArticles/{id}` |
+| InquiryRequests | `GET /InquiryRequests` | `GET /InquiryRequests/Count` | `GET /InquiryRequests/{id}` | `POST /InquiryRequests` | `PUT /InquiryRequests/{id}` | `PATCH /InquiryRequests/{id}` | `DELETE /InquiryRequests/{id}` |
+| MaintenanceVisits | `GET /MaintenanceVisits` | `GET /MaintenanceVisits/Count` | `GET /MaintenanceVisits/{id}` | `POST /MaintenanceVisits` | `PUT /MaintenanceVisits/{id}` | `PATCH /MaintenanceVisits/{id}` | `DELETE /MaintenanceVisits/{id}` |
+
+---
 
 ## Critical Rules
 
-- **Authenticate first.** Always provide a tenant context.
-- **Set up priorities, types, and entitlements first** before creating tickets.
-- **Use conversations on tickets** for threaded discussion with customers.
-- **REST and CLI are interchangeable.** Every CLI command maps to a REST endpoint under `/api/v2/SupportService/`.
+- **Authenticate first**, then send `Authorization: Bearer …` on every call.
+- **`tenantId` is required on every request** (GET/POST/PUT/PATCH/DELETE). Omitting it on a
+  write returns 400. The `X-TenantId` header is the accepted equivalent.
+- **Set up priorities, types, and entitlements first**, then create tickets that reference them.
+- **Use ticket conversations** for threaded discussion; messages are read-only and paged.
+- **Prefer PATCH for status flips and single-field edits** to avoid clobbering concurrent
+  changes a full PUT would overwrite.
+- **For the CLI equivalent, see `absuite-support-cli`.** For shared raw-HTTP conventions, see
+  `absuite-rest`.

@@ -1,196 +1,132 @@
 ---
 name: absuite-deals
 description: >
-  Create, read, update, delete, and manage deal units (sales opportunities) in the
-  Alliance Business Suite (ABS) Deals Service using the `absuite` CLI. Covers deal
-  units, deal unit lines, deal unit flows (sales pipelines), flow stages, sales
-  literature, and totals calculation. Requires an authenticated CLI session (use
-  the `absuite-login` skill to authenticate first).
+  Create, read, update, delete, calculate, and partially patch deal units (sales
+  opportunities), deal unit lines, and deal unit flows (sales pipelines) with their
+  stages, via the Alliance Business Suite (ABS) Deals REST API (DealsService). Covers
+  list / count / get / create / update (PUT) / atomic PATCH (JSON Patch, RFC 6902) /
+  delete / calculate operations. All operations are tenant-scoped and require a bearer
+  token (see the `absuite-login` skill to authenticate first).
 ---
 
-# Alliance Business Suite — Deals Skill
+# Alliance Business Suite — Deals (REST API)
 
-Manage deal units (sales opportunities) through the `absuite` CLI's `deals` service. All deal operations are tenant-scoped and require authentication.
+Manage **deal units** (sales opportunities) and **deal unit flows** (sales pipelines) through the ABS Deals Service REST API (`DealsService`). A deal tracks a potential sale — its customer, value, line items, and lifecycle — as it moves through the stages of a sales pipeline. Every endpoint is tenant-scoped and requires authentication.
 
-## Prerequisites
+> For the **CLI equivalent** of these operations, see the `absuite-deals-cli` skill.
+> For general REST conventions (auth, envelope, tenant scoping, PATCH), see the `absuite-rest` skill.
 
-1. **Authenticate first** using `absuite login` (see the `absuite-login` skill).
-2. **Set your tenant** — all deal operations require a tenant. Either set a default:
-   ```bash
-   absuite config set --tenant-id <tenant-guid>
-   ```
-   Or pass `--TenantId <guid>` on each call.
-3. **Discover commands** — run `absuite deals list-commands` to see all deal commands, or use `--help` on any command for full parameter and output schemas.
+## Authentication
 
-## REST API Authentication
+1. **Obtain a bearer token** (see `absuite-login` for details):
 
-To call the API directly via REST instead of the CLI:
-
-1. **Obtain a bearer token:**
 ```bash
 curl -X POST "$ABSUITE_HOST_URL/login" \
   -H "Content-Type: application/json" \
-  -d '{"email": "'$ABSUITE_USER_EMAIL'", "password": "'$ABSUITE_USER_PASSWORD'"}'
+  -d '{"email": "<your-email>", "password": "<your-password>"}'
 ```
-Extract the `accessToken` from the JSON response.
 
-2. **Use the token in all subsequent requests:**
+Extract `accessToken` from the response and export it:
+
+```bash
+export ABSUITE_ACCESS_TOKEN="<accessToken>"
+```
+
+2. **Send the token on every request:**
+
 ```bash
 -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-3. **All REST endpoints use the base path:** `$ABSUITE_HOST_URL/api/v2/`
+3. **Base path:** `$ABSUITE_HOST_URL/api/v2/DealsService/...`
 
-## Command Discovery
+4. **Response envelope** — every response is wrapped:
 
-```bash
-# List all deal commands
-absuite deals list-commands
-
-# Get detailed help for any command
-absuite deals create unit --help
+```json
+{
+  "isSuccess": true,
+  "errorMessage": null,
+  "correlationId": "…",
+  "timestamp": "…",
+  "result": { /* data | array | int | null */ }
+}
 ```
+
+Always check `isSuccess`; read the payload from `result`.
+
+## Tenant scoping (required)
+
+**Every** DealsService endpoint requires a tenant. Pass it as the `?tenantId=<tenant-guid>` query parameter on **all** verbs — `GET`, `POST`, `PUT`, `PATCH`, and `DELETE` (omitting it on a write returns `400`). The platform also accepts the equivalent `X-TenantId: <tenant-guid>` request header instead of the query param; the examples below use the query param for clarity.
 
 ## Key Concepts
 
-- **Deal Unit** — a sales opportunity tracking a potential sale, with customer info, estimated value, and lifecycle status.
-- **Deal Unit Line** — an individual product/item within a deal, with quantity, pricing, and cost breakdown.
+- **Deal Unit** — a sales opportunity tracking a potential sale, with customer info, financial totals, a pipeline assignment, and a lifecycle status.
+- **Deal Unit Line** — an individual product/item within a deal, with quantity, pricing, and a full cost/tax breakdown.
 - **Deal Unit Flow** — a sales pipeline defining the process a deal moves through (e.g., "Enterprise Sales Pipeline").
-- **Deal Unit Flow Stage** — a step within a flow (e.g., "Qualification" → "Proposal" → "Negotiation" → "Closed Won").
-- **Sales Literature** — supporting documents and content for the sales process.
-- **DealUnitStatus** — lifecycle state: `"Open"`, `"Won"`, `"Lost"`, `"Cancelled"`, etc.
-- **DealUnitForecastCategory** — pipeline weighting: `"Pipeline"`, `"BestCase"`, `"Committed"`, `"Omitted"`.
-- **DealUnitPurchaseProcess** — buyer process tracking: `"Individual"`, `"Committee"`, `"Unknown"`.
+- **Deal Unit Flow Stage** — an ordered step within a flow (e.g., "Qualification" → "Proposal" → "Negotiation" → "Closed Won").
+- **DealUnitStatus** — lifecycle state: `Open` | `Won` | `Lost` | `Frozen`.
+- **DealUnitForecastCategory** — pipeline weighting: `None` | `Pipeline` | `BestCase` | `Commited` | `Ommited` | `Won` | `Lost`.
+- **DealUnitPurchaseProcess** — buyer process tracking: `None` | `Individual` | `Commitee` | `Unknown`.
+- **DealUnitAmountsCalculation** — `UserProvided` | `SystemCalculated`.
+- **CostCalculationMethod** — `Automatic` | `Custom`.
+- **TaxCalculationMethod** — `Included` | `Excluded`.
+
+> Enum values above are transcribed verbatim from the API spec (note the spellings `Commited`, `Ommited`, `Commitee` — they are intentional, not typos to "correct").
 
 ## Workflow: Creating a Deal
 
-1. **Ensure a flow exists** — deals must be assigned to a sales pipeline (flow) and stage
-2. **Create the deal unit** — with customer, value estimate, and flow/stage assignment
-3. **(Optional)** Add deal unit lines for specific products
-4. **Calculate totals** — let the server compute accurate financial summaries
-5. **Progress the deal** — update the stage as the deal advances
+1. **Ensure a flow exists** — a deal is assigned to a sales pipeline (flow) and a stage.
+2. **Create the deal unit** — with customer, currency, and flow/stage assignment.
+3. **(Optional) Add deal unit lines** for specific products.
+4. **Calculate totals** — let the server compute accurate financial summaries.
+5. **Progress the deal** — advance the stage (PUT or PATCH) as the deal moves forward.
+6. **Close** — mark the deal `Won` or `Lost`.
 
-### Step 1 — Set Up a Sales Pipeline (if needed)
+---
 
-#### List Existing Flows
+## Deal Units
 
-```bash
-absuite deals list unit-flows --TenantId $TENANT_ID
-```
-
-**REST API equivalent:**
+### List deal units
 
 ```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-#### Create a New Flow
+### List extended deal units (with related data)
 
 ```bash
-absuite deals create unit-flow --TenantId $TENANT_ID --DealUnitFlowCreateDto '{
-  "Name": "Enterprise Sales Pipeline",
-  "Description": "Standard B2B sales process for enterprise accounts"
-}'
-```
-
-**REST API equivalent:**
-
-```bash
-curl -X POST "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Enterprise Sales Pipeline",
-    "description": "Standard B2B sales process for enterprise accounts"
-  }'
-```
-
-#### Add Stages to the Flow
-
-```bash
-absuite deals create unit-flow-stage --TenantId $TENANT_ID --DealUnitFlowId <flow-guid> --DealUnitFlowStageCreateDto '{
-  "Name": "Qualification",
-  "Order": 1,
-  "Description": "Initial lead qualification"
-}'
-
-absuite deals create unit-flow-stage --TenantId $TENANT_ID --DealUnitFlowId <flow-guid> --DealUnitFlowStageCreateDto '{
-  "Name": "Proposal",
-  "Order": 2,
-  "Description": "Solution proposal sent to prospect"
-}'
-
-absuite deals create unit-flow-stage --TenantId $TENANT_ID --DealUnitFlowId <flow-guid> --DealUnitFlowStageCreateDto '{
-  "Name": "Negotiation",
-  "Order": 3,
-  "Description": "Contract and pricing negotiation"
-}'
-
-absuite deals create unit-flow-stage --TenantId $TENANT_ID --DealUnitFlowId <flow-guid> --DealUnitFlowStageCreateDto '{
-  "Name": "Closed Won",
-  "Order": 4,
-  "Description": "Deal successfully closed"
-}'
-```
-
-**REST API equivalent (for each stage creation above):**
-
-```bash
-curl -X POST "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/$DEAL_UNIT_FLOW_ID/Stages" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Qualification",
-    "order": 1,
-    "description": "Initial lead qualification"
-  }'
-```
-
-#### List Stages for a Flow
-
-```bash
-absuite deals list unit-flow-stages --TenantId $TENANT_ID --DealUnitFlowId <flow-guid>
-```
-
-**REST API equivalent:**
-
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/$DEAL_UNIT_FLOW_ID/Stages" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/Extended?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Step 2 — Create a Deal Unit
+### Count deal units
 
 ```bash
-absuite deals create unit --TenantId $TENANT_ID --DealUnitCreateDto '{
-  "Title": "Acme Corp - Enterprise Platform Deal",
-  "Description": "Annual enterprise license and support package",
-  "CurrencyId": "<currency-guid>",
-  "IndividualId": "<contact-guid>",
-  "OrganizationId": "<organization-guid>",
-  "FirstName": "Jane",
-  "LastName": "Smith",
-  "CompanyName": "Acme Corp",
-  "BillingEmail": "jane@acme.com",
-  "DealUnitFlowId": "<flow-guid>",
-  "DealUnitFlowStageId": "<qualification-stage-guid>",
-  "DealUnitStatus": "Open",
-  "DealUnitForecastCategory": "Pipeline",
-  "DealUnitPurchaseProcess": "Committee",
-  "ExpectedCloseDate": "2026-06-30T00:00:00Z",
-  "CurrentSituation": "Prospect using competitor product with expiring contract",
-  "CustomerNeed": "Unified platform for CRM, invoicing, and inventory",
-  "ProposedSolution": "ABS Enterprise with Premium Support",
-  "CostCalculationMethod": "PerLine",
-  "TaxCalculationMethod": "PerLine"
-}'
+curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/Count?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-**REST API equivalent:**
+### Get a deal unit by ID
 
 ```bash
-curl -X POST "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/<deal-unit-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+### Get an extended deal unit by ID
+
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/<deal-unit-guid>/Extended?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+### Create a deal unit
+
+Body is a `DealUnitCreateDto`. Field names are camelCase (matching the spec). Only the fields you need are required; the rest are optional.
+
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -199,190 +135,38 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits" \
     "currencyId": "<currency-guid>",
     "individualId": "<contact-guid>",
     "organizationId": "<organization-guid>",
-    "firstName": "Jane",
-    "lastName": "Smith",
+    "firstName": "<first-name>",
+    "lastName": "<last-name>",
     "companyName": "Acme Corp",
-    "billingEmail": "jane@acme.com",
+    "billingEmail": "<billing-email>",
+    "priceListId": "<price-list-guid>",
+    "paymentTermId": "<payment-term-guid>",
     "dealUnitFlowId": "<flow-guid>",
     "dealUnitFlowStageId": "<qualification-stage-guid>",
     "dealUnitStatus": "Open",
     "dealUnitForecastCategory": "Pipeline",
-    "dealUnitPurchaseProcess": "Committee",
+    "dealUnitPurchaseProcess": "Commitee",
+    "dealUnitAmountsCalculation": "SystemCalculated",
     "expectedCloseDate": "2026-06-30T00:00:00Z",
-    "currentSituation": "Prospect using competitor product with expiring contract",
+    "expiryDate": "2026-07-31T00:00:00Z",
+    "currentSituation": "Prospect using a competitor product with an expiring contract",
     "customerNeed": "Unified platform for CRM, invoicing, and inventory",
     "proposedSolution": "ABS Enterprise with Premium Support",
-    "costCalculationMethod": "PerLine",
-    "taxCalculationMethod": "PerLine"
+    "costCalculationMethod": "Automatic",
+    "taxCalculationMethod": "Excluded",
+    "partnerCreated": false,
+    "partnerCollaboration": false
   }'
 ```
 
-**Required fields:**
-- `Title` — deal name
-- `CurrencyId` — estimated deal currency
-- `DealUnitFlowId` — the sales pipeline this deal belongs to
-- `DealUnitFlowStageId` — current stage in the pipeline
+**Commonly used `DealUnitCreateDto` fields:** `title`, `description`, `currencyId`, `individualId`, `organizationId`, `firstName`, `lastName`, `companyName`, `billingEmail`, `priceListId`, `paymentTermId`, `receiverTenantId`, `dealUnitFlowId`, `dealUnitFlowStageId`, `dealUnitStatus`, `dealUnitForecastCategory`, `dealUnitPurchaseProcess`, `dealUnitAmountsCalculation`, `expectedCloseDate`, `expiryDate`, `wonDate`, `lostDate`, `deliveredDate`, `closedTimestamp`, `currentSituation`, `customerNeed`, `proposedSolution`, `costCalculationMethod`, `taxCalculationMethod`, `forexRate`, `closed`, `partnerCreated`, `partnerCollaboration`, billing-address fields (`addressLine1`, `addressLine2`, `postalCode`, `countryId`, `stateId`, `cityId`), the `total*` / `total*CurrencyId` money pairs, and `dealUnitLines` (an inline array of `DealUnitLineCreateDto`).
 
-**Recommended fields:**
-- `IndividualId` or `OrganizationId` — CRM contact/organization
-- `DealUnitStatus` — `"Open"`, `"Won"`, `"Lost"`, `"Cancelled"`
-- `DealUnitForecastCategory` — `"Pipeline"`, `"BestCase"`, `"Committed"`, `"Omitted"`
-- `ExpectedCloseDate` — forecast close date
-- `CurrentSituation`, `CustomerNeed`, `ProposedSolution` — sales context fields
-- `DealUnitPurchaseProcess` — `"Individual"`, `"Committee"`, `"Unknown"`
+### Update a deal unit (full replace — PUT)
 
-**Optional fields:**
-- `PriceListId` — link to a price list
-- `PaymentTermId` — payment terms
-- `PartnerCreated`, `PartnerCollaboration` — partner deal flags
-- `ExpiryDate` — when the deal opportunity expires
-- `DealUnitLines` — inline array of line items
-- Billing address fields — `AddressLine1`, `CountryId`, `StateId`, `CityId`, etc.
-
-### Step 3 — Add Deal Unit Lines
+Body is a `DealUnitUpdateDto`. PUT carries the full editable shape (same fields as create, plus `userId`, `billingLocationId`, `shippingLocationId`, `shippingMethodId`, `ordered`, `cartId`, `dealUnitFeedId`). Use PUT to replace; use **PATCH** (below) to change a couple of fields atomically.
 
 ```bash
-absuite deals create get-deal-unit-lines --TenantId $TENANT_ID --DealUnitId <deal-guid> --DealUnitLineCreateDto '{
-  "ItemId": "<item-guid>",
-  "ItemTitle": "ABS Enterprise License",
-  "ItemShortDescription": "Annual enterprise platform license",
-  "Quantity": 10,
-  "CurrencyId": "<currency-guid>",
-  "ItemPriceId": "<price-guid>",
-  "Description": "10 seats of ABS Enterprise"
-}'
-```
-
-**REST API equivalent:**
-
-```bash
-curl -X POST "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/$DEAL_UNIT_ID/Lines" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "itemId": "<item-guid>",
-    "itemTitle": "ABS Enterprise License",
-    "itemShortDescription": "Annual enterprise platform license",
-    "quantity": 10,
-    "currencyId": "<currency-guid>",
-    "itemPriceId": "<price-guid>",
-    "description": "10 seats of ABS Enterprise"
-  }'
-```
-
-### Step 4 — Calculate Totals
-
-```bash
-absuite deals calculate unit --TenantId $TENANT_ID --DealUnitId <deal-guid>
-```
-
-**REST API equivalent:**
-
-```bash
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/$DEAL_UNIT_ID/Calculate" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Step 5 — Advance the Deal Stage
-
-```bash
-absuite deals update unit --TenantId $TENANT_ID --DealUnitId <deal-guid> --DealUnitUpdateDto '{
-  "DealUnitFlowStageId": "<proposal-stage-guid>"
-}'
-```
-
-**REST API equivalent:**
-
-```bash
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/$DEAL_UNIT_ID" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"dealUnitFlowStageId": "<proposal-stage-guid>"}'
-```
-
-## CRUD Operations
-
-### List Deal Units
-
-```bash
-absuite deals list units --TenantId $TENANT_ID
-```
-
-**REST API equivalent:**
-
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### List Extended Deal Units (with related data)
-
-```bash
-absuite deals list extended-deal-units --TenantId $TENANT_ID
-```
-
-**REST API equivalent:**
-
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/Extended" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Count Deal Units
-
-```bash
-absuite deals count units --TenantId $TENANT_ID
-```
-
-**REST API equivalent:**
-
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Get Deal Unit by ID
-
-```bash
-absuite deals get unit --TenantId $TENANT_ID --DealUnitId <deal-guid>
-```
-
-**REST API equivalent:**
-
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/$DEAL_UNIT_ID" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Get Extended Deal Unit
-
-```bash
-absuite deals get extended-deal-unit --TenantId $TENANT_ID --DealUnitId <deal-guid>
-```
-
-**REST API equivalent:**
-
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/$DEAL_UNIT_ID/Extended" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Update Deal Unit
-
-```bash
-absuite deals update unit --TenantId $TENANT_ID --DealUnitId <deal-guid> --DealUnitUpdateDto '{
-  "Title": "Acme Corp - Enterprise Deal (Revised)",
-  "DealUnitStatus": "Won",
-  "WonDate": "2026-05-15T00:00:00Z",
-  "Closed": true,
-  "Ordered": true
-}'
-```
-
-**REST API equivalent:**
-
-```bash
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/$DEAL_UNIT_ID" \
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/<deal-unit-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -394,73 +178,98 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/$DEAL_UNIT_ID" \
   }'
 ```
 
-### Delete Deal Unit
+### Patch a deal unit (atomic partial update — PATCH)
+
+Body is a **JSON Patch array** (RFC 6902). See the [PATCH section](#patch-json-patch) below.
 
 ```bash
-absuite deals delete unit --TenantId $TENANT_ID --DealUnitId <deal-guid>
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/<deal-unit-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[
+    { "op": "replace", "path": "/dealUnitFlowStageId", "value": "<proposal-stage-guid>" },
+    { "op": "replace", "path": "/dealUnitForecastCategory", "value": "BestCase" }
+  ]'
 ```
 
-**REST API equivalent:**
+### Calculate a deal unit (server-computed totals)
 
 ```bash
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/$DEAL_UNIT_ID" \
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/<deal-unit-guid>/Calculate?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
+
+### Delete a deal unit
+
+```bash
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/<deal-unit-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+---
 
 ## Deal Unit Lines
 
-### List Lines
+Lines are nested under a deal unit: `/DealUnits/{dealUnitId}/Lines`.
+
+### List lines
+
+`itemId` is an optional query filter.
 
 ```bash
-absuite deals list unit-lines --TenantId $TENANT_ID --DealUnitId <deal-guid>
-```
+curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/<deal-unit-guid>/Lines?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-**REST API equivalent:**
-
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/$DEAL_UNIT_ID/Lines" \
+# filtered by item
+curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/<deal-unit-guid>/Lines?tenantId=<tenant-guid>&itemId=<item-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Count Lines
+### Count lines
 
 ```bash
-absuite deals count unit-lines --TenantId $TENANT_ID --DealUnitId <deal-guid>
-```
-
-**REST API equivalent:**
-
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/$DEAL_UNIT_ID/Lines/Count" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/<deal-unit-guid>/Lines/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Get Line by ID
+### Get a line by ID
 
 ```bash
-absuite deals get unit-price --TenantId $TENANT_ID --DealUnitId <deal-guid> --DealUnitLineId <line-guid>
-```
-
-**REST API equivalent:**
-
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/$DEAL_UNIT_ID/Lines/$DEAL_UNIT_LINE_ID" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/<deal-unit-guid>/Lines/<deal-unit-line-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Update Line
+### Create a line
+
+Body is a `DealUnitLineCreateDto`.
 
 ```bash
-absuite deals update unit-price --TenantId $TENANT_ID --DealUnitId <deal-guid> --DealUnitLineId <line-guid> --DealUnitLineUpdateDto '{
-  "Quantity": 15,
-  "Description": "Increased to 15 seats"
-}'
+curl -X POST "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/<deal-unit-guid>/Lines?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "itemId": "<item-guid>",
+    "itemTitle": "ABS Enterprise License",
+    "itemShortDescription": "Annual enterprise platform license",
+    "description": "10 seats of ABS Enterprise",
+    "quantity": 10,
+    "currencyId": "<currency-guid>",
+    "itemPriceId": "<item-price-guid>",
+    "priceListItemId": "<price-list-item-guid>",
+    "unitId": "<unit-guid>",
+    "unitGroupId": "<unit-group-guid>",
+    "free": false
+  }'
 ```
 
-**REST API equivalent:**
+**Useful `DealUnitLineCreateDto` fields:** `itemId`, `itemTitle`, `itemShortDescription`, `itemPrimaryImageUrl`, `description`, `quantity`, `currencyId`, `itemPriceId`, `priceListItemId`, `unitId`, `unitGroupId`, `free`, `freeReason`, `freeReasonCode`, the `data`/`dataLabel` … `data9`/`data9Label` custom-attribute pairs, policy ids (`shippingPolicyId`, `returnPolicyId`, `refundPolicyId`, `warrantyPolicyId`, `shipmentPolicyId`), `shippingLocationId`, `locationId`, the `total*` money fields and their `*InUsd` snapshots, `costCalculationMethod`, `taxCalculationMethod`, `quoteItemRecordId`, `parentBillingItemRecordId`, `dealUnitId`.
+
+### Update a line (PUT)
+
+Body is a `DealUnitLineUpdateDto`.
 
 ```bash
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/$DEAL_UNIT_ID/Lines/$DEAL_UNIT_LINE_ID" \
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/<deal-unit-guid>/Lines/<deal-unit-line-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -469,73 +278,77 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/$DEAL_UNIT_ID/Lines
   }'
 ```
 
-### Delete Line
+### Patch a line (PATCH)
 
 ```bash
-absuite deals delete unit-price --TenantId $TENANT_ID --DealUnitId <deal-guid> --DealUnitLineId <line-guid>
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/<deal-unit-guid>/Lines/<deal-unit-line-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[
+    { "op": "replace", "path": "/quantity", "value": 15 }
+  ]'
 ```
 
-**REST API equivalent:**
+### Calculate a single line
 
 ```bash
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/$DEAL_UNIT_ID/Lines/$DEAL_UNIT_LINE_ID" \
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/<deal-unit-guid>/Lines/<deal-unit-line-guid>/Calculate?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Calculate a Single Line
+### Delete a line
 
 ```bash
-absuite deals calculate unit-line --TenantId $TENANT_ID --DealUnitId <deal-guid> --DealUnitLineId <line-guid>
-```
-
-**REST API equivalent:**
-
-```bash
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/$DEAL_UNIT_ID/Lines/$DEAL_UNIT_LINE_ID/Calculate" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/<deal-unit-guid>/Lines/<deal-unit-line-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
+
+---
 
 ## Deal Unit Flows (Sales Pipelines)
 
-### List Flows
+### List flows
 
 ```bash
-absuite deals list unit-flows --TenantId $TENANT_ID
-```
-
-**REST API equivalent:**
-
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Get Flow by ID
+### Count flows
 
 ```bash
-absuite deals get unit-flow --TenantId $TENANT_ID --DealUnitFlowId <flow-guid>
-```
-
-**REST API equivalent:**
-
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/$DEAL_UNIT_FLOW_ID" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Update Flow
+### Get a flow by ID
 
 ```bash
-absuite deals update unit-flow --TenantId $TENANT_ID --DealUnitFlowId <flow-guid> --DealUnitFlowUpdateDto '{
-  "Name": "Enterprise Sales Pipeline (v2)",
-  "Description": "Updated pipeline with revised stages"
-}'
+curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/<flow-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-**REST API equivalent:**
+### Create a flow
+
+Body is a `DealUnitFlowCreateDto` — fields: `id`, `timestamp`, `name`, `description`, `parentBusinessProcessId`.
 
 ```bash
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/$DEAL_UNIT_FLOW_ID" \
+curl -X POST "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Enterprise Sales Pipeline",
+    "description": "Standard B2B sales process for enterprise accounts",
+    "parentBusinessProcessId": "<business-process-guid>"
+  }'
+```
+
+### Update a flow (PUT)
+
+Body is a `DealUnitFlowUpdateDto` — fields: `name`, `description`, `parentBusinessProcessId`.
+
+```bash
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/<flow-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -544,217 +357,167 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/$DEAL_UNIT_FLOW
   }'
 ```
 
-### Delete Flow
+### Patch a flow (PATCH)
 
 ```bash
-absuite deals delete unit-flow --TenantId $TENANT_ID --DealUnitFlowId <flow-guid>
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/<flow-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[
+    { "op": "replace", "path": "/name", "value": "Enterprise Sales Pipeline (v2)" }
+  ]'
 ```
 
-**REST API equivalent:**
+### Delete a flow
 
 ```bash
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/$DEAL_UNIT_FLOW_ID" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/<flow-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Count Flows
-
-```bash
-absuite deals count unit-flows --TenantId $TENANT_ID
-```
-
-**REST API equivalent:**
-
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
+---
 
 ## Flow Stages
 
-### List Stages for a Flow
+Stages are nested under a flow: `/DealUnitFlows/{dealUnitFlowId}/Stages`. Every stage operation requires **both** the flow id (in the path) and, for single-stage operations, the stage id.
+
+### List stages for a flow
 
 ```bash
-absuite deals list unit-flow-stages --TenantId $TENANT_ID --DealUnitFlowId <flow-guid>
-```
-
-**REST API equivalent:**
-
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/$DEAL_UNIT_FLOW_ID/Stages" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/<flow-guid>/Stages?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Get Stage by ID
+### Count stages for a flow
 
 ```bash
-absuite deals get unit-flow-stage --TenantId $TENANT_ID --DealUnitFlowStageId <stage-guid>
-```
-
-**REST API equivalent:**
-
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/$DEAL_UNIT_FLOW_ID/Stages/$DEAL_UNIT_FLOW_STAGE_ID" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/<flow-guid>/Stages/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Update Stage
+### Get a stage by ID
 
 ```bash
-absuite deals update unit-flow-stage --TenantId $TENANT_ID --DealUnitFlowStageId <stage-guid> --DealUnitFlowStageUpdateDto '{
-  "Name": "Final Review",
-  "Order": 5,
-  "Description": "Executive approval before closing"
-}'
+curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/<flow-guid>/Stages/<stage-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-**REST API equivalent:**
+### Create a stage
+
+Body is a `DealUnitFlowStageCreateDto` — fields: `id`, `timestamp`, `order`, `name`, `dealUnitFlowId`, `description`, `parentBusinessProcessStageId`.
 
 ```bash
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/$DEAL_UNIT_FLOW_ID/Stages/$DEAL_UNIT_FLOW_STAGE_ID" \
+curl -X POST "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/<flow-guid>/Stages?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Qualification",
+    "order": 1,
+    "description": "Initial lead qualification",
+    "dealUnitFlowId": "<flow-guid>"
+  }'
+```
+
+### Update a stage (PUT)
+
+Body is a `DealUnitFlowStageUpdateDto` — fields: `order`, `name`, `description`, `dealUnitFlowId`, `parentBusinessProcessStageId`.
+
+```bash
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/<flow-guid>/Stages/<stage-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Final Review",
     "order": 5,
-    "description": "Executive approval before closing"
+    "description": "Executive approval before closing",
+    "dealUnitFlowId": "<flow-guid>"
   }'
 ```
 
-### Delete Stage
+### Patch a stage (PATCH)
 
 ```bash
-absuite deals delete unit-flow-stage --TenantId $TENANT_ID --DealUnitFlowStageId <stage-guid>
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/<flow-guid>/Stages/<stage-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[
+    { "op": "replace", "path": "/order", "value": 5 }
+  ]'
 ```
 
-**REST API equivalent:**
+### Delete a stage
 
 ```bash
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/$DEAL_UNIT_FLOW_ID/Stages/$DEAL_UNIT_FLOW_STAGE_ID" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/<flow-guid>/Stages/<stage-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Count Stages
+---
+
+## PATCH (JSON Patch)
+
+PATCH endpoints accept a **JSON Patch document** (RFC 6902): a JSON **array** of operations, with `Content-Type: application/json`. Use PATCH for atomic partial updates — change a couple of fields without resending the whole object (safer than PUT for concurrent edits).
+
+- `op` ∈ `add` | `remove` | `replace` | `move` | `copy` | `test`
+- `path` / `from` are JSON-Pointer strings (leading `/`, camelCase field name).
+
+Example against a deal unit (advance the stage and re-categorize, atomically):
 
 ```bash
-absuite deals count unit-flow-stages --TenantId $TENANT_ID --DealUnitFlowId <flow-guid>
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/<deal-unit-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[
+    { "op": "replace", "path": "/dealUnitFlowStageId", "value": "<proposal-stage-guid>" },
+    { "op": "replace", "path": "/dealUnitForecastCategory", "value": "BestCase" },
+    { "op": "replace", "path": "/dealUnitStatus", "value": "Open" }
+  ]'
 ```
 
-**REST API equivalent:**
+**Four resources support PATCH** in DealsService:
 
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnitFlows/$DEAL_UNIT_FLOW_ID/Stages/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
+| Resource | PATCH path |
+|---|---|
+| Deal unit | `PATCH /api/v2/DealsService/DealUnits/{dealUnitId}` |
+| Deal unit line | `PATCH /api/v2/DealsService/DealUnits/{dealUnitId}/Lines/{dealUnitLineId}` |
+| Flow | `PATCH /api/v2/DealsService/DealUnitFlows/{dealUnitFlowId}` |
+| Flow stage | `PATCH /api/v2/DealsService/DealUnitFlows/{dealUnitFlowId}/Stages/{dealUnitFlowStageId}` |
 
-## Sales Literature
-
-Supporting documents and collateral for the sales process.
-
-### List Sales Literature
-
-```bash
-absuite deals list sales-literatures --TenantId $TENANT_ID
-```
-
-> **Note:** Sales literature endpoints are managed through the `absuite` CLI. REST API endpoints for sales literature are not currently available in the public API.
-
-### List Extended Sales Literature
-
-```bash
-absuite deals list extended-sales-literatures --TenantId $TENANT_ID
-```
-
-> **Note:** Sales literature endpoints are managed through the `absuite` CLI. REST API endpoints for sales literature are not currently available in the public API.
-
-### Create Sales Literature
-
-```bash
-absuite deals create sales-literature --TenantId $TENANT_ID --SalesLiteratureCreateDto '{
-  "Title": "ABS Enterprise Platform Overview",
-  "Description": "Executive summary of platform capabilities",
-  "Content": "The Alliance Business Suite provides a unified platform for CRM, invoicing, inventory, and more..."
-}'
-```
-
-> **Note:** Sales literature endpoints are managed through the `absuite` CLI. REST API endpoints for sales literature are not currently available in the public API.
-
-### Get by ID
-
-```bash
-absuite deals get sales-literature --TenantId $TENANT_ID --SalesLiteratureId <literature-guid>
-```
-
-> **Note:** Sales literature endpoints are managed through the `absuite` CLI. REST API endpoints for sales literature are not currently available in the public API.
-
-### Update
-
-```bash
-absuite deals update sales-literature --TenantId $TENANT_ID --SalesLiteratureId <literature-guid> --SalesLiteratureUpdateDto '{
-  "Title": "ABS Enterprise Platform Overview (Updated)",
-  "Content": "Updated content..."
-}'
-```
-
-> **Note:** Sales literature endpoints are managed through the `absuite` CLI. REST API endpoints for sales literature are not currently available in the public API.
-
-### Delete
-
-```bash
-absuite deals delete sales-literature --TenantId $TENANT_ID --SalesLiteratureId <literature-guid>
-```
-
-> **Note:** Sales literature endpoints are managed through the `absuite` CLI. REST API endpoints for sales literature are not currently available in the public API.
-
-### Count
-
-```bash
-absuite deals count sales-literatures --TenantId $TENANT_ID
-```
-
-> **Note:** Sales literature endpoints are managed through the `absuite` CLI. REST API endpoints for sales literature are not currently available in the public API.
+---
 
 ## Deal Lifecycle Management
 
-### Mark Deal as Won
+### Mark a deal as Won
 
 ```bash
-absuite deals update unit --TenantId $TENANT_ID --DealUnitId <deal-guid> --DealUnitUpdateDto '{
-  "DealUnitStatus": "Won",
-  "WonDate": "2026-05-15T00:00:00Z",
-  "Closed": true,
-  "DealUnitForecastCategory": "Committed"
-}'
-```
-
-**REST API equivalent:**
-
-```bash
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/$DEAL_UNIT_ID" \
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/<deal-unit-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "dealUnitStatus": "Won",
     "wonDate": "2026-05-15T00:00:00Z",
     "closed": true,
-    "dealUnitForecastCategory": "Committed"
+    "dealUnitForecastCategory": "Won"
   }'
 ```
 
-### Mark Deal as Lost
+…or atomically via PATCH:
 
 ```bash
-absuite deals update unit --TenantId $TENANT_ID --DealUnitId <deal-guid> --DealUnitUpdateDto '{
-  "DealUnitStatus": "Lost",
-  "LostDate": "2026-05-15T00:00:00Z",
-  "Closed": true
-}'
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/<deal-unit-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[
+    { "op": "replace", "path": "/dealUnitStatus", "value": "Won" },
+    { "op": "replace", "path": "/wonDate", "value": "2026-05-15T00:00:00Z" },
+    { "op": "replace", "path": "/closed", "value": true }
+  ]'
 ```
 
-**REST API equivalent:**
+### Mark a deal as Lost
 
 ```bash
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/$DEAL_UNIT_ID" \
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/<deal-unit-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -764,100 +527,111 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/DealsService/DealUnits/$DEAL_UNIT_ID" \
   }'
 ```
 
-### Convert Won Deal to Order
+### Convert a won deal to an order
 
-After a deal is won, create an order referencing the deal's data. Use the `absuite-orders` skill to create the order, copying the customer info and line items from the deal.
+After a deal is `Won`, create an order referencing the deal's customer and line items. Use the `absuite-orders` (REST) skill to create the order.
+
+---
 
 ## Full Example: End-to-End Deal Pipeline
 
 ```bash
-# 1. Authenticate
-absuite login --email sales@company.com
+HOST="$ABSUITE_HOST_URL"
+TOK="Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+T="<tenant-guid>"
 
-# 2. Set tenant
-absuite config set --tenant-id 00000000-0000-0000-0000-000000000000
+# 1. List existing pipelines (or create one)
+curl -s -X GET "$HOST/api/v2/DealsService/DealUnitFlows?tenantId=$T" -H "$TOK"
 
-# 3. List existing pipelines (or create one)
-absuite deals list unit-flows
+# 2. Create a flow
+curl -s -X POST "$HOST/api/v2/DealsService/DealUnitFlows?tenantId=$T" -H "$TOK" \
+  -H "Content-Type: application/json" \
+  -d '{ "name": "Enterprise Sales Pipeline", "description": "B2B enterprise process" }'
+# → note the returned flow id as <flow-guid>
 
-# 4. Get stages for the pipeline
-absuite deals list unit-flow-stages --DealUnitFlowId <flow-guid>
+# 3. Add a stage
+curl -s -X POST "$HOST/api/v2/DealsService/DealUnitFlows/<flow-guid>/Stages?tenantId=$T" -H "$TOK" \
+  -H "Content-Type: application/json" \
+  -d '{ "name": "Qualification", "order": 1, "dealUnitFlowId": "<flow-guid>" }'
+# → note the returned stage id as <qualification-stage-guid>
 
-# 5. Create a deal unit
-absuite deals create unit --DealUnitCreateDto '{
-  "Title": "Acme Corp - Enterprise Deal",
-  "Description": "Annual platform license + support",
-  "CurrencyId": "<currency-guid>",
-  "IndividualId": "<contact-guid>",
-  "CompanyName": "Acme Corp",
-  "BillingEmail": "procurement@acme.com",
-  "DealUnitFlowId": "<flow-guid>",
-  "DealUnitFlowStageId": "<qualification-stage-guid>",
-  "DealUnitStatus": "Open",
-  "DealUnitForecastCategory": "Pipeline",
-  "ExpectedCloseDate": "2026-06-30T00:00:00Z",
-  "CustomerNeed": "Replace legacy ERP",
-  "ProposedSolution": "ABS Enterprise Suite"
-}'
-# Note the returned deal unit ID
+# 4. Create a deal unit on that flow + stage
+curl -s -X POST "$HOST/api/v2/DealsService/DealUnits?tenantId=$T" -H "$TOK" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Acme Corp - Enterprise Deal",
+    "currencyId": "<currency-guid>",
+    "companyName": "Acme Corp",
+    "billingEmail": "<billing-email>",
+    "dealUnitFlowId": "<flow-guid>",
+    "dealUnitFlowStageId": "<qualification-stage-guid>",
+    "dealUnitStatus": "Open",
+    "dealUnitForecastCategory": "Pipeline",
+    "expectedCloseDate": "2026-06-30T00:00:00Z"
+  }'
+# → note the returned deal unit id as <deal-unit-guid>
 
-# 6. Add line items
-absuite deals create get-deal-unit-lines --DealUnitId <deal-id> --DealUnitLineCreateDto '{
-  "ItemId": "<item-guid>",
-  "ItemTitle": "ABS Enterprise License",
-  "Quantity": 10,
-  "CurrencyId": "<currency-guid>",
-  "ItemPriceId": "<price-guid>"
-}'
+# 5. Add a line item
+curl -s -X POST "$HOST/api/v2/DealsService/DealUnits/<deal-unit-guid>/Lines?tenantId=$T" -H "$TOK" \
+  -H "Content-Type: application/json" \
+  -d '{ "itemId": "<item-guid>", "itemTitle": "ABS Enterprise License", "quantity": 10, "currencyId": "<currency-guid>", "itemPriceId": "<item-price-guid>" }'
 
-# 7. Calculate totals
-absuite deals calculate unit --DealUnitId <deal-id>
+# 6. Calculate totals
+curl -s -X PUT "$HOST/api/v2/DealsService/DealUnits/<deal-unit-guid>/Calculate?tenantId=$T" -H "$TOK"
 
-# 8. Advance to Proposal stage
-absuite deals update unit --DealUnitId <deal-id> --DealUnitUpdateDto '{
-  "DealUnitFlowStageId": "<proposal-stage-guid>"
-}'
+# 7. Advance to the proposal stage (atomic PATCH)
+curl -s -X PATCH "$HOST/api/v2/DealsService/DealUnits/<deal-unit-guid>?tenantId=$T" -H "$TOK" \
+  -H "Content-Type: application/json" \
+  -d '[ { "op": "replace", "path": "/dealUnitFlowStageId", "value": "<proposal-stage-guid>" } ]'
 
-# 9. After negotiation — mark as Won
-absuite deals update unit --DealUnitId <deal-id> --DealUnitUpdateDto '{
-  "DealUnitStatus": "Won",
-  "WonDate": "2026-06-15T00:00:00Z",
-  "DealUnitFlowStageId": "<closed-won-stage-guid>",
-  "DealUnitForecastCategory": "Committed",
-  "Closed": true,
-  "Ordered": true
-}'
+# 8. Mark as Won
+curl -s -X PATCH "$HOST/api/v2/DealsService/DealUnits/<deal-unit-guid>?tenantId=$T" -H "$TOK" \
+  -H "Content-Type: application/json" \
+  -d '[ { "op": "replace", "path": "/dealUnitStatus", "value": "Won" }, { "op": "replace", "path": "/closed", "value": true } ]'
 
-# 10. Verify
-absuite deals get unit --DealUnitId <deal-id>
+# 9. Verify
+curl -s -X GET "$HOST/api/v2/DealsService/DealUnits/<deal-unit-guid>?tenantId=$T" -H "$TOK"
 ```
+
+---
 
 ## API Endpoints Quick Reference
 
-| Action | REST Endpoint |
-|---|---|
-| Create deal unit | `POST /api/v2/DealsService/DealUnits` |
-| List deal units | `GET /api/v2/DealsService/DealUnits` |
-| Count deal units | `GET /api/v2/DealsService/DealUnits/Count` |
-| List extended deal units | `GET /api/v2/DealsService/DealUnits/Extended` |
-| Get deal unit | `GET /api/v2/DealsService/DealUnits/:dealUnitId` |
-| Update deal unit | `PUT /api/v2/DealsService/DealUnits/:dealUnitId` |
-| Delete deal unit | `DELETE /api/v2/DealsService/DealUnits/:dealUnitId` |
-| Create deal unit line | `POST /api/v2/DealsService/DealUnits/:dealUnitId/Lines` |
-| List deal unit lines | `GET /api/v2/DealsService/DealUnits/:dealUnitId/Lines` |
-| Count deal unit lines | `GET /api/v2/DealsService/DealUnits/:dealUnitId/Lines/Count` |
-| Get deal unit line | `GET /api/v2/DealsService/DealUnits/:dealUnitId/Lines/:dealUnitLineId` |
-| Update deal unit line | `PUT /api/v2/DealsService/DealUnits/:dealUnitId/Lines/:dealUnitLineId` |
-| Delete deal unit line | `DELETE /api/v2/DealsService/DealUnits/:dealUnitId/Lines/:dealUnitLineId` |
-| Create flow | `POST /api/v2/DealsService/DealUnitFlows` |
-| List flows | `GET /api/v2/DealsService/DealUnitFlows` |
-| Count flows | `GET /api/v2/DealsService/DealUnitFlows/Count` |
-| Get flow | `GET /api/v2/DealsService/DealUnitFlows/:dealUnitFlowId` |
-| Update flow | `PUT /api/v2/DealsService/DealUnitFlows/:dealUnitFlowId` |
-| Delete flow | `DELETE /api/v2/DealsService/DealUnitFlows/:dealUnitFlowId` |
-| Create flow stage | `POST /api/v2/DealsService/DealUnitFlows/:dealUnitFlowId/Stages` |
-| List flow stages | `GET /api/v2/DealsService/DealUnitFlows/:dealUnitFlowId/Stages` |
-| Count flow stages | `GET /api/v2/DealsService/DealUnitFlows/:dealUnitFlowId/Stages/Count` |
-| Get flow stage | `GET /api/v2/DealsService/DealUnitFlows/:dealUnitFlowId/Stages/:dealUnitFlowStageId` |
-| Update flow stage | `PUT /api/v2/DealsService/DealUnitFlows/:dealUnitFlowId/Stages/:dealUnitFlowStageId` |
-| Delete flow stage | `DELETE /api/v2/DealsService/DealUnitFlows/:dealUnitFlowId/Stages/:dealUnitFlowStageId` |
+All paths are tenant-scoped: append `?tenantId=<tenant-guid>` (or send the `X-TenantId` header) on **every** verb.
+
+| Action | Method | Path |
+|---|---|---|
+| List deal units | GET | `/api/v2/DealsService/DealUnits` |
+| List extended deal units | GET | `/api/v2/DealsService/DealUnits/Extended` |
+| Count deal units | GET | `/api/v2/DealsService/DealUnits/Count` |
+| Get deal unit | GET | `/api/v2/DealsService/DealUnits/{dealUnitId}` |
+| Get extended deal unit | GET | `/api/v2/DealsService/DealUnits/{dealUnitId}/Extended` |
+| Create deal unit | POST | `/api/v2/DealsService/DealUnits` |
+| Update deal unit | PUT | `/api/v2/DealsService/DealUnits/{dealUnitId}` |
+| Patch deal unit | PATCH | `/api/v2/DealsService/DealUnits/{dealUnitId}` |
+| Calculate deal unit | PUT | `/api/v2/DealsService/DealUnits/{dealUnitId}/Calculate` |
+| Delete deal unit | DELETE | `/api/v2/DealsService/DealUnits/{dealUnitId}` |
+| List lines | GET | `/api/v2/DealsService/DealUnits/{dealUnitId}/Lines` |
+| Count lines | GET | `/api/v2/DealsService/DealUnits/{dealUnitId}/Lines/Count` |
+| Get line | GET | `/api/v2/DealsService/DealUnits/{dealUnitId}/Lines/{dealUnitLineId}` |
+| Create line | POST | `/api/v2/DealsService/DealUnits/{dealUnitId}/Lines` |
+| Update line | PUT | `/api/v2/DealsService/DealUnits/{dealUnitId}/Lines/{dealUnitLineId}` |
+| Patch line | PATCH | `/api/v2/DealsService/DealUnits/{dealUnitId}/Lines/{dealUnitLineId}` |
+| Calculate line | PUT | `/api/v2/DealsService/DealUnits/{dealUnitId}/Lines/{dealUnitLineId}/Calculate` |
+| Delete line | DELETE | `/api/v2/DealsService/DealUnits/{dealUnitId}/Lines/{dealUnitLineId}` |
+| List flows | GET | `/api/v2/DealsService/DealUnitFlows` |
+| Count flows | GET | `/api/v2/DealsService/DealUnitFlows/Count` |
+| Get flow | GET | `/api/v2/DealsService/DealUnitFlows/{dealUnitFlowId}` |
+| Create flow | POST | `/api/v2/DealsService/DealUnitFlows` |
+| Update flow | PUT | `/api/v2/DealsService/DealUnitFlows/{dealUnitFlowId}` |
+| Patch flow | PATCH | `/api/v2/DealsService/DealUnitFlows/{dealUnitFlowId}` |
+| Delete flow | DELETE | `/api/v2/DealsService/DealUnitFlows/{dealUnitFlowId}` |
+| List flow stages | GET | `/api/v2/DealsService/DealUnitFlows/{dealUnitFlowId}/Stages` |
+| Count flow stages | GET | `/api/v2/DealsService/DealUnitFlows/{dealUnitFlowId}/Stages/Count` |
+| Get flow stage | GET | `/api/v2/DealsService/DealUnitFlows/{dealUnitFlowId}/Stages/{dealUnitFlowStageId}` |
+| Create flow stage | POST | `/api/v2/DealsService/DealUnitFlows/{dealUnitFlowId}/Stages` |
+| Update flow stage | PUT | `/api/v2/DealsService/DealUnitFlows/{dealUnitFlowId}/Stages/{dealUnitFlowStageId}` |
+| Patch flow stage | PATCH | `/api/v2/DealsService/DealUnitFlows/{dealUnitFlowId}/Stages/{dealUnitFlowStageId}` |
+| Delete flow stage | DELETE | `/api/v2/DealsService/DealUnitFlows/{dealUnitFlowId}/Stages/{dealUnitFlowStageId}` |
+
+> **Note:** Sales-literature management is **not** part of the DealsService REST surface — there are no `SalesLiteratures` REST endpoints in the API. To manage sales literature, use the `absuite-deals-cli` skill (the CLI exposes `sales-literature` commands).

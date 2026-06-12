@@ -2,346 +2,403 @@
 name: absuite-storage
 description: >
   Manage file storage, uploads, downloads, and avatars in the Alliance Business Suite
-  (ABS) using the `absuite` CLI. Covers single/multiple file uploads, blob storage,
-  and avatar management for contacts, users, and tenants. Requires an authenticated
-  CLI session.
+  (ABS) via the REST API (StorageService). Covers file records, raw downloads, blob
+  browsing, RadzenEditor uploads, and avatars for social profiles, contacts, users,
+  and tenants. PATCH is not available on this service. All operations require a bearer
+  token (see the absuite-login skill to authenticate).
 ---
 
-# Alliance Business Suite — Storage Skill
+# Alliance Business Suite — Storage Skill (REST)
 
-Manage file storage through the `absuite` CLI's `storage` service.
+Drive the ABS **StorageService** purely over HTTP with `curl`. The service handles
+durable file records (`Files`), low-level blob browsing (`Blobs`), inline editor
+uploads (`RadzenEditor/Uploads`), a generic upload sink (`Uploads`), and avatar
+get/update for social profiles, contacts, users, and tenants.
 
-## Prerequisites
+> For the CLI equivalent, see `absuite-storage-cli`. For general REST conventions
+> across all ABS services, see `absuite-rest`.
 
-1. **Authenticate first** using `absuite login` (see the `absuite-login` skill).
-2. **Discover commands**: `absuite storage list-commands`
+## Authentication
 
-## REST API Authentication
+All calls require a bearer token.
 
-All REST API calls require a bearer token.
-
-1. **Obtain a token**: `POST $ABSUITE_HOST_URL/login` with `{"email":"...","password":"..."}`
-2. **Use the token**: `-H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"`
-3. **Base URL**: `$ABSUITE_HOST_URL/api/v2/`
-
-## File Operations
-
-### Upload a Single File
+1. **Obtain a token** — `POST $ABSUITE_HOST_URL/login` with a JSON body
+   `{"email":"...","password":"..."}`. The response contains `accessToken`.
+2. **Send it** on every request: `-H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"`.
+3. **Base path** — `$ABSUITE_HOST_URL/api/v2/StorageService/<Resource>`.
 
 ```bash
-absuite storage single --File @/path/to/file.pdf
+export ABSUITE_ACCESS_TOKEN=$(
+  curl -s -X POST "$ABSUITE_HOST_URL/login" \
+    -H "Content-Type: application/json" \
+    -d '{"email":"<your-email>","password":"<your-password>"}' \
+  | jq -r '.accessToken'
+)
 ```
 
-**REST API equivalent:**
-```bash
-curl -X POST "$ABSUITE_HOST_URL/api/v2/StorageService/RadzenEditor/Uploads/Single" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -F "file=@/path/to/file.pdf"
+## Response envelope
+
+JSON endpoints return the standard envelope:
+
+```json
+{
+  "isSuccess": true,
+  "errorMessage": null,
+  "correlationId": "<guid>",
+  "timestamp": "<iso-8601>",
+  "result": <data|array|null>
+}
 ```
 
-### Upload Multiple Files
+Always check `isSuccess`; read the payload from `result`. Note that some upload
+endpoints (RadzenEditor `Single`/`Multiple`/`Image`/`Specific`/`{id}`) return an
+empty body, and `Files/{fileId}/Raw` returns the **raw file bytes**, not an envelope.
+
+## Key concepts
+
+- **Tenant scoping is per-endpoint** — read it from each operation below.
+  - `Files/*`, `Blobs/*`, `Uploads`, all `RadzenEditor/Uploads/*`, and
+    `Avatars/Contacts/{contactId}` (update) accept an **optional** `?tenantId=<tenant-guid>`.
+    Omit it to use the caller's default scope; pass it to target a specific tenant.
+    The header form `X-TenantId: <tenant-guid>` is equivalent.
+  - The remaining avatar endpoints (`Avatars/{socialProfileId}`, `Avatars/Contact/{contactId}`,
+    `Avatars/Tenant/{tenantId}` get **and** update, `Avatars/User`, `Avatars/User/{userId}`)
+    take **no** `tenantId` query param — they are keyed by their path id (or the JWT, for
+    the current-user avatar). Do not add a tenant query/header to these; it is ignored.
+    Note: `{tenantId}` in the Tenant-avatar paths is a **path** segment identifying the
+    tenant whose avatar you want — not the tenant-scoping query param.
+- **Files vs Uploads vs RadzenEditor**:
+  - `Files` is the managed file-record resource (list/get/create/update/delete/download).
+  - `Uploads` (`POST /Uploads`) is a single multipart upload sink that saves a file.
+  - `RadzenEditor/Uploads/*` are the inline rich-text-editor upload endpoints
+    (single, multiple, image, specific, and by resource id).
+- **Blobs** is a low-level browse over the underlying blob store: list a folder
+  (`GET /Blobs`) or fetch one blob's metadata by path (`GET /Blobs/Single?filePath=...`).
+- **Uploads are multipart/form-data** — use `curl -F`, not a JSON `-d` body. The
+  multipart field name for file content on `Files`/`Uploads` create is `file`; for
+  RadzenEditor single/image/specific it is `File`; for multiple/by-id it is `Files`
+  (repeat the flag per file); for avatar updates it is `Avatar`.
+- **API version** — every endpoint also accepts an optional `api-version` query param
+  or `x-api-version` header. Omit unless you need to pin a version.
+- **PATCH is not available** on StorageService — there are no JSON Patch endpoints.
+  Use `PUT /Files/{fileId}` to update a file record.
+
+---
+
+## Files
+
+### List files
 
 ```bash
-absuite storage multiple --Files @/path/to/file1.pdf --Files @/path/to/file2.png
-```
-
-**REST API equivalent:**
-```bash
-curl -X POST "$ABSUITE_HOST_URL/api/v2/StorageService/RadzenEditor/Uploads/Multiple" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -F "files=@/path/to/file1.pdf" \
-  -F "files=@/path/to/file2.png"
-```
-
-### Upload an Image
-
-```bash
-absuite storage image --File @/path/to/image.jpg
-```
-
-**REST API equivalent:**
-```bash
-curl -X POST "$ABSUITE_HOST_URL/api/v2/StorageService/RadzenEditor/Uploads/Image" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -F "file=@/path/to/image.jpg"
-```
-
-### Upload a Specific File
-
-```bash
-absuite storage specific --File @/path/to/file.docx
-```
-
-**REST API equivalent:**
-```bash
-curl -X POST "$ABSUITE_HOST_URL/api/v2/StorageService/RadzenEditor/Uploads/Specific" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -F "file=@/path/to/file.docx"
-```
-
-### Save (Upload) a File
-
-```bash
-absuite storage save-file --File @/path/to/file.xlsx
-```
-
-**REST API equivalent:**
-```bash
-curl -X POST "$ABSUITE_HOST_URL/api/v2/StorageService/Uploads" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -F "file=@/path/to/file.xlsx"
-```
-
-### Create File Record
-
-```bash
-absuite storage create file --FileCreateDto '{...}'
-```
-
-**REST API equivalent:**
-```bash
-curl -X POST "$ABSUITE_HOST_URL/api/v2/StorageService/Files" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{...}'
-```
-
-### Get File
-
-```bash
-absuite storage get file --FileId <file-guid>
-```
-
-**REST API equivalent:**
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/StorageService/Files/$FILE_ID" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/StorageService/Files?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Update File
+`tenantId` is optional. Returns the file records in `result`.
+
+### Get a file record
 
 ```bash
-absuite storage update file --FileId <file-guid> --FileUpdateDto '{...}'
+curl -X GET "$ABSUITE_HOST_URL/api/v2/StorageService/Files/<file-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-**REST API equivalent:**
+### Create a file record (multipart upload)
+
+`POST /Files` is `multipart/form-data`. Body fields (`PayloadFileUploadCreateDto`):
+`id`, `timestamp`, `notes`, `title`, `author`, `isFolder`, `fileName`, `abstract`,
+`keyWords`, `validResponse`, `parentFileUploadId`, `filePath`, `file`. The binary
+content goes in the `file` part; all are optional.
+
 ```bash
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/StorageService/Files/$FILE_ID" \
+curl -X POST "$ABSUITE_HOST_URL/api/v2/StorageService/Files?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{...}'
+  -F "title=Quarterly Report" \
+  -F "fileName=q3-report.pdf" \
+  -F "author=Finance" \
+  -F "keyWords=report,finance,q3" \
+  -F "isFolder=false" \
+  -F "file=@/path/to/q3-report.pdf"
 ```
 
-### Delete File
+### Update a file record (PUT, multipart)
+
+`PUT /Files/{fileId}` is `multipart/form-data`. Body fields (`PayloadFileUploadUpdateDto`):
+`notes`, `metadata`, `title`, `author`, `isFolder`, `fileName`, `abstract`, `keyWords`,
+`validResponse`, `parentFileUploadID`, `filePath`, `file`. (Note: create uses
+`parentFileUploadId`; update uses `parentFileUploadID` — transcribe exactly as shown.)
 
 ```bash
-absuite storage delete file --FileId <file-guid>
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/StorageService/Files/<file-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -F "title=Quarterly Report (final)" \
+  -F "notes=Approved by review board" \
+  -F "metadata={\"version\":\"final\"}" \
+  -F "file=@/path/to/q3-report-final.pdf"
 ```
 
-**REST API equivalent:**
+### Delete a file record
+
 ```bash
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/StorageService/Files/$FILE_ID" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/StorageService/Files/<file-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### List Files
+### Download raw file bytes
+
+`GET /Files/{fileId}/Raw` returns the file content itself (not an envelope). Write it
+to disk with `-o`.
 
 ```bash
-absuite storage list files
-```
-
-**REST API equivalent:**
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/StorageService/Files" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Download a File
-
-```bash
-absuite storage download-file --FileId <file-guid>
-```
-
-**REST API equivalent:**
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/StorageService/Files/$FILE_ID/Raw" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/StorageService/Files/<file-guid>/Raw?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -o downloaded_file
 ```
 
-## Blob Storage
+---
+
+## Blobs
+
+### List blobs in a folder
+
+`GET /Blobs` browses the underlying blob store. Query params: `tenantId`, `folderPath`,
+`browseFilter`, `filePrefix`, `recurse` (bool), `maxResults` (int), `includeAttributes`
+(bool) — all optional.
 
 ```bash
-# List blobs
-absuite storage list blobs
-
-# Get blob by ID
-absuite storage get blob --BlobId <blob-guid>
-
-# Submit files by ID
-absuite storage submit- --FileIds <file-guid>
+curl -X GET "$ABSUITE_HOST_URL/api/v2/StorageService/Blobs?tenantId=<tenant-guid>&folderPath=reports&recurse=true&maxResults=50&includeAttributes=true" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-**REST API equivalents:**
+### Get a single blob by path
+
+`GET /Blobs/Single` fetches one blob's metadata. Query params: `tenantId`, `filePath`
+— both optional. (Identify the blob by `filePath`, not by an id.)
+
 ```bash
-# List blobs
-curl -X GET "$ABSUITE_HOST_URL/api/v2/StorageService/Blobs" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get single blob
-curl -X GET "$ABSUITE_HOST_URL/api/v2/StorageService/Blobs/Single?blobId=<blob-guid>" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/StorageService/Blobs/Single?tenantId=<tenant-guid>&filePath=reports/q3-report.pdf" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
+
+---
+
+## Uploads (generic save)
+
+`POST /Uploads` saves a single file to tenant or user storage (multipart/form-data).
+Query: `tenantId` (optional). The simplest call provides just the file part:
+
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/StorageService/Uploads?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -F "file=@/path/to/file.xlsx"
+```
+
+Additional optional form fields exist for metadata (e.g. `title`, `notes`, `author`,
+`fileName`, `keyWords`, `isFolder`, `filePath`, `parentFileUploadId`, `timestamp`).
+Provide only what you need.
+
+---
+
+## RadzenEditor uploads
+
+These power inline uploads from the rich-text editor. All are `POST`,
+`multipart/form-data`, and accept an optional `?tenantId=<tenant-guid>`. Most return
+an empty body (the URL/result is consumed by the editor).
+
+### Upload a single file
+
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/StorageService/RadzenEditor/Uploads/Single?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -F "File=@/path/to/file.pdf"
+```
+
+### Upload an image
+
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/StorageService/RadzenEditor/Uploads/Image?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -F "File=@/path/to/image.jpg"
+```
+
+### Upload a specific file
+
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/StorageService/RadzenEditor/Uploads/Specific?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -F "File=@/path/to/file.docx"
+```
+
+### Upload multiple files
+
+The file part is `Files`; repeat the flag once per file.
+
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/StorageService/RadzenEditor/Uploads/Multiple?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -F "Files=@/path/to/file1.pdf" \
+  -F "Files=@/path/to/file2.png"
+```
+
+### Upload files by resource id
+
+`POST /RadzenEditor/Uploads/{id}` attaches files to a specific resource id (path param).
+Query: `tenantId` (optional). File part is `Files` (repeatable).
+
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/StorageService/RadzenEditor/Uploads/<id>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -F "Files=@/path/to/file.pdf"
+```
+
+---
 
 ## Avatars
 
-### Current User Avatar
+Avatars are keyed by their path id (social profile, contact, user, tenant) or by the
+JWT for the current user. Get endpoints return image bytes / an envelope; update
+endpoints are `POST` multipart with the file in the `Avatar` part.
+
+> Tenant scoping: only `POST /Avatars/Contacts/{contactId}` (update contact avatar)
+> accepts an optional `?tenantId=<tenant-guid>`. The other avatar endpoints take no
+> tenant query/header.
+
+### Current user's avatar
 
 ```bash
 # Get
-absuite storage get current-user-avatar
-
-# Update
-absuite storage update user-avatar --Avatar @/path/to/avatar.png
-```
-
-**REST API equivalents:**
-```bash
-# Get current user avatar
 curl -X GET "$ABSUITE_HOST_URL/api/v2/StorageService/Avatars/User" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Update current user avatar
+# Update (current user)
 curl -X POST "$ABSUITE_HOST_URL/api/v2/StorageService/Avatars/User" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -F "file=@/path/to/avatar.png"
+  -F "Avatar=@/path/to/avatar.png"
 ```
 
-### User Avatar (by User ID)
+### Avatar for a specific user (by user id)
 
-```bash
-absuite storage get user-avatar --UserId <user-guid>
-```
-
-**REST API equivalent:**
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/StorageService/Avatars/User/<user-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Contact Avatar
+### Contact avatar
 
 ```bash
 # Get
-absuite storage get contact-avatar --ContactId <contact-guid>
-
-# Update
-absuite storage update contact-avatar --ContactId <contact-guid> --Avatar @/path/to/avatar.png
-```
-
-**REST API equivalents:**
-```bash
-# Get contact avatar
 curl -X GET "$ABSUITE_HOST_URL/api/v2/StorageService/Avatars/Contact/<contact-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Update contact avatar
-curl -X POST "$ABSUITE_HOST_URL/api/v2/StorageService/Avatars/Contacts/<contact-guid>" \
+# Update (path is plural "Contacts"; tenantId optional)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/StorageService/Avatars/Contacts/<contact-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -F "file=@/path/to/avatar.png"
+  -F "Avatar=@/path/to/avatar.png"
 ```
 
-### Tenant Avatar
+### Tenant avatar
+
+`{tenantId}` here is a path segment identifying the tenant, not the tenant-scope query.
 
 ```bash
 # Get
-absuite storage get tenant-avatar --TenantId $TENANT_ID
+curl -X GET "$ABSUITE_HOST_URL/api/v2/StorageService/Avatars/Tenant/<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Update
-absuite storage update tenant-avatar --TenantId $TENANT_ID --Avatar @/path/to/logo.png
-```
-
-**REST API equivalents:**
-```bash
-# Get tenant avatar
-curl -X GET "$ABSUITE_HOST_URL/api/v2/StorageService/Avatars/Tenant/$TENANT_ID" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Update tenant avatar
-curl -X POST "$ABSUITE_HOST_URL/api/v2/StorageService/Avatars/Tenant/$TENANT_ID" \
+curl -X POST "$ABSUITE_HOST_URL/api/v2/StorageService/Avatars/Tenant/<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -F "file=@/path/to/logo.png"
+  -F "Avatar=@/path/to/logo.png"
 ```
 
-### Social Profile Avatar
+### Social profile avatar
 
 ```bash
-absuite storage get avatar --SocialProfileId <profile-guid>
-```
-
-**REST API equivalent:**
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/StorageService/Avatars/<profile-guid>" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/StorageService/Avatars/<social-profile-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-## Editor Upload by ID
+---
+
+## PATCH (not available)
+
+StorageService exposes **no PATCH / JSON Patch endpoints**. To modify a file record,
+use `PUT /Files/{fileId}` (multipart) with the fields you want to change. No other
+resource on this service supports partial updates.
+
+---
+
+## End-to-end workflow: store, inspect, update, download
 
 ```bash
-absuite storage upload --Id <id> --File @/path/to/file.pdf
-```
-
-**REST API equivalent:**
-```bash
-curl -X POST "$ABSUITE_HOST_URL/api/v2/StorageService/RadzenEditor/Uploads/<id>" \
+# 1) Create a managed file record with content (multipart)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/StorageService/Files?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -F "file=@/path/to/file.pdf"
+  -F "title=Onboarding Packet" \
+  -F "fileName=onboarding.pdf" \
+  -F "keyWords=hr,onboarding" \
+  -F "file=@/path/to/onboarding.pdf"
+
+# 2) List files to find the new record's id (read result[].* )
+curl -X GET "$ABSUITE_HOST_URL/api/v2/StorageService/Files?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# 3) Update its metadata (PUT, multipart)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/StorageService/Files/<file-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -F "title=Onboarding Packet (2026)" \
+  -F "notes=Updated for the 2026 cohort"
+
+# 4) Download the raw bytes
+curl -X GET "$ABSUITE_HOST_URL/api/v2/StorageService/Files/<file-guid>/Raw?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -o onboarding.pdf
+
+# 5) Delete it when done
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/StorageService/Files/<file-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-## Command Quick Reference
-
-| Action | CLI Command |
-|---|---|
-| Upload file | `absuite storage single --File @/path/to/file` |
-| Upload image | `absuite storage image --File @/path/to/image.jpg` |
-| Upload multiple | `absuite storage multiple --Files @/path/to/a --Files @/path/to/b` |
-| Download file | `absuite storage download-file --FileId <guid>` |
-| List files | `absuite storage list files` |
-| Get user avatar | `absuite storage get current-user-avatar` |
-| Update user avatar | `absuite storage update user-avatar --Avatar @/path/to/avatar.png` |
-| Get contact avatar | `absuite storage get contact-avatar --ContactId <guid>` |
-| Get tenant avatar | `absuite storage get tenant-avatar --TenantId <guid>` |
-
-## Critical Rules
-
-- **Authenticate first.**
-- **File paths use `@` prefix** for file uploads (e.g., `@/path/to/file.pdf`).
-- **Use `--help`** on any command for full parameter details.
-- **REST uploads use multipart form** with `-F "file=@/path/to/file"` instead of JSON body.
+---
 
 ## API Endpoints Quick Reference
 
-| Action | Method | Endpoint |
+| Action | Method | Path |
 |---|---|---|
-| Upload file | POST | `/api/v2/StorageService/Uploads` |
-| Upload single file | POST | `/api/v2/StorageService/RadzenEditor/Uploads/Single` |
-| Upload multiple files | POST | `/api/v2/StorageService/RadzenEditor/Uploads/Multiple` |
-| Upload image | POST | `/api/v2/StorageService/RadzenEditor/Uploads/Image` |
-| Upload specific file | POST | `/api/v2/StorageService/RadzenEditor/Uploads/Specific` |
-| Upload by ID | POST | `/api/v2/StorageService/RadzenEditor/Uploads/:id` |
-| Create file record | POST | `/api/v2/StorageService/Files` |
 | List files | GET | `/api/v2/StorageService/Files` |
-| Get file | GET | `/api/v2/StorageService/Files/:fileId` |
-| Update file | PUT | `/api/v2/StorageService/Files/:fileId` |
-| Delete file | DELETE | `/api/v2/StorageService/Files/:fileId` |
-| Download file | GET | `/api/v2/StorageService/Files/:fileId/Raw` |
-| Get social profile avatar | GET | `/api/v2/StorageService/Avatars/:socialProfileId` |
-| Get contact avatar | GET | `/api/v2/StorageService/Avatars/Contact/:contactId` |
-| Update contact avatar | POST | `/api/v2/StorageService/Avatars/Contacts/:contactId` |
-| Get tenant avatar | GET | `/api/v2/StorageService/Avatars/Tenant/:tenantId` |
-| Update tenant avatar | POST | `/api/v2/StorageService/Avatars/Tenant/:tenantId` |
-| Get current user avatar | GET | `/api/v2/StorageService/Avatars/User` |
-| Update current user avatar | POST | `/api/v2/StorageService/Avatars/User` |
-| Get user avatar | GET | `/api/v2/StorageService/Avatars/User/:userId` |
-| List blobs | GET | `/api/v2/StorageService/Blobs` |
-| Get blob | GET | `/api/v2/StorageService/Blobs/Single` |
+| Get file record | GET | `/api/v2/StorageService/Files/{fileId}` |
+| Create file record (multipart) | POST | `/api/v2/StorageService/Files` |
+| Update file record (multipart) | PUT | `/api/v2/StorageService/Files/{fileId}` |
+| Delete file record | DELETE | `/api/v2/StorageService/Files/{fileId}` |
+| Download raw file bytes | GET | `/api/v2/StorageService/Files/{fileId}/Raw` |
+| List blobs in a folder | GET | `/api/v2/StorageService/Blobs` |
+| Get single blob by path | GET | `/api/v2/StorageService/Blobs/Single` |
+| Save (upload) a file | POST | `/api/v2/StorageService/Uploads` |
+| Editor: upload single file | POST | `/api/v2/StorageService/RadzenEditor/Uploads/Single` |
+| Editor: upload image | POST | `/api/v2/StorageService/RadzenEditor/Uploads/Image` |
+| Editor: upload specific file | POST | `/api/v2/StorageService/RadzenEditor/Uploads/Specific` |
+| Editor: upload multiple files | POST | `/api/v2/StorageService/RadzenEditor/Uploads/Multiple` |
+| Editor: upload files by id | POST | `/api/v2/StorageService/RadzenEditor/Uploads/{id}` |
+| Get current user's avatar | GET | `/api/v2/StorageService/Avatars/User` |
+| Update current user's avatar | POST | `/api/v2/StorageService/Avatars/User` |
+| Get user avatar (by id) | GET | `/api/v2/StorageService/Avatars/User/{userId}` |
+| Get contact avatar | GET | `/api/v2/StorageService/Avatars/Contact/{contactId}` |
+| Update contact avatar | POST | `/api/v2/StorageService/Avatars/Contacts/{contactId}` |
+| Get tenant avatar | GET | `/api/v2/StorageService/Avatars/Tenant/{tenantId}` |
+| Update tenant avatar | POST | `/api/v2/StorageService/Avatars/Tenant/{tenantId}` |
+| Get social profile avatar | GET | `/api/v2/StorageService/Avatars/{socialProfileId}` |
+| PATCH (any resource) | — | Not available on StorageService |
+
+## Critical rules
+
+- **Authenticate first** and send `Authorization: Bearer $ABSUITE_ACCESS_TOKEN` on
+  every call.
+- **Uploads are multipart** — use `-F`, never a JSON `-d` body. Field names matter:
+  `file` (Files/Uploads), `File` (RadzenEditor single/image/specific), `Files`
+  (RadzenEditor multiple / by-id, repeated), `Avatar` (avatar updates).
+- **`Files/{fileId}/Raw` and avatar GETs return bytes**, not an envelope — capture
+  with `-o`.
+- **Tenant scoping is optional only where the manifest lists `tenantId(query,opt)`**
+  (Files, Blobs, Uploads, RadzenEditor, and contact-avatar update). The other avatar
+  endpoints ignore a tenant query/header.
+- **No PATCH** on this service. Use `PUT /Files/{fileId}` for file-record edits.
