@@ -1,25 +1,21 @@
 ---
 name: absuite-hrms
 description: >
-  Manage human resources in the Alliance Business Suite (ABS) using the `absuite`
-  CLI or REST API. Covers employees, employers, employee types, job titles, salaries,
-  payrolls, gigs, job offers, shifts, schedules, leave management, time intervals,
-  training programs, and appraisals. Requires authentication.
+  Manage human resources in the Alliance Business Suite (ABS) via the REST API.
+  Covers employees, employers, employee types, job titles, salaries, payrolls,
+  payroll periods, gigs, job offers, shifts, schedules, time intervals, leave
+  management, training programs, and performance appraisals — including atomic
+  PATCH (JSON Patch) updates. All operations are tenant-scoped and require a
+  bearer token (see the absuite-login skill to authenticate).
 ---
 
-# Alliance Business Suite — HRMS Skill
+# Alliance Business Suite — HRMS Skill (REST)
 
-Manage human resources through the `absuite` CLI's `hrms` service or the `HrmsService` REST API. All operations are tenant-scoped and require authentication.
+Manage human resources through the `HrmsService` REST API. Every endpoint is tenant-scoped and requires a bearer token. This skill covers all `HrmsService` resources via raw `curl`, including list / count / get / create (POST) / update (PUT) / **patch (PATCH, JSON Patch RFC 6902)** / delete.
 
-## Prerequisites
+> For the CLI equivalent, see `absuite-hrms-cli`. For general REST conventions across all ABS services, see `absuite-rest`.
 
-1. **Authenticate first** using `absuite login` (see the `absuite-login` skill).
-2. **Set your tenant**: `absuite config set --tenant-id <tenant-guid>` or pass `--TenantId` on each call.
-3. **Discover commands**: `absuite hrms list-commands`
-
-## REST API Authentication
-
-To call the API directly via REST instead of the CLI:
+## Authentication
 
 1. **Obtain a bearer token:**
 ```bash
@@ -27,195 +23,213 @@ curl -X POST "$ABSUITE_HOST_URL/login" \
   -H "Content-Type: application/json" \
   -d '{"email": "'$ABSUITE_USER_EMAIL'", "password": "'$ABSUITE_USER_PASSWORD'"}'
 ```
-Extract the `accessToken` from the JSON response.
+Extract `accessToken` from the JSON response and export it as `$ABSUITE_ACCESS_TOKEN`.
 
-2. **Use the token in all subsequent requests:**
+2. **Send the token on every subsequent call:**
 ```bash
 -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-3. **All REST endpoints use the base path:** `$ABSUITE_HOST_URL/api/v2/`
+3. **Base path:** `$ABSUITE_HOST_URL/api/v2/HrmsService/<Resource>`
+
+## Tenant scoping
+
+Every `HrmsService` endpoint requires a tenant. Pass `?tenantId=<tenant-guid>` as a query parameter on **every** verb — including POST, PUT, PATCH, and DELETE (omitting it on writes returns `400`). Equivalently you may send the `X-TenantId: <tenant-guid>` request header; the platform reads either interchangeably. Examples below use the query param.
+
+## Response envelope
+
+All responses share one envelope:
+
+```json
+{
+  "isSuccess": true,
+  "errorMessage": null,
+  "correlationId": "string",
+  "timestamp": "string",
+  "result": "<data | array | int | null>"
+}
+```
+
+Always check `isSuccess`; read the payload from `result`. List endpoints return an array in `result`; `Count` endpoints return an integer.
+
+## Key Concepts
+
+- **Employees / Employers** are HR *profiles*. They link back to a `contactId` (the underlying person/organization contact) and carry HR-specific data: pay (`grossPay`, `netSalary`, `payrollCurrency`), `maxWorkHoursPerDay`, a `jobTitleId`, and an `employeeTypeId`. Both profiles also expose ten generic `data` / `dataLabel` slots (`data`, `data1`…`data9` plus matching `*Label`) for custom fields.
+- **Employee Types** classify employment (e.g. full-time, contractor) with `name` + `description`.
+- **Job Titles** describe a role and its standard compensation: `title`, `description`, `grossPay`, `netSalary`, `currencyId`, and a location (`countryId` / `countryStateId` / `cityId`).
+- **Salaries** are per-employee monetary records: `amount` + `currencyId` + `employeeProfileId` (all required).
+- **Payrolls** group a run for a `payrollPeriodId`. **Payroll Periods** define `startDate` / `endDate` windows.
+- **Gigs** are short-term / freelance assignments owned by an `employerProfileId`, with a budget range (`minBudget` / `maxBudget` / `currencyId`), location, and `remote` flag.
+- **Job Offers** are open positions with skills, benefits, salary range, position count, and a `jobFieldId`.
+- **Shifts / Schedules / Time Intervals** model working time. A `Schedule` is a weekly template (per-day booleans, `start` / `end`, `timezoneId`); `Shifts` and `TimeIntervals` are recurring blocks tied to a `scheduleId` and (for shifts) an `employeeProfileId`.
+- **Leave Types** + **Leave Applications** handle absence requests (`justification`, `approved`, `onReview`, `leaveTypeId`, `employeeProfileId`).
+- **Training Programs** contain **Courses** (linking a `courseId`) and **Events** (scheduled sessions).
+- **Appraisals**: an **Appraisal Workflow** has ordered **Appraisal Stages**; an **Employee Appraisal Session** runs an employee through a workflow.
+
+### Enum values (verbatim from spec)
+
+Used by **Shifts** and **Training Program Events**:
+
+- `repetitionCriteria`: `NotRepeat` | `WorkWeek` | `Day` | `Month` | `Year`
+- `dayOfTheWeek`: `All` | `Sunday` | `Monday` | `Tuesday` | `Wednesday` | `Thursday` | `Friday` | `Saturday`
+
+> Field names in request bodies are camelCase (e.g. `"contactId"`, `"grossPay"`, `"employeeProfileId"`), exactly as listed below.
+
+---
 
 ## Employees
 
 ```bash
 # List
-absuite hrms list employees --TenantId $TENANT_ID
-
-# Count
-absuite hrms count employees --TenantId $TENANT_ID
-
-# Get by ID
-absuite hrms get employee-by-id --TenantId $TENANT_ID --EmployeeId <employee-guid>
-
-# Create
-absuite hrms create employee --TenantId $TENANT_ID --EmployeeCreateDto '{
-  "ContactId": "<contact-guid>",
-  "EmployerId": "<employer-guid>",
-  "Title": "Software Engineer",
-  "Department": "Engineering"
-}'
-
-# Update
-absuite hrms update employee --TenantId $TENANT_ID --EmployeeId <employee-guid> --EmployeeUpdateDto '{...}'
-
-# Delete
-absuite hrms delete employee --TenantId $TENANT_ID --EmployeeId <employee-guid>
-```
-
-**REST API equivalent:**
-```bash
-# List
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/Employees" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/Employees?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Count
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/Employees/Count" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/Employees/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Get by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/Employees/<employee-guid>" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/Employees/<employee-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/Employees" \
+curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/Employees?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "ContactId": "<contact-guid>",
-    "EmployerId": "<employer-guid>",
-    "Title": "Software Engineer",
-    "Department": "Engineering"
+    "contactId": "<contact-guid>",
+    "type": "Internal",
+    "about": "Backend engineer",
+    "grossPay": 95000.00,
+    "netSalary": 72000.00,
+    "payrollCurrency": "USD",
+    "maxWorkHoursPerDay": 8,
+    "jobTitleId": "<job-title-guid>",
+    "employeeTypeId": "<employee-type-guid>"
   }'
 
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/HrmsService/Employees/<employee-guid>" \
+# Update (PUT — full replacement)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/HrmsService/Employees/<employee-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{...}'
+  -d '{
+    "contactId": "<contact-guid>",
+    "grossPay": 105000.00,
+    "netSalary": 79000.00,
+    "payrollCurrency": "USD",
+    "jobTitleId": "<job-title-guid>",
+    "employeeTypeId": "<employee-type-guid>"
+  }'
+
+# Patch (JSON Patch — partial update)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/HrmsService/Employees/<employee-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[
+    { "op": "replace", "path": "/grossPay", "value": 110000.00 },
+    { "op": "replace", "path": "/employeeTypeId", "value": "<employee-type-guid>" }
+  ]'
 
 # Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/Employees/<employee-guid>" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/Employees/<employee-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
+
+**Create body (`EmployeeProfileCreateDto`)**: `type`, `contactId`, `about`, `avatarUrl`, `data`…`data9` + `*Label`, `grossPay`, `netSalary`, `payrollCurrency`, `maxWorkHoursPerDay`, `jobTitleId`, `employeeTypeId`. The PUT body (`EmployeeProfileUpdateDto`) accepts the same fields minus `id`/`timestamp`. No fields are flagged required by the spec.
+
+---
 
 ## Employee Types
 
 ```bash
 # List
-absuite hrms list employee-types --TenantId $TENANT_ID
-
-# Count
-absuite hrms count employee-types --TenantId $TENANT_ID
-
-# Get by ID
-absuite hrms get employee-type-by-id --TenantId $TENANT_ID --EmployeeTypeId <type-guid>
-
-# Create
-absuite hrms create employee-type --TenantId $TENANT_ID --EmployeeTypeCreateDto '{
-  "Name": "Full-Time",
-  "Description": "Standard full-time employment"
-}'
-
-# Update
-absuite hrms update employee-type --TenantId $TENANT_ID --EmployeeTypeId <type-guid> --EmployeeTypeUpdateDto '{...}'
-
-# Delete
-absuite hrms delete employee-type --TenantId $TENANT_ID --EmployeeTypeId <type-guid>
-```
-
-**REST API equivalent:**
-```bash
-# List
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/EmployeeTypes" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/EmployeeTypes?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Count
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/EmployeeTypes/Count" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/EmployeeTypes/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Get by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/EmployeeTypes/<type-guid>" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/EmployeeTypes/<type-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/EmployeeTypes" \
+curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/EmployeeTypes?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "Name": "Full-Time",
-    "Description": "Standard full-time employment"
+    "name": "Full-Time",
+    "description": "Standard full-time employment"
   }'
 
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/HrmsService/EmployeeTypes/<type-guid>" \
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/HrmsService/EmployeeTypes/<type-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{...}'
+  -d '{ "name": "Full-Time", "description": "Updated description" }'
+
+# Patch
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/HrmsService/EmployeeTypes/<type-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[ { "op": "replace", "path": "/description", "value": "Revised" } ]'
 
 # Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/EmployeeTypes/<type-guid>" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/EmployeeTypes/<type-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
+
+**Body (`EmployeeTypeCreateDto` / `EmployeeTypeUpdateDto`)**: `name`, `description`.
+
+---
 
 ## Employers
 
 ```bash
 # List
-absuite hrms list employers --TenantId $TENANT_ID
-
-# Count
-absuite hrms count employers --TenantId $TENANT_ID
-
-# Get by ID
-absuite hrms get employer-by-id --TenantId $TENANT_ID --EmployerId <employer-guid>
-
-# Create
-absuite hrms create employer --TenantId $TENANT_ID --EmployerCreateDto '{
-  "Name": "Acme Corporation",
-  "Description": "Technology company"
-}'
-
-# Update
-absuite hrms update employer --TenantId $TENANT_ID --EmployerId <employer-guid> --EmployerUpdateDto '{...}'
-
-# Delete
-absuite hrms delete employer --TenantId $TENANT_ID --EmployerId <employer-guid>
-```
-
-**REST API equivalent:**
-```bash
-# List
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/Employers" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/Employers?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Count
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/Employers/Count" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/Employers/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Get by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/Employers/<employer-guid>" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/Employers/<employer-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/Employers" \
+curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/Employers?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "Name": "Acme Corporation",
-    "Description": "Technology company"
+    "contactId": "<contact-guid>",
+    "type": "Organization",
+    "about": "Technology company",
+    "avatarUrl": "https://example.com/logo.png"
   }'
 
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/HrmsService/Employers/<employer-guid>" \
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/HrmsService/Employers/<employer-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{...}'
+  -d '{ "contactId": "<contact-guid>", "about": "Updated description" }'
+
+# Patch
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/HrmsService/Employers/<employer-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[ { "op": "replace", "path": "/about", "value": "New about text" } ]'
 
 # Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/Employers/<employer-guid>" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/Employers/<employer-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
+
+**Body (`EmployerProfileCreateDto` / `EmployerProfileUpdateDto`)**: `type`, `contactId`, `about`, `avatarUrl`, `data`…`data9` + `*Label`. No required fields per spec.
+
+---
 
 ## Gigs
 
@@ -223,1114 +237,902 @@ Short-term or freelance work assignments.
 
 ```bash
 # List
-absuite hrms list gigs --TenantId $TENANT_ID
-
-# Count
-absuite hrms count gigs --TenantId $TENANT_ID
-
-# Get by ID
-absuite hrms get gig-by-id --TenantId $TENANT_ID --GigId <gig-guid>
-
-# Create
-absuite hrms create gig --TenantId $TENANT_ID --GigCreateDto '{
-  "Title": "Frontend Development Sprint",
-  "Description": "Build checkout flow components"
-}'
-
-# Update
-absuite hrms update gig --TenantId $TENANT_ID --GigId <gig-guid> --GigUpdateDto '{...}'
-
-# Delete
-absuite hrms delete gig --TenantId $TENANT_ID --GigId <gig-guid>
-```
-
-**REST API equivalent:**
-```bash
-# List
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/Gigs" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/Gigs?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Count
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/Gigs/Count" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/Gigs/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Get by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/Gigs/<gig-guid>" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/Gigs/<gig-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/Gigs" \
+curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/Gigs?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "Title": "Frontend Development Sprint",
-    "Description": "Build checkout flow components"
+    "title": "Frontend Development Sprint",
+    "description": "Build checkout flow components",
+    "remote": true,
+    "type": "Project",
+    "expectedDeliveryDate": "2025-04-30",
+    "employerProfileId": "<employer-guid>",
+    "minBudget": 2000.00,
+    "maxBudget": 5000.00,
+    "currencyId": "USD",
+    "countryId": "<country-id>",
+    "location": "Remote",
+    "externalUrl": "https://example.com/gig"
   }'
 
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/HrmsService/Gigs/<gig-guid>" \
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/HrmsService/Gigs/<gig-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{...}'
+  -d '{ "title": "Frontend Sprint v2", "maxBudget": 6000.00, "currencyId": "USD" }'
+
+# Patch
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/HrmsService/Gigs/<gig-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[
+    { "op": "replace", "path": "/maxBudget", "value": 6500.00 },
+    { "op": "replace", "path": "/remote", "value": true }
+  ]'
 
 # Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/Gigs/<gig-guid>" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/Gigs/<gig-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
+
+**Body (`GigCreateDto` / `GigUpdateDto`)**: `remote`, `type`, `title`, `description`, `expectedDeliveryDate`, `employerProfileId`, `minBudget`, `maxBudget`, `currencyId`, `countryId`, `countryStateId`, `cityId`, `location`, `externalUrl`, `data`…`data9` + `*Label`.
+
+---
 
 ## Job Offers
 
 ```bash
 # List
-absuite hrms list job-offers --TenantId $TENANT_ID
-
-# Count
-absuite hrms count job-offers --TenantId $TENANT_ID
-
-# Get by ID
-absuite hrms get job-offer-by-id --TenantId $TENANT_ID --JobOfferId <offer-guid>
-
-# Create
-absuite hrms create job-offer --TenantId $TENANT_ID --JobOfferCreateDto '{
-  "Title": "Senior .NET Developer",
-  "Description": "Remote position, full-time"
-}'
-
-# Update
-absuite hrms update job-offer --TenantId $TENANT_ID --JobOfferId <offer-guid> --JobOfferUpdateDto '{...}'
-
-# Delete
-absuite hrms delete job-offer --TenantId $TENANT_ID --JobOfferId <offer-guid>
-```
-
-**REST API equivalent:**
-```bash
-# List
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/JobOffers" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/JobOffers?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Count
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/JobOffers/Count" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/JobOffers/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Get by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/JobOffers/<offer-guid>" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/JobOffers/<offer-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/JobOffers" \
+curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/JobOffers?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "Title": "Senior .NET Developer",
-    "Description": "Remote position, full-time"
+    "title": "Senior .NET Developer",
+    "description": "Remote position, full-time",
+    "remote": true,
+    "expectedHireDate": "2025-05-01",
+    "technicalSkills": "C#, EF Core, Blazor",
+    "isOfficialJobOffer": true,
+    "isRemoteJobOffer": true,
+    "minOverallExperienceYears": 5,
+    "availiablePositionsCount": 2,
+    "minSalaryAmount": 90000.00,
+    "maxSalaryAmount": 120000.00,
+    "currencyId": "USD",
+    "jobFieldId": "<job-field-id>",
+    "employerProfileId": "<employer-guid>"
   }'
 
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/HrmsService/JobOffers/<offer-guid>" \
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/HrmsService/JobOffers/<offer-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{...}'
+  -d '{ "title": "Senior .NET Developer", "maxSalaryAmount": 130000.00, "currencyId": "USD" }'
+
+# Patch
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/HrmsService/JobOffers/<offer-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[
+    { "op": "replace", "path": "/availiablePositionsCount", "value": 3 },
+    { "op": "replace", "path": "/maxSalaryAmount", "value": 130000.00 }
+  ]'
 
 # Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/JobOffers/<offer-guid>" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/JobOffers/<offer-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-## Compensation
+**Body (`JobOfferCreateDto` / `JobOfferUpdateDto`)**: `remote`, `expectedHireDate`, `title`, `description`, `technicalSkills`, `nonTechnicalSkills`, `certifications`, `projectExperience`, `technologies`, `benefits`, `isOfficialJobOffer`, `isRemoteJobOffer`, `isMidTimeJobOffer`, `isUndergraduateOption`, `minOverallExperienceYears`, `availiablePositionsCount`, `minSalaryAmount`, `maxSalaryAmount`, `currencyId`, `jobFieldId`, `employerProfileId`, `countryId`, `countryStateId`, `cityId`, `imageUrl`, `location`, `externalUrl`, `data`…`data9` + `*Label`.
 
-### Job Titles
+> Note: the spec field is spelled `availiablePositionsCount` (sic) — transcribe it verbatim.
+
+---
+
+## Job Titles
 
 ```bash
 # List
-absuite hrms list job-titles --TenantId $TENANT_ID
-
-# Count
-absuite hrms count job-titles --TenantId $TENANT_ID
-
-# Get by ID
-absuite hrms get job-title-by-id --TenantId $TENANT_ID --JobTitleId <title-guid>
-
-# Create
-absuite hrms create job-title --TenantId $TENANT_ID --JobTitleCreateDto '{
-  "Name": "Senior Software Engineer",
-  "Description": "Senior-level engineering role"
-}'
-
-# Update
-absuite hrms update job-title --TenantId $TENANT_ID --JobTitleId <title-guid> --JobTitleUpdateDto '{...}'
-
-# Delete
-absuite hrms delete job-title --TenantId $TENANT_ID --JobTitleId <title-guid>
-```
-
-**REST API equivalent:**
-```bash
-# List
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/JobTitles" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/JobTitles?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Count
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/JobTitles/Count" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/JobTitles/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Get by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/JobTitles/<title-guid>" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/JobTitles/<title-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/JobTitles" \
+curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/JobTitles?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "Name": "Senior Software Engineer",
-    "Description": "Senior-level engineering role"
+    "title": "Senior Software Engineer",
+    "description": "Senior-level engineering role",
+    "grossPay": 120000.00,
+    "netSalary": 90000.00,
+    "currencyId": "USD"
   }'
 
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/HrmsService/JobTitles/<title-guid>" \
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/HrmsService/JobTitles/<title-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{...}'
+  -d '{ "title": "Staff Software Engineer", "grossPay": 140000.00, "currencyId": "USD" }'
+
+# Patch
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/HrmsService/JobTitles/<title-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[ { "op": "replace", "path": "/grossPay", "value": 140000.00 } ]'
 
 # Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/JobTitles/<title-guid>" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/JobTitles/<title-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Salaries
+**Body (`JobTitleCreateDto` / `JobTitleUpdateDto`)**: `title`, `description`, `grossPay`, `netSalary`, `currencyId`, `countryId`, `countryStateId`, `cityId`.
+
+---
+
+## Salaries
 
 ```bash
 # List
-absuite hrms list salaries --TenantId $TENANT_ID
-
-# Count
-absuite hrms count salaries --TenantId $TENANT_ID
-
-# Get by ID
-absuite hrms get salary-by-id --TenantId $TENANT_ID --SalaryId <salary-guid>
-
-# Create
-absuite hrms create salary --TenantId $TENANT_ID --SalaryCreateDto '{
-  "EmployeeId": "<employee-guid>",
-  "Amount": 85000.00,
-  "CurrencyId": "USD"
-}'
-
-# Update
-absuite hrms update salary --TenantId $TENANT_ID --SalaryId <salary-guid> --SalaryUpdateDto '{...}'
-
-# Delete
-absuite hrms delete salary --TenantId $TENANT_ID --SalaryId <salary-guid>
-```
-
-**REST API equivalent:**
-```bash
-# List
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/Salaries" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/Salaries?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Count
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/Salaries/Count" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/Salaries/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Get by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/Salaries/<salary-guid>" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/Salaries/<salary-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/Salaries" \
+# Create  (amount, currencyId, employeeProfileId all REQUIRED)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/Salaries?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "EmployeeId": "<employee-guid>",
-    "Amount": 85000.00,
-    "CurrencyId": "USD"
+    "amount": 85000.00,
+    "currencyId": "USD",
+    "employeeProfileId": "<employee-guid>"
   }'
 
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/HrmsService/Salaries/<salary-guid>" \
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/HrmsService/Salaries/<salary-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{...}'
+  -d '{ "amount": 90000.00, "currencyId": "USD", "employeeProfileId": "<employee-guid>" }'
+
+# Patch
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/HrmsService/Salaries/<salary-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[ { "op": "replace", "path": "/amount", "value": 90000.00 } ]'
 
 # Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/Salaries/<salary-guid>" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/Salaries/<salary-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-## Payrolls & Payroll Periods
+**Body (`SalaryCreateDto`)**: `amount` **(REQ)**, `currencyId` **(REQ)**, `employeeProfileId` **(REQ)**. `SalaryUpdateDto` has the same three fields (none flagged required on update).
 
-### Payrolls
+---
+
+## Payrolls
 
 ```bash
 # List
-absuite hrms list payrolls --TenantId $TENANT_ID
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/Payrolls?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Count
-absuite hrms count payrolls --TenantId $TENANT_ID
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/Payrolls/Count?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Get by ID
-absuite hrms get payroll-by-id --TenantId $TENANT_ID --PayrollId <payroll-guid>
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/Payrolls/<payroll-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Create
-absuite hrms create payroll --TenantId $TENANT_ID --PayrollCreateDto '{
-  "Name": "January 2025 Payroll",
-  "Description": "Monthly payroll run"
-}'
+# Create  (payrollPeriodId REQUIRED)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/Payrolls?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "payrollPeriodId": "<period-guid>" }'
 
-# Update
-absuite hrms update payroll --TenantId $TENANT_ID --PayrollId <payroll-guid> --PayrollUpdateDto '{...}'
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/HrmsService/Payrolls/<payroll-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "payrollPeriodId": "<period-guid>" }'
+
+# Patch
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/HrmsService/Payrolls/<payroll-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[ { "op": "replace", "path": "/payrollPeriodId", "value": "<period-guid>" } ]'
 
 # Delete
-absuite hrms delete payroll --TenantId $TENANT_ID --PayrollId <payroll-guid>
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/Payrolls/<payroll-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-**REST API equivalent:**
+**Body (`PayrollCreateDto`)**: `payrollPeriodId` **(REQ)**. `PayrollUpdateDto`: `payrollPeriodId`.
+
+---
+
+## Payroll Periods
+
+> Payroll Periods support GET / POST / PUT / DELETE / Count only — **no PATCH endpoint** in the spec.
+
 ```bash
 # List
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/Payrolls" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/PayrollPeriods?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Count
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/Payrolls/Count" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/PayrollPeriods/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Get by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/Payrolls/<payroll-guid>" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/PayrollPeriods/<period-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/Payrolls" \
+# Create  (title, startDate, endDate REQUIRED)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/PayrollPeriods?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "Name": "January 2025 Payroll",
-    "Description": "Monthly payroll run"
+    "title": "January 2025",
+    "description": "Monthly payroll window",
+    "startDate": "2025-01-01",
+    "endDate": "2025-01-31"
   }'
 
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/HrmsService/Payrolls/<payroll-guid>" \
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/HrmsService/PayrollPeriods/<period-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{...}'
+  -d '{ "title": "January 2025", "startDate": "2025-01-01", "endDate": "2025-01-31" }'
 
 # Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/Payrolls/<payroll-guid>" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/PayrollPeriods/<period-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Payroll Periods
+**Body (`PayrollPeriodCreateDto`)**: `title` **(REQ)**, `description`, `startDate` **(REQ)**, `endDate` **(REQ)**. `PayrollPeriodUpdateDto`: `title`, `description`, `startDate`, `endDate`.
+
+---
+
+## Shifts
 
 ```bash
 # List
-absuite hrms list payroll-periods --TenantId $TENANT_ID
-
-# Count
-absuite hrms count payroll-periods --TenantId $TENANT_ID
-
-# Get by ID
-absuite hrms get payroll-period-by-id --TenantId $TENANT_ID --PayrollPeriodId <period-guid>
-
-# Create
-absuite hrms create payroll-period --TenantId $TENANT_ID --PayrollPeriodCreateDto '{
-  "PayrollId": "<payroll-guid>",
-  "StartDate": "2025-01-01",
-  "EndDate": "2025-01-31"
-}'
-
-# Update
-absuite hrms update payroll-period --TenantId $TENANT_ID --PayrollPeriodId <period-guid> --PayrollPeriodUpdateDto '{...}'
-
-# Delete
-absuite hrms delete payroll-period --TenantId $TENANT_ID --PayrollPeriodId <period-guid>
-```
-
-**REST API equivalent:**
-```bash
-# List
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/PayrollPeriods" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/Shifts?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Count
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/PayrollPeriods/Count" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/Shifts/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Get by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/PayrollPeriods/<period-guid>" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/Shifts/<shift-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/PayrollPeriods" \
+# Create  (title, start, end, employeeProfileId REQUIRED)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/Shifts?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "PayrollId": "<payroll-guid>",
-    "StartDate": "2025-01-01",
-    "EndDate": "2025-01-31"
+    "title": "Morning Shift",
+    "description": "Standard morning block",
+    "start": "2025-02-01T08:00:00Z",
+    "end": "2025-02-01T16:00:00Z",
+    "isBreak": false,
+    "repeatEvery": 1,
+    "repetitionCriteria": "WorkWeek",
+    "dayOfTheWeek": "All",
+    "scheduleId": "<schedule-guid>",
+    "employeeProfileId": "<employee-guid>"
   }'
 
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/HrmsService/PayrollPeriods/<period-guid>" \
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/HrmsService/Shifts/<shift-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{...}'
+  -d '{ "title": "Morning Shift", "start": "2025-02-01T07:00:00Z", "end": "2025-02-01T15:00:00Z" }'
+
+# Patch
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/HrmsService/Shifts/<shift-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[ { "op": "replace", "path": "/repetitionCriteria", "value": "Day" } ]'
 
 # Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/PayrollPeriods/<period-guid>" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/Shifts/<shift-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-## Shifts & Schedules
+**Body (`ShiftCreateDto`)**: `title` **(REQ)**, `description`, `start` **(REQ)**, `end` **(REQ)**, `isBreak`, `occustOnMonday`…`occustOnSunday`, `repeatEvery`, `repetitionCriteria` (enum), `recurrenceStart`, `recurrenceEnd`, `dayOfTheWeek` (enum), `scheduleId`, `parentTimeIntervalId`, `employeeProfileId` **(REQ)**. `ShiftUpdateDto` mirrors these minus `id`/`timestamp` (none flagged required).
 
-### Shifts
+> The per-day booleans are spelled `occustOnMonday`, `occustOnTuesday`, … `occustOnSunday` (sic) — transcribe verbatim.
+
+---
+
+## Schedules
 
 ```bash
 # List
-absuite hrms list shifts --TenantId $TENANT_ID
-
-# Count
-absuite hrms count shifts --TenantId $TENANT_ID
-
-# Get by ID
-absuite hrms get shift-by-id --TenantId $TENANT_ID --ShiftId <shift-guid>
-
-# Create
-absuite hrms create shift --TenantId $TENANT_ID --ShiftCreateDto '{
-  "Name": "Morning Shift",
-  "StartTime": "08:00",
-  "EndTime": "16:00"
-}'
-
-# Update
-absuite hrms update shift --TenantId $TENANT_ID --ShiftId <shift-guid> --ShiftUpdateDto '{...}'
-
-# Delete
-absuite hrms delete shift --TenantId $TENANT_ID --ShiftId <shift-guid>
-```
-
-**REST API equivalent:**
-```bash
-# List
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/Shifts" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/Schedules?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Count
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/Shifts/Count" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/Schedules/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Get by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/Shifts/<shift-guid>" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/Schedules/<schedule-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/Shifts" \
+# Create  (name REQUIRED)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/Schedules?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "Name": "Morning Shift",
-    "StartTime": "08:00",
-    "EndTime": "16:00"
+    "name": "Standard Week",
+    "description": "Mon-Fri 9 to 5",
+    "monday": true, "tuesday": true, "wednesday": true, "thursday": true, "friday": true,
+    "saturday": false, "sunday": false,
+    "start": "09:00",
+    "end": "17:00",
+    "timezoneId": "<timezone-id>"
   }'
 
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/HrmsService/Shifts/<shift-guid>" \
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/HrmsService/Schedules/<schedule-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{...}'
+  -d '{ "name": "Standard Week", "saturday": true }'
+
+# Patch
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/HrmsService/Schedules/<schedule-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[ { "op": "replace", "path": "/disabled", "value": true } ]'
 
 # Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/Shifts/<shift-guid>" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/Schedules/<schedule-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Schedules
+**Body (`ScheduleCreateDto` / `ScheduleUpdateDto`)**: `name` **(REQ on create)**, `description`, `disabled`, `sunday`, `monday`, `tuesday`, `wednesday`, `thursday`, `friday`, `saturday`, `uniqueInterval`, `is24x7Interval`, `start`, `end`, `timezoneId`, `fiscalYearId`, `holidayScheduleId`.
 
-```bash
-# List
-absuite hrms list schedules --TenantId $TENANT_ID
-
-# Count
-absuite hrms count schedules --TenantId $TENANT_ID
-
-# Get by ID
-absuite hrms get schedule-by-id --TenantId $TENANT_ID --ScheduleId <schedule-guid>
-
-# Create
-absuite hrms create schedule --TenantId $TENANT_ID --ScheduleCreateDto '{
-  "EmployeeId": "<employee-guid>",
-  "ShiftId": "<shift-guid>",
-  "Date": "2025-02-01"
-}'
-
-# Update
-absuite hrms update schedule --TenantId $TENANT_ID --ScheduleId <schedule-guid> --ScheduleUpdateDto '{...}'
-
-# Delete
-absuite hrms delete schedule --TenantId $TENANT_ID --ScheduleId <schedule-guid>
-```
-
-**REST API equivalent:**
-```bash
-# List
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/Schedules" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/Schedules/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/Schedules/<schedule-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/Schedules" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "EmployeeId": "<employee-guid>",
-    "ShiftId": "<shift-guid>",
-    "Date": "2025-02-01"
-  }'
-
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/HrmsService/Schedules/<schedule-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{...}'
-
-# Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/Schedules/<schedule-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-## Leave Management
-
-### Leave Types
-
-```bash
-# List
-absuite hrms list leave-types --TenantId $TENANT_ID
-
-# Count
-absuite hrms count leave-types --TenantId $TENANT_ID
-
-# Get by ID
-absuite hrms get leave-type-by-id --TenantId $TENANT_ID --LeaveTypeId <type-guid>
-
-# Create
-absuite hrms create leave-type --TenantId $TENANT_ID --LeaveTypeCreateDto '{
-  "Name": "Annual Leave",
-  "Description": "Paid annual vacation days"
-}'
-
-# Update
-absuite hrms update leave-type --TenantId $TENANT_ID --LeaveTypeId <type-guid> --LeaveTypeUpdateDto '{...}'
-
-# Delete
-absuite hrms delete leave-type --TenantId $TENANT_ID --LeaveTypeId <type-guid>
-```
-
-**REST API equivalent:**
-```bash
-# List
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/LeaveTypes" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/LeaveTypes/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/LeaveTypes/<type-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/LeaveTypes" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "Name": "Annual Leave",
-    "Description": "Paid annual vacation days"
-  }'
-
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/HrmsService/LeaveTypes/<type-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{...}'
-
-# Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/LeaveTypes/<type-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Leave Applications
-
-```bash
-# List
-absuite hrms list leave-applications --TenantId $TENANT_ID
-
-# Count
-absuite hrms count leave-applications --TenantId $TENANT_ID
-
-# Get by ID
-absuite hrms get leave-application-by-id --TenantId $TENANT_ID --LeaveApplicationId <application-guid>
-
-# Create
-absuite hrms create leave-application --TenantId $TENANT_ID --LeaveApplicationCreateDto '{
-  "EmployeeId": "<employee-guid>",
-  "LeaveTypeId": "<type-guid>",
-  "StartDate": "2025-03-01",
-  "EndDate": "2025-03-05"
-}'
-
-# Update
-absuite hrms update leave-application --TenantId $TENANT_ID --LeaveApplicationId <application-guid> --LeaveApplicationUpdateDto '{...}'
-
-# Delete
-absuite hrms delete leave-application --TenantId $TENANT_ID --LeaveApplicationId <application-guid>
-```
-
-**REST API equivalent:**
-```bash
-# List
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/LeaveApplications" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/LeaveApplications/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/LeaveApplications/<application-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/LeaveApplications" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "EmployeeId": "<employee-guid>",
-    "LeaveTypeId": "<type-guid>",
-    "StartDate": "2025-03-01",
-    "EndDate": "2025-03-05"
-  }'
-
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/HrmsService/LeaveApplications/<application-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{...}'
-
-# Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/LeaveApplications/<application-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
+---
 
 ## Time Intervals
 
 ```bash
 # List
-absuite hrms list time-intervals --TenantId $TENANT_ID
-
-# Count
-absuite hrms count time-intervals --TenantId $TENANT_ID
-
-# Get by ID
-absuite hrms get time-interval-by-id --TenantId $TENANT_ID --TimeIntervalId <interval-guid>
-
-# Create
-absuite hrms create time-interval --TenantId $TENANT_ID --TimeIntervalCreateDto '{
-  "EmployeeId": "<employee-guid>",
-  "StartTime": "2025-02-01T09:00:00Z",
-  "EndTime": "2025-02-01T17:00:00Z"
-}'
-
-# Update
-absuite hrms update time-interval --TenantId $TENANT_ID --TimeIntervalId <interval-guid> --TimeIntervalUpdateDto '{...}'
-
-# Delete
-absuite hrms delete time-interval --TenantId $TENANT_ID --TimeIntervalId <interval-guid>
-```
-
-**REST API equivalent:**
-```bash
-# List
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/TimeIntervals" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/TimeIntervals?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Count
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/TimeIntervals/Count" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/TimeIntervals/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Get by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/TimeIntervals/<interval-guid>" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/TimeIntervals/<interval-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/TimeIntervals" \
+# Create  (title, scheduleId REQUIRED)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/TimeIntervals?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "EmployeeId": "<employee-guid>",
-    "StartTime": "2025-02-01T09:00:00Z",
-    "EndTime": "2025-02-01T17:00:00Z"
+    "title": "Lunch Break",
+    "description": "Midday break",
+    "isBreak": true,
+    "start": "12:00",
+    "end": "13:00",
+    "repeatEvery": 1,
+    "scheduleId": "<schedule-guid>"
   }'
 
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/HrmsService/TimeIntervals/<interval-guid>" \
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/HrmsService/TimeIntervals/<interval-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{...}'
+  -d '{ "title": "Lunch Break", "start": "12:30", "end": "13:30" }'
+
+# Patch
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/HrmsService/TimeIntervals/<interval-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[ { "op": "replace", "path": "/isBreak", "value": true } ]'
 
 # Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/TimeIntervals/<interval-guid>" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/TimeIntervals/<interval-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
+
+**Body (`TimeIntervalCreateDto`)**: `title` **(REQ)**, `description`, `isBreak`, `occustOnMonday`…`occustOnSunday`, `start`, `end`, `repeatEvery`, `scheduleId` **(REQ)**, `parentTimeIntervalId`. `TimeIntervalUpdateDto`: same fields **without** `scheduleId` (update body has no `scheduleId`).
+
+---
+
+## Leave Types
+
+```bash
+# List
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/LeaveTypes?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/LeaveTypes/Count?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get by ID
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/LeaveTypes/<type-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create  (title REQUIRED)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/LeaveTypes?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "title": "Annual Leave", "description": "Paid annual vacation days" }'
+
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/HrmsService/LeaveTypes/<type-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "title": "Annual Leave", "description": "Updated" }'
+
+# Delete
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/LeaveTypes/<type-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+> Leave Types support GET / POST / PUT / DELETE / Count only — **no PATCH endpoint** in the spec.
+
+**Body (`LeaveTypeCreateDto`)**: `title` **(REQ)**, `description`. `LeaveTypeUpdateDto`: `title`, `description`.
+
+---
+
+## Leave Applications
+
+```bash
+# List
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/LeaveApplications?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/LeaveApplications/Count?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get by ID
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/LeaveApplications/<application-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create  (leaveTypeId, employeeProfileId REQUIRED)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/LeaveApplications?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "justification": "Family vacation",
+    "approved": false,
+    "onReview": true,
+    "leaveTypeId": "<type-guid>",
+    "employeeProfileId": "<employee-guid>"
+  }'
+
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/HrmsService/LeaveApplications/<application-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "justification": "Family vacation", "approved": true, "onReview": false }'
+
+# Patch  (approve in place)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/HrmsService/LeaveApplications/<application-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[
+    { "op": "replace", "path": "/approved", "value": true },
+    { "op": "replace", "path": "/onReview", "value": false }
+  ]'
+
+# Delete
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/LeaveApplications/<application-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+**Body (`LeaveApplicationCreateDto`)**: `justification`, `approved`, `onReview`, `leaveTypeId` **(REQ)**, `employeeProfileId` **(REQ)**. `LeaveApplicationUpdateDto`: `justification`, `approved`, `onReview`, `leaveTypeId`, `employeeProfileId`.
+
+---
 
 ## Training Programs
 
-### Training Programs
+> Training Programs support GET / POST / PUT / DELETE / Count only — **no PATCH endpoint** in the spec.
 
 ```bash
 # List
-absuite hrms list training-programs --TenantId $TENANT_ID
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/TrainingPrograms?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Count
-absuite hrms count training-programs --TenantId $TENANT_ID
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/TrainingPrograms/Count?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Get by ID
-absuite hrms get training-program-by-id --TenantId $TENANT_ID --TrainingProgramId <program-guid>
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/TrainingPrograms/<program-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Create
-absuite hrms create training-program --TenantId $TENANT_ID --TrainingProgramCreateDto '{
-  "Name": "Onboarding Program",
-  "Description": "New employee onboarding and orientation"
-}'
+# Create  (title REQUIRED)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/TrainingPrograms?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "title": "Onboarding Program", "description": "New employee onboarding and orientation" }'
 
-# Update
-absuite hrms update training-program --TenantId $TENANT_ID --TrainingProgramId <program-guid> --TrainingProgramUpdateDto '{...}'
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/HrmsService/TrainingPrograms/<program-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "title": "Onboarding Program", "description": "Updated" }'
 
 # Delete
-absuite hrms delete training-program --TenantId $TENANT_ID --TrainingProgramId <program-guid>
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/TrainingPrograms/<program-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-**REST API equivalent:**
+**Body (`TrainingProgramCreateDto`)**: `title` **(REQ)**, `description`. `TrainingProgramUpdateDto`: `title`, `description`.
+
+---
+
+## Training Program Courses
+
+Links a course to a training program.
+
 ```bash
 # List
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/TrainingPrograms" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/TrainingProgramCourses?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Count
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/TrainingPrograms/Count" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/TrainingProgramCourses/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Get by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/TrainingPrograms/<program-guid>" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/TrainingProgramCourses/<course-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/TrainingPrograms" \
+# Create  (trainingProgramId, courseId REQUIRED)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/TrainingProgramCourses?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "trainingProgramId": "<program-guid>", "courseId": "<course-guid>" }'
+
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/HrmsService/TrainingProgramCourses/<course-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "trainingProgramId": "<program-guid>", "courseId": "<course-guid>" }'
+
+# Patch
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/HrmsService/TrainingProgramCourses/<course-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[ { "op": "replace", "path": "/courseId", "value": "<course-guid>" } ]'
+
+# Delete
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/TrainingProgramCourses/<course-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+> The path parameter for get/update/patch/delete is `{courseId}` (the join-record id).
+
+**Body (`TrainingProgramCourseCreateDto`)**: `trainingProgramId` **(REQ)**, `courseId` **(REQ)**. `TrainingProgramCourseUpdateDto`: `trainingProgramId`, `courseId`.
+
+---
+
+## Training Program Events
+
+Scheduled sessions within a training program.
+
+```bash
+# List
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/TrainingProgramEvents?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/TrainingProgramEvents/Count?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get by ID
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/TrainingProgramEvents/<event-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create  (title, start, end, trainingProgramId REQUIRED)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/TrainingProgramEvents?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "Name": "Onboarding Program",
-    "Description": "New employee onboarding and orientation"
+    "title": "Q1 Training Session",
+    "description": "Quarterly skills workshop",
+    "start": "2025-03-15T09:00:00Z",
+    "end": "2025-03-15T12:00:00Z",
+    "repetitionCriteria": "Month",
+    "dayOfTheWeek": "Saturday",
+    "trainingProgramId": "<program-guid>"
   }'
 
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/HrmsService/TrainingPrograms/<program-guid>" \
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/HrmsService/TrainingProgramEvents/<event-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{...}'
+  -d '{ "title": "Q1 Training Session", "start": "2025-03-15T10:00:00Z", "end": "2025-03-15T13:00:00Z" }'
+
+# Patch
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/HrmsService/TrainingProgramEvents/<event-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[ { "op": "replace", "path": "/dayOfTheWeek", "value": "Friday" } ]'
 
 # Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/TrainingPrograms/<program-guid>" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/TrainingProgramEvents/<event-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Training Program Courses
+**Body (`TrainingProgramEventCreateDto`)**: `title` **(REQ)**, `description`, `start` **(REQ)**, `end` **(REQ)**, `isBreak`, `occustOnMonday`…`occustOnSunday`, `repeatEvery`, `repetitionCriteria` (enum), `recurrenceStart`, `recurrenceEnd`, `dayOfTheWeek` (enum), `scheduleId`, `parentTimeIntervalId`, `trainingProgramId` **(REQ)**. `TrainingProgramEventUpdateDto` mirrors these (none flagged required).
+
+---
+
+## Appraisal Workflows
+
+> Appraisal Workflows support GET / POST / PUT / DELETE / Count only — **no PATCH endpoint** in the spec.
 
 ```bash
 # List
-absuite hrms list training-program-courses --TenantId $TENANT_ID
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/AppraisalWorkflows?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Count
-absuite hrms count training-program-courses --TenantId $TENANT_ID
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/AppraisalWorkflows/Count?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Get by ID
-absuite hrms get training-program-course-by-id --TenantId $TENANT_ID --TrainingProgramCourseId <course-guid>
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/AppraisalWorkflows/<workflow-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Create
-absuite hrms create training-program-course --TenantId $TENANT_ID --TrainingProgramCourseCreateDto '{
-  "TrainingProgramId": "<program-guid>",
-  "Name": "Company Policies",
-  "Description": "Overview of company policies and procedures"
-}'
+# Create  (name REQUIRED)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/AppraisalWorkflows?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "name": "Annual Performance Review", "description": "Standard annual review process" }'
 
-# Update
-absuite hrms update training-program-course --TenantId $TENANT_ID --TrainingProgramCourseId <course-guid> --TrainingProgramCourseUpdateDto '{...}'
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/HrmsService/AppraisalWorkflows/<workflow-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "name": "Annual Performance Review", "description": "Updated" }'
 
 # Delete
-absuite hrms delete training-program-course --TenantId $TENANT_ID --TrainingProgramCourseId <course-guid>
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/AppraisalWorkflows/<workflow-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-**REST API equivalent:**
+**Body (`AppraisalWorkflowCreateDto`)**: `name` **(REQ)**, `description`. `AppraisalWorkflowUpdateDto`: `name`, `description`.
+
+---
+
+## Appraisal Stages
+
+> Appraisal Stages support GET / POST / PUT / DELETE / Count only — **no PATCH endpoint** in the spec.
+
 ```bash
 # List
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/TrainingProgramCourses" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/AppraisalStages?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Count
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/TrainingProgramCourses/Count" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/AppraisalStages/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Get by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/TrainingProgramCourses/<course-guid>" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/AppraisalStages/<stage-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/TrainingProgramCourses" \
+# Create  (name, appraisalWorkflowId, stageOrder REQUIRED)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/AppraisalStages?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "TrainingProgramId": "<program-guid>",
-    "Name": "Company Policies",
-    "Description": "Overview of company policies and procedures"
+    "name": "Self Assessment",
+    "description": "Employee completes self-review",
+    "appraisalWorkflowId": "<workflow-guid>",
+    "stageOrder": 1
   }'
 
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/HrmsService/TrainingProgramCourses/<course-guid>" \
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/HrmsService/AppraisalStages/<stage-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{...}'
+  -d '{ "name": "Self Assessment", "appraisalWorkflowId": "<workflow-guid>", "stageOrder": 2 }'
 
 # Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/TrainingProgramCourses/<course-guid>" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/AppraisalStages/<stage-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Training Program Events
+**Body (`AppraisalStageCreateDto`)**: `name` **(REQ)**, `description`, `appraisalWorkflowId` **(REQ)**, `stageOrder` **(REQ, integer)**. `AppraisalStageUpdateDto`: `name`, `description`, `appraisalWorkflowId`, `stageOrder`.
+
+---
+
+## Employee Appraisal Sessions
+
+Runs an employee through an appraisal workflow.
 
 ```bash
 # List
-absuite hrms list training-program-events --TenantId $TENANT_ID
-
-# Count
-absuite hrms count training-program-events --TenantId $TENANT_ID
-
-# Get by ID
-absuite hrms get training-program-event-by-id --TenantId $TENANT_ID --TrainingProgramEventId <event-guid>
-
-# Create
-absuite hrms create training-program-event --TenantId $TENANT_ID --TrainingProgramEventCreateDto '{
-  "TrainingProgramId": "<program-guid>",
-  "Name": "Q1 Training Session",
-  "Date": "2025-03-15"
-}'
-
-# Update
-absuite hrms update training-program-event --TenantId $TENANT_ID --TrainingProgramEventId <event-guid> --TrainingProgramEventUpdateDto '{...}'
-
-# Delete
-absuite hrms delete training-program-event --TenantId $TENANT_ID --TrainingProgramEventId <event-guid>
-```
-
-**REST API equivalent:**
-```bash
-# List
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/TrainingProgramEvents" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/EmployeeAppraisalSessions?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Count
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/TrainingProgramEvents/Count" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/EmployeeAppraisalSessions/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Get by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/TrainingProgramEvents/<event-guid>" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/EmployeeAppraisalSessions/<session-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/TrainingProgramEvents" \
+# Create  (employeeProfileId, appraisalWorkflowId REQUIRED)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/EmployeeAppraisalSessions?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "TrainingProgramId": "<program-guid>",
-    "Name": "Q1 Training Session",
-    "Date": "2025-03-15"
+    "employeeProfileId": "<employee-guid>",
+    "appraisalWorkflowId": "<workflow-guid>",
+    "appraisalStageId": "<stage-guid>"
   }'
 
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/HrmsService/TrainingProgramEvents/<event-guid>" \
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/HrmsService/EmployeeAppraisalSessions/<session-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{...}'
+  -d '{ "employeeProfileId": "<employee-guid>", "appraisalWorkflowId": "<workflow-guid>", "appraisalStageId": "<stage-guid>" }'
+
+# Patch  (advance to next stage)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/HrmsService/EmployeeAppraisalSessions/<session-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[ { "op": "replace", "path": "/appraisalStageId", "value": "<stage-guid>" } ]'
 
 # Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/TrainingProgramEvents/<event-guid>" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/EmployeeAppraisalSessions/<session-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-## Performance Appraisals
+**Body (`EmployeeAppraisalSessionCreateDto`)**: `employeeProfileId` **(REQ)**, `appraisalWorkflowId` **(REQ)**, `appraisalStageId`. `EmployeeAppraisalSessionUpdateDto`: `employeeProfileId`, `appraisalWorkflowId`, `appraisalStageId`.
 
-### Appraisal Workflows
+---
+
+## PATCH (JSON Patch RFC 6902)
+
+PATCH bodies are a **JSON array** of operations, `Content-Type: application/json`. Each operation has `op` ∈ `add | remove | replace | move | copy | test`; `path` (and `from` for `move`/`copy`) are JSON-Pointers using a leading `/` and the camelCase field name. Use PATCH for atomic partial updates (change a couple of fields without resending the whole object — safer than PUT for concurrent edits). Remember `?tenantId=<tenant-guid>` is still required on the PATCH request.
 
 ```bash
-# List
-absuite hrms list appraisal-workflows --TenantId $TENANT_ID
-
-# Count
-absuite hrms count appraisal-workflows --TenantId $TENANT_ID
-
-# Get by ID
-absuite hrms get appraisal-workflow-by-id --TenantId $TENANT_ID --AppraisalWorkflowId <workflow-guid>
-
-# Create
-absuite hrms create appraisal-workflow --TenantId $TENANT_ID --AppraisalWorkflowCreateDto '{
-  "Name": "Annual Performance Review",
-  "Description": "Standard annual review process"
-}'
-
-# Update
-absuite hrms update appraisal-workflow --TenantId $TENANT_ID --AppraisalWorkflowId <workflow-guid> --AppraisalWorkflowUpdateDto '{...}'
-
-# Delete
-absuite hrms delete appraisal-workflow --TenantId $TENANT_ID --AppraisalWorkflowId <workflow-guid>
-```
-
-**REST API equivalent:**
-```bash
-# List
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/AppraisalWorkflows" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/AppraisalWorkflows/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/AppraisalWorkflows/<workflow-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/AppraisalWorkflows" \
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/HrmsService/Employees/<employee-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{
-    "Name": "Annual Performance Review",
-    "Description": "Standard annual review process"
-  }'
-
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/HrmsService/AppraisalWorkflows/<workflow-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{...}'
-
-# Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/AppraisalWorkflows/<workflow-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+  -d '[
+    { "op": "replace", "path": "/grossPay", "value": 110000.00 },
+    { "op": "replace", "path": "/jobTitleId", "value": "<job-title-guid>" },
+    { "op": "remove",  "path": "/avatarUrl" }
+  ]'
 ```
 
-### Appraisal Stages
+**Resources that support PATCH:** Employees, EmployeeTypes, Employers, Gigs, JobOffers, JobTitles, Salaries, Payrolls, Shifts, Schedules, TimeIntervals, LeaveApplications, TrainingProgramCourses, TrainingProgramEvents, EmployeeAppraisalSessions.
+
+**Resources WITHOUT a PATCH endpoint (use PUT instead):** PayrollPeriods, LeaveTypes, TrainingPrograms, AppraisalWorkflows, AppraisalStages.
+
+---
+
+## End-to-end workflow: onboard an employee and run an appraisal
 
 ```bash
-# List
-absuite hrms list appraisal-stages --TenantId $TENANT_ID
+TENANT="<tenant-guid>"
+AUTH=(-H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN")
+JSON=(-H "Content-Type: application/json")
 
-# Count
-absuite hrms count appraisal-stages --TenantId $TENANT_ID
+# 1. Create an employee type
+curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/EmployeeTypes?tenantId=$TENANT" "${AUTH[@]}" "${JSON[@]}" \
+  -d '{ "name": "Full-Time", "description": "Standard full-time" }'
 
-# Get by ID
-absuite hrms get appraisal-stage-by-id --TenantId $TENANT_ID --AppraisalStageId <stage-guid>
+# 2. Create a job title with standard comp
+curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/JobTitles?tenantId=$TENANT" "${AUTH[@]}" "${JSON[@]}" \
+  -d '{ "title": "Software Engineer", "grossPay": 95000.00, "netSalary": 72000.00, "currencyId": "USD" }'
 
-# Create
-absuite hrms create appraisal-stage --TenantId $TENANT_ID --AppraisalStageCreateDto '{
-  "AppraisalWorkflowId": "<workflow-guid>",
-  "Name": "Self Assessment",
-  "Order": 1
-}'
+# 3. Create the employee profile (use the type and title ids from steps 1-2)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/Employees?tenantId=$TENANT" "${AUTH[@]}" "${JSON[@]}" \
+  -d '{ "contactId": "<contact-guid>", "employeeTypeId": "<type-guid>", "jobTitleId": "<title-guid>", "grossPay": 95000.00, "payrollCurrency": "USD" }'
 
-# Update
-absuite hrms update appraisal-stage --TenantId $TENANT_ID --AppraisalStageId <stage-guid> --AppraisalStageUpdateDto '{...}'
+# 4. Record the salary (amount, currencyId, employeeProfileId all required)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/Salaries?tenantId=$TENANT" "${AUTH[@]}" "${JSON[@]}" \
+  -d '{ "amount": 95000.00, "currencyId": "USD", "employeeProfileId": "<employee-guid>" }'
 
-# Delete
-absuite hrms delete appraisal-stage --TenantId $TENANT_ID --AppraisalStageId <stage-guid>
+# 5. Create an appraisal workflow, then its first stage
+curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/AppraisalWorkflows?tenantId=$TENANT" "${AUTH[@]}" "${JSON[@]}" \
+  -d '{ "name": "Annual Review" }'
+curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/AppraisalStages?tenantId=$TENANT" "${AUTH[@]}" "${JSON[@]}" \
+  -d '{ "name": "Self Assessment", "appraisalWorkflowId": "<workflow-guid>", "stageOrder": 1 }'
+
+# 6. Open a session for the employee on that workflow
+curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/EmployeeAppraisalSessions?tenantId=$TENANT" "${AUTH[@]}" "${JSON[@]}" \
+  -d '{ "employeeProfileId": "<employee-guid>", "appraisalWorkflowId": "<workflow-guid>", "appraisalStageId": "<stage-guid>" }'
+
+# 7. Advance the session to the next stage with a PATCH
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/HrmsService/EmployeeAppraisalSessions/<session-guid>?tenantId=$TENANT" "${AUTH[@]}" "${JSON[@]}" \
+  -d '[ { "op": "replace", "path": "/appraisalStageId", "value": "<next-stage-guid>" } ]'
 ```
 
-**REST API equivalent:**
-```bash
-# List
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/AppraisalStages" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/AppraisalStages/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/AppraisalStages/<stage-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/AppraisalStages" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "AppraisalWorkflowId": "<workflow-guid>",
-    "Name": "Self Assessment",
-    "Order": 1
-  }'
-
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/HrmsService/AppraisalStages/<stage-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{...}'
-
-# Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/AppraisalStages/<stage-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Employee Appraisal Sessions
-
-```bash
-# List
-absuite hrms list employee-appraisal-sessions --TenantId $TENANT_ID
-
-# Count
-absuite hrms count employee-appraisal-sessions --TenantId $TENANT_ID
-
-# Get by ID
-absuite hrms get employee-appraisal-session-by-id --TenantId $TENANT_ID --EmployeeAppraisalSessionId <session-guid>
-
-# Create
-absuite hrms create employee-appraisal-session --TenantId $TENANT_ID --EmployeeAppraisalSessionCreateDto '{
-  "EmployeeId": "<employee-guid>",
-  "AppraisalWorkflowId": "<workflow-guid>",
-  "StartDate": "2025-01-15"
-}'
-
-# Update
-absuite hrms update employee-appraisal-session --TenantId $TENANT_ID --EmployeeAppraisalSessionId <session-guid> --EmployeeAppraisalSessionUpdateDto '{...}'
-
-# Delete
-absuite hrms delete employee-appraisal-session --TenantId $TENANT_ID --EmployeeAppraisalSessionId <session-guid>
-```
-
-**REST API equivalent:**
-```bash
-# List
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/EmployeeAppraisalSessions" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/EmployeeAppraisalSessions/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/EmployeeAppraisalSessions/<session-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/HrmsService/EmployeeAppraisalSessions" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "EmployeeId": "<employee-guid>",
-    "AppraisalWorkflowId": "<workflow-guid>",
-    "StartDate": "2025-01-15"
-  }'
-
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/HrmsService/EmployeeAppraisalSessions/<session-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{...}'
-
-# Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/EmployeeAppraisalSessions/<session-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-## Command Quick Reference
-
-| Action | CLI Command |
-|---|---|
-| List employees | `absuite hrms list employees --TenantId <guid>` |
-| Create employee | `absuite hrms create employee --TenantId <guid> --EmployeeCreateDto '{...}'` |
-| List employee types | `absuite hrms list employee-types --TenantId <guid>` |
-| Create employee type | `absuite hrms create employee-type --TenantId <guid> --EmployeeTypeCreateDto '{...}'` |
-| List employers | `absuite hrms list employers --TenantId <guid>` |
-| Create employer | `absuite hrms create employer --TenantId <guid> --EmployerCreateDto '{...}'` |
-| List gigs | `absuite hrms list gigs --TenantId <guid>` |
-| Create gig | `absuite hrms create gig --TenantId <guid> --GigCreateDto '{...}'` |
-| List job offers | `absuite hrms list job-offers --TenantId <guid>` |
-| Create job offer | `absuite hrms create job-offer --TenantId <guid> --JobOfferCreateDto '{...}'` |
-| List job titles | `absuite hrms list job-titles --TenantId <guid>` |
-| Create job title | `absuite hrms create job-title --TenantId <guid> --JobTitleCreateDto '{...}'` |
-| List salaries | `absuite hrms list salaries --TenantId <guid>` |
-| Create salary | `absuite hrms create salary --TenantId <guid> --SalaryCreateDto '{...}'` |
-| List payrolls | `absuite hrms list payrolls --TenantId <guid>` |
-| Create payroll | `absuite hrms create payroll --TenantId <guid> --PayrollCreateDto '{...}'` |
-| List payroll periods | `absuite hrms list payroll-periods --TenantId <guid>` |
-| Create payroll period | `absuite hrms create payroll-period --TenantId <guid> --PayrollPeriodCreateDto '{...}'` |
-| List shifts | `absuite hrms list shifts --TenantId <guid>` |
-| Create shift | `absuite hrms create shift --TenantId <guid> --ShiftCreateDto '{...}'` |
-| List schedules | `absuite hrms list schedules --TenantId <guid>` |
-| Create schedule | `absuite hrms create schedule --TenantId <guid> --ScheduleCreateDto '{...}'` |
-| List leave types | `absuite hrms list leave-types --TenantId <guid>` |
-| Create leave type | `absuite hrms create leave-type --TenantId <guid> --LeaveTypeCreateDto '{...}'` |
-| List leave applications | `absuite hrms list leave-applications --TenantId <guid>` |
-| Create leave application | `absuite hrms create leave-application --TenantId <guid> --LeaveApplicationCreateDto '{...}'` |
-| List time intervals | `absuite hrms list time-intervals --TenantId <guid>` |
-| Create time interval | `absuite hrms create time-interval --TenantId <guid> --TimeIntervalCreateDto '{...}'` |
-| List training programs | `absuite hrms list training-programs --TenantId <guid>` |
-| Create training program | `absuite hrms create training-program --TenantId <guid> --TrainingProgramCreateDto '{...}'` |
-| List training courses | `absuite hrms list training-program-courses --TenantId <guid>` |
-| Create training course | `absuite hrms create training-program-course --TenantId <guid> --TrainingProgramCourseCreateDto '{...}'` |
-| List training events | `absuite hrms list training-program-events --TenantId <guid>` |
-| Create training event | `absuite hrms create training-program-event --TenantId <guid> --TrainingProgramEventCreateDto '{...}'` |
-| List appraisal workflows | `absuite hrms list appraisal-workflows --TenantId <guid>` |
-| Create appraisal workflow | `absuite hrms create appraisal-workflow --TenantId <guid> --AppraisalWorkflowCreateDto '{...}'` |
-| List appraisal stages | `absuite hrms list appraisal-stages --TenantId <guid>` |
-| Create appraisal stage | `absuite hrms create appraisal-stage --TenantId <guid> --AppraisalStageCreateDto '{...}'` |
-| List appraisal sessions | `absuite hrms list employee-appraisal-sessions --TenantId <guid>` |
-| Create appraisal session | `absuite hrms create employee-appraisal-session --TenantId <guid> --EmployeeAppraisalSessionCreateDto '{...}'` |
+---
 
 ## API Endpoints Quick Reference
 
-All paths are relative to `/api/v2/HrmsService/`.
+All paths are relative to `$ABSUITE_HOST_URL/api/v2/HrmsService/` and require `?tenantId=<tenant-guid>` on every verb.
 
-| Resource | List | Get by ID | Create | Update | Delete | Count |
-|---|---|---|---|---|---|---|
-| Employees | `GET /Employees` | `GET /Employees/:id` | `POST /Employees` | `PUT /Employees/:id` | `DELETE /Employees/:id` | `GET /Employees/Count` |
-| EmployeeTypes | `GET /EmployeeTypes` | `GET /EmployeeTypes/:id` | `POST /EmployeeTypes` | `PUT /EmployeeTypes/:id` | `DELETE /EmployeeTypes/:id` | `GET /EmployeeTypes/Count` |
-| Employers | `GET /Employers` | `GET /Employers/:id` | `POST /Employers` | `PUT /Employers/:id` | `DELETE /Employers/:id` | `GET /Employers/Count` |
-| Gigs | `GET /Gigs` | `GET /Gigs/:id` | `POST /Gigs` | `PUT /Gigs/:id` | `DELETE /Gigs/:id` | `GET /Gigs/Count` |
-| JobOffers | `GET /JobOffers` | `GET /JobOffers/:id` | `POST /JobOffers` | `PUT /JobOffers/:id` | `DELETE /JobOffers/:id` | `GET /JobOffers/Count` |
-| JobTitles | `GET /JobTitles` | `GET /JobTitles/:id` | `POST /JobTitles` | `PUT /JobTitles/:id` | `DELETE /JobTitles/:id` | `GET /JobTitles/Count` |
-| Salaries | `GET /Salaries` | `GET /Salaries/:id` | `POST /Salaries` | `PUT /Salaries/:id` | `DELETE /Salaries/:id` | `GET /Salaries/Count` |
-| Payrolls | `GET /Payrolls` | `GET /Payrolls/:id` | `POST /Payrolls` | `PUT /Payrolls/:id` | `DELETE /Payrolls/:id` | `GET /Payrolls/Count` |
-| PayrollPeriods | `GET /PayrollPeriods` | `GET /PayrollPeriods/:id` | `POST /PayrollPeriods` | `PUT /PayrollPeriods/:id` | `DELETE /PayrollPeriods/:id` | `GET /PayrollPeriods/Count` |
-| Shifts | `GET /Shifts` | `GET /Shifts/:id` | `POST /Shifts` | `PUT /Shifts/:id` | `DELETE /Shifts/:id` | `GET /Shifts/Count` |
-| Schedules | `GET /Schedules` | `GET /Schedules/:id` | `POST /Schedules` | `PUT /Schedules/:id` | `DELETE /Schedules/:id` | `GET /Schedules/Count` |
-| LeaveTypes | `GET /LeaveTypes` | `GET /LeaveTypes/:id` | `POST /LeaveTypes` | `PUT /LeaveTypes/:id` | `DELETE /LeaveTypes/:id` | `GET /LeaveTypes/Count` |
-| LeaveApplications | `GET /LeaveApplications` | `GET /LeaveApplications/:id` | `POST /LeaveApplications` | `PUT /LeaveApplications/:id` | `DELETE /LeaveApplications/:id` | `GET /LeaveApplications/Count` |
-| TimeIntervals | `GET /TimeIntervals` | `GET /TimeIntervals/:id` | `POST /TimeIntervals` | `PUT /TimeIntervals/:id` | `DELETE /TimeIntervals/:id` | `GET /TimeIntervals/Count` |
-| TrainingPrograms | `GET /TrainingPrograms` | `GET /TrainingPrograms/:id` | `POST /TrainingPrograms` | `PUT /TrainingPrograms/:id` | `DELETE /TrainingPrograms/:id` | `GET /TrainingPrograms/Count` |
-| TrainingProgramCourses | `GET /TrainingProgramCourses` | `GET /TrainingProgramCourses/:id` | `POST /TrainingProgramCourses` | `PUT /TrainingProgramCourses/:id` | `DELETE /TrainingProgramCourses/:id` | `GET /TrainingProgramCourses/Count` |
-| TrainingProgramEvents | `GET /TrainingProgramEvents` | `GET /TrainingProgramEvents/:id` | `POST /TrainingProgramEvents` | `PUT /TrainingProgramEvents/:id` | `DELETE /TrainingProgramEvents/:id` | `GET /TrainingProgramEvents/Count` |
-| AppraisalWorkflows | `GET /AppraisalWorkflows` | `GET /AppraisalWorkflows/:id` | `POST /AppraisalWorkflows` | `PUT /AppraisalWorkflows/:id` | `DELETE /AppraisalWorkflows/:id` | `GET /AppraisalWorkflows/Count` |
-| AppraisalStages | `GET /AppraisalStages` | `GET /AppraisalStages/:id` | `POST /AppraisalStages` | `PUT /AppraisalStages/:id` | `DELETE /AppraisalStages/:id` | `GET /AppraisalStages/Count` |
-| EmployeeAppraisalSessions | `GET /EmployeeAppraisalSessions` | `GET /EmployeeAppraisalSessions/:id` | `POST /EmployeeAppraisalSessions` | `PUT /EmployeeAppraisalSessions/:id` | `DELETE /EmployeeAppraisalSessions/:id` | `GET /EmployeeAppraisalSessions/Count` |
+| Resource | List | Count | Get by ID | Create | Update (PUT) | Patch (PATCH) | Delete |
+|---|---|---|---|---|---|---|---|
+| Employees | `GET /Employees` | `GET /Employees/Count` | `GET /Employees/{employeeId}` | `POST /Employees` | `PUT /Employees/{employeeId}` | `PATCH /Employees/{employeeId}` | `DELETE /Employees/{employeeId}` |
+| EmployeeTypes | `GET /EmployeeTypes` | `GET /EmployeeTypes/Count` | `GET /EmployeeTypes/{employeeTypeId}` | `POST /EmployeeTypes` | `PUT /EmployeeTypes/{employeeTypeId}` | `PATCH /EmployeeTypes/{employeeTypeId}` | `DELETE /EmployeeTypes/{employeeTypeId}` |
+| Employers | `GET /Employers` | `GET /Employers/Count` | `GET /Employers/{employerId}` | `POST /Employers` | `PUT /Employers/{employerId}` | `PATCH /Employers/{employerId}` | `DELETE /Employers/{employerId}` |
+| Gigs | `GET /Gigs` | `GET /Gigs/Count` | `GET /Gigs/{gigId}` | `POST /Gigs` | `PUT /Gigs/{gigId}` | `PATCH /Gigs/{gigId}` | `DELETE /Gigs/{gigId}` |
+| JobOffers | `GET /JobOffers` | `GET /JobOffers/Count` | `GET /JobOffers/{jobOfferId}` | `POST /JobOffers` | `PUT /JobOffers/{jobOfferId}` | `PATCH /JobOffers/{jobOfferId}` | `DELETE /JobOffers/{jobOfferId}` |
+| JobTitles | `GET /JobTitles` | `GET /JobTitles/Count` | `GET /JobTitles/{jobTitleId}` | `POST /JobTitles` | `PUT /JobTitles/{jobTitleId}` | `PATCH /JobTitles/{jobTitleId}` | `DELETE /JobTitles/{jobTitleId}` |
+| Salaries | `GET /Salaries` | `GET /Salaries/Count` | `GET /Salaries/{salaryId}` | `POST /Salaries` | `PUT /Salaries/{salaryId}` | `PATCH /Salaries/{salaryId}` | `DELETE /Salaries/{salaryId}` |
+| Payrolls | `GET /Payrolls` | `GET /Payrolls/Count` | `GET /Payrolls/{payrollId}` | `POST /Payrolls` | `PUT /Payrolls/{payrollId}` | `PATCH /Payrolls/{payrollId}` | `DELETE /Payrolls/{payrollId}` |
+| PayrollPeriods | `GET /PayrollPeriods` | `GET /PayrollPeriods/Count` | `GET /PayrollPeriods/{periodId}` | `POST /PayrollPeriods` | `PUT /PayrollPeriods/{periodId}` | — | `DELETE /PayrollPeriods/{periodId}` |
+| Shifts | `GET /Shifts` | `GET /Shifts/Count` | `GET /Shifts/{shiftId}` | `POST /Shifts` | `PUT /Shifts/{shiftId}` | `PATCH /Shifts/{shiftId}` | `DELETE /Shifts/{shiftId}` |
+| Schedules | `GET /Schedules` | `GET /Schedules/Count` | `GET /Schedules/{scheduleId}` | `POST /Schedules` | `PUT /Schedules/{scheduleId}` | `PATCH /Schedules/{scheduleId}` | `DELETE /Schedules/{scheduleId}` |
+| TimeIntervals | `GET /TimeIntervals` | `GET /TimeIntervals/Count` | `GET /TimeIntervals/{timeIntervalId}` | `POST /TimeIntervals` | `PUT /TimeIntervals/{timeIntervalId}` | `PATCH /TimeIntervals/{timeIntervalId}` | `DELETE /TimeIntervals/{timeIntervalId}` |
+| LeaveTypes | `GET /LeaveTypes` | `GET /LeaveTypes/Count` | `GET /LeaveTypes/{leaveTypeId}` | `POST /LeaveTypes` | `PUT /LeaveTypes/{leaveTypeId}` | — | `DELETE /LeaveTypes/{leaveTypeId}` |
+| LeaveApplications | `GET /LeaveApplications` | `GET /LeaveApplications/Count` | `GET /LeaveApplications/{leaveApplicationId}` | `POST /LeaveApplications` | `PUT /LeaveApplications/{leaveApplicationId}` | `PATCH /LeaveApplications/{leaveApplicationId}` | `DELETE /LeaveApplications/{leaveApplicationId}` |
+| TrainingPrograms | `GET /TrainingPrograms` | `GET /TrainingPrograms/Count` | `GET /TrainingPrograms/{programId}` | `POST /TrainingPrograms` | `PUT /TrainingPrograms/{programId}` | — | `DELETE /TrainingPrograms/{programId}` |
+| TrainingProgramCourses | `GET /TrainingProgramCourses` | `GET /TrainingProgramCourses/Count` | `GET /TrainingProgramCourses/{courseId}` | `POST /TrainingProgramCourses` | `PUT /TrainingProgramCourses/{courseId}` | `PATCH /TrainingProgramCourses/{courseId}` | `DELETE /TrainingProgramCourses/{courseId}` |
+| TrainingProgramEvents | `GET /TrainingProgramEvents` | `GET /TrainingProgramEvents/Count` | `GET /TrainingProgramEvents/{eventId}` | `POST /TrainingProgramEvents` | `PUT /TrainingProgramEvents/{eventId}` | `PATCH /TrainingProgramEvents/{eventId}` | `DELETE /TrainingProgramEvents/{eventId}` |
+| AppraisalWorkflows | `GET /AppraisalWorkflows` | `GET /AppraisalWorkflows/Count` | `GET /AppraisalWorkflows/{workflowId}` | `POST /AppraisalWorkflows` | `PUT /AppraisalWorkflows/{workflowId}` | — | `DELETE /AppraisalWorkflows/{workflowId}` |
+| AppraisalStages | `GET /AppraisalStages` | `GET /AppraisalStages/Count` | `GET /AppraisalStages/{stageId}` | `POST /AppraisalStages` | `PUT /AppraisalStages/{stageId}` | — | `DELETE /AppraisalStages/{stageId}` |
+| EmployeeAppraisalSessions | `GET /EmployeeAppraisalSessions` | `GET /EmployeeAppraisalSessions/Count` | `GET /EmployeeAppraisalSessions/{sessionId}` | `POST /EmployeeAppraisalSessions` | `PUT /EmployeeAppraisalSessions/{sessionId}` | `PATCH /EmployeeAppraisalSessions/{sessionId}` | `DELETE /EmployeeAppraisalSessions/{sessionId}` |
 
 ## Critical Rules
 
-- **Authenticate first.** Use `absuite login` before any HRMS operation.
-- **Always provide a tenant context.**
-- **Create employers first** before creating employees that reference them.
-- **Use `--help`** on any command for full DTO schemas.
+- **Authenticate first.** Obtain a bearer token via `POST /login` (see `absuite-login`) before any HRMS call.
+- **Always pass `?tenantId=<tenant-guid>`** on every verb, including writes — omitting it on POST/PUT/PATCH/DELETE returns `400`.
+- **Create dependencies first**: an `Employer` before gigs/job-offers that reference it; an `EmployeeType` / `JobTitle` before the employees that reference them; an `AppraisalWorkflow` before its stages and sessions; a `Schedule` before its time intervals.
+- **Check `isSuccess`** in the response envelope and read data from `result`.
+- **PATCH bodies are JSON arrays** of `{op,path,value}` operations — not objects.
