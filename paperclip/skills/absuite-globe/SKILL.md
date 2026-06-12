@@ -20,6 +20,13 @@ language or timezone).
 > For the CLI equivalent, see `absuite-globe-cli`. For general REST conventions (auth,
 > envelope, error handling), see `absuite-rest`.
 
+## API usage essentials
+
+> Full detail in `absuite-rest`.
+
+- This service is **read-only** (no create/update/delete), so there are no `PUT`/`PATCH` data-loss concerns.
+- **Lists & counts are OData-enabled.** `GET` collection endpoints accept `$filter`, `$top`, `$skip`, `$orderby`, `$select`; each dedicated `.../Count` endpoint returns an integer and is also filterable. OData is a REST/HTTP-layer feature (the CLI does not expose it).
+
 ## Authentication
 
 `GlobeService` is public reference data and is not tenant-scoped, but the platform's standard
