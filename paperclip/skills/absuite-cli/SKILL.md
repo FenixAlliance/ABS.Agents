@@ -287,6 +287,15 @@ The CLI uses consistent verb patterns across all services:
 
 ---
 
+## API usage essentials
+
+- **`update` replaces the ENTIRE object** (it maps to HTTP `PUT`) — it is a full overwrite, not a merge. **Always `get` the entity first, change only what you need on the complete object, then `update` with the full body.** Sending a partial DTO to `update` (or an incomplete one to `create`) blanks the omitted fields → silent data loss.
+- **No atomic partial update in the CLI.** For a safe single-field change, use the REST `absuite-<domain>` skill's `PATCH` (JSON Patch) — the CLI cannot patch.
+- **Counting is a first-class operation:** use `count <entity>` (a dedicated endpoint that returns an integer) instead of `list`-ing everything to measure size.
+- **OData filtering/paging is a REST-layer feature.** List and count endpoints are OData-enabled over raw HTTP (`$filter`, `$top`, `$skip`, `$orderby`), but the CLI does **not** expose these as parameters. For filtered queries or a *filtered* count, use the `absuite-rest` skill (or check `--help` for any service-specific query options).
+
+---
+
 ## Advanced Options
 
 ### Return Type Override
