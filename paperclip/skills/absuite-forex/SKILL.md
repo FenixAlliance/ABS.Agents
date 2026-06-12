@@ -15,6 +15,13 @@ Retrieve currency exchange rates and convert monetary amounts through the `Forex
 
 > For the CLI equivalent see `absuite-forex-cli`; for general REST conventions (envelope, auth, scoping) see `absuite-rest`.
 
+## API usage essentials
+
+> Full detail in `absuite-rest`.
+
+- This service is **read-only** (no create/update/delete), so there are no `PUT`/`PATCH` data-loss concerns.
+- **Lists & counts are OData-enabled.** `GET` collection endpoints accept `$filter`, `$top`, `$skip`, `$orderby`, `$select`; each dedicated `.../Count` endpoint returns an integer and is also filterable. OData is a REST/HTTP-layer feature (the CLI does not expose it).
+
 ## Authentication
 
 ForexService is public, but supply a bearer token if your host requires one for any authenticated routing.
