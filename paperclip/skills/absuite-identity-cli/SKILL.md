@@ -28,6 +28,14 @@ role/permission grants, and serving OIDC discovery documents and signing keys
 > **`absuite-identity`** (REST) skill. For general CLI conventions, see
 > **`absuite-cli`**.
 
+## API usage essentials
+
+> Full detail in `absuite-cli`.
+
+- **`update` replaces the ENTIRE object** (it maps to HTTP `PUT`) — a full overwrite, not a merge. **`get` the entity first, change only what you need on the complete object, then `update` with the full body.** A partial `update` (or an incomplete `create`) blanks the omitted fields -> silent data loss.
+- **No atomic partial update in the CLI.** For a safe single-field change, use the `absuite-identity` REST skill's `PATCH` (JSON Patch), where that service exposes one.
+- Use **`count <entity>`** (a dedicated operation) to size a collection. OData filtering/paging (`$filter`, `$top`, ...) is REST-only — the CLI does not expose it; use `absuite-identity` for filtered queries or a filtered count.
+
 ## Prerequisites
 
 1. **Authenticate first** (for protected reads): `absuite login` — see
