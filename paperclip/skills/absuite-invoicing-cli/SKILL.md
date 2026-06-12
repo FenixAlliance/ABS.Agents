@@ -17,6 +17,14 @@ operations are tenant-scoped and require an authenticated session. The CLI does 
 support PATCH (JSON Patch) — for partial atomic updates use the `absuite-invoicing`
 REST skill.
 
+## API usage essentials
+
+> Full detail in `absuite-cli`.
+
+- **`update` replaces the ENTIRE object** (it maps to HTTP `PUT`) — a full overwrite, not a merge. **`get` the entity first, change only what you need on the complete object, then `update` with the full body.** A partial `update` (or an incomplete `create`) blanks the omitted fields -> silent data loss.
+- **No atomic partial update in the CLI.** For a safe single-field change, use the `absuite-invoicing` REST skill's `PATCH` (JSON Patch), where that service exposes one.
+- Use **`count <entity>`** (a dedicated operation) to size a collection. OData filtering/paging (`$filter`, `$top`, ...) is REST-only — the CLI does not expose it; use `absuite-invoicing` for filtered queries or a filtered count.
+
 ## Prerequisites
 
 1. **Authenticate first** — run `absuite login` (see `absuite-login-cli`). For general
