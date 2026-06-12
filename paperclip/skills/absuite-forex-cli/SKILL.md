@@ -14,6 +14,13 @@ description: >
 
 Retrieve currency exchange rates and convert monetary amounts through the `absuite` CLI's `forex` service. ForexService exposes **public reference data** — every command is a read, there are **no** create/update/delete commands, and the service is **not** tenant-scoped (do not pass `--TenantId`). The CLI does not support PATCH (and ForexService has no PATCH surface anyway — see `absuite-forex` REST skill for the read-only REST reference).
 
+## API usage essentials
+
+> Full detail in `absuite-cli`.
+
+- This service is **read-only** (list / get / count) — no `update`/`create`.
+- Use **`count <entity>`** to size a collection. OData filtering/paging is REST-only (not exposed by the CLI) — use the `absuite-forex` REST skill for filtered queries.
+
 ## Prerequisites
 
 1. **Authenticate first** — run `absuite login` (see `absuite-login-cli`). For general CLI usage, command discovery, and configuration, see `absuite-cli`.
