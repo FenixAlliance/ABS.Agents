@@ -1,126 +1,349 @@
 ---
 name: absuite-cart
 description: >
-  Manage shopping carts, cart lines, wish lists, and compare tables in the Alliance
-  Business Suite (ABS) using the `absuite` CLI. Covers adding/removing items,
-  updating quantities, submitting carts, managing wish lists, and product comparison.
-  Requires an authenticated CLI session (use the `absuite-login` skill to authenticate first).
+  Manage shopping carts, cart records/lines, wish lists, and compare tables in the
+  Alliance Business Suite (ABS) Cart Service via the REST API. Covers reading ambient
+  carts (guest/user/acting/business), adding/removing items, updating quantities,
+  submitting carts, wish lists, and product comparison — including atomic PATCH
+  (JSON Patch) updates. CartService is HYBRID-scoped: most endpoints are anonymous,
+  user-, or cart-id-scoped; only a few take a tenant. Requires a bearer token
+  (see the absuite-login skill to authenticate).
 ---
 
-# Alliance Business Suite — Cart Skill
+# Alliance Business Suite — Cart Skill (REST)
 
-Manage shopping carts through the `absuite` CLI's `cart` service. Cart operations support guest, user, and tenant cart contexts.
+Manage shopping carts through the ABS Cart Service REST API. The Cart Service is
+**hybrid-scoped** — read the scope per endpoint and do **not** bolt `?tenantId=` onto
+anything that isn't marked tenant-scoped:
 
-## Prerequisites
+- **Anonymous / ambient** (no tenant): `GuestCart`, `ActingCart`.
+- **JWT-user-scoped** (no tenant): `UserCart` — resolved from the bearer token.
+- **Tenant-scoped**: `BusinessCart/{tenantId}` (tenant in the **path**, required) and
+  `Carts/{cartId}/Submit` (optional `?tenantId=` query).
+- **Cart-id-scoped** (no tenant): everything addressed by `{cartId}` — the cart's
+  records/items, lines, wish lists, and compare table. The cart ID itself is the scope.
 
-1. **Authenticate first** using `absuite login` (see the `absuite-login` skill).
-2. **Set your tenant**: `absuite config set --tenant-id <tenant-guid>` or pass `--TenantId` on each call.
-3. **Discover commands**: `absuite cart list-commands`
+> For the CLI equivalent see `absuite-cart-cli`; for general REST conventions
+> (envelope, tenant scoping, JSON Patch) see `absuite-rest`.
 
-## REST API Authentication
-
-To call the API directly via REST instead of the CLI:
+## Authentication
 
 1. **Obtain a bearer token:**
 ```bash
 curl -X POST "$ABSUITE_HOST_URL/login" \
   -H "Content-Type: application/json" \
-  -d '{"email": "'$ABSUITE_USER_EMAIL'", "password": "'$ABSUITE_USER_PASSWORD'"}'
+  -d '{"email": "<your-email>", "password": "<your-password>"}'
 ```
-Extract the `accessToken` from the JSON response.
+Extract `accessToken` from the JSON response and export it:
+```bash
+export ABSUITE_ACCESS_TOKEN="<accessToken-from-response>"
+```
 
-2. **Use the token in all subsequent requests:**
+2. **Send the token on every subsequent request:**
 ```bash
 -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-3. **All REST endpoints use the base path:** `$ABSUITE_HOST_URL/api/v2/`
+3. **Base path:** `$ABSUITE_HOST_URL/api/v2/CartService`
 
-## Getting Carts
-
-### Get Current User's Cart
-
-```bash
-absuite cart get user
+4. **Response envelope** — every response is wrapped:
+```json
+{
+  "isSuccess": true,
+  "errorMessage": null,
+  "correlationId": "…",
+  "timestamp": "…",
+  "result": { }
+}
 ```
+Always check `isSuccess`; read the payload from `result` (an object, an array, a boolean
+for the `Contains`/`Exists`/`IsInCart` checks, or `null`).
 
-**REST API equivalent:**
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Carts/UserCart" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
+## Key Concepts
 
-### Get Acting Cart (Session Cart)
+- **Cart** — a shopping cart holding records/lines, plus a currency and country. There are
+  several **ambient** carts you can fetch without knowing an ID:
+  - **Guest cart** — anonymous/session cart for an unauthenticated visitor.
+  - **Acting cart** — the cart the current context is acting on (session cart).
+  - **User cart** — the signed-in user's cart, resolved from the JWT.
+  - **Business cart** — a tenant's cart, addressed by `{tenantId}` in the path.
+- **Record / Item / Line** — the cart's line entries. The Cart Service exposes them under
+  three overlapping surfaces that all describe a cart's contents:
+  - `Carts/{cartId}/Items` and `Carts/{cartId}/Lines` — cart-scoped views.
+  - `Records` — a flat, trackable record surface (`ItemCartRecord`) addressed by `{recordId}`.
+- **Wish List** — a saved list of products inside a cart (`title`, `description`, `public`),
+  holding wish-list records (one per product).
+- **Compare Table** — a per-cart set of products staged for side-by-side comparison.
 
-```bash
-absuite cart get acting
-```
+> Field names in request bodies are the JSON keys exactly as the spec defines them.
+> Note two body fields use unusual casing the spec mandates verbatim: the currency-switch
+> body uses `cartID` / `currencyID` (capital `ID`), while most others use `cartId` / `itemId`.
 
-**REST API equivalent:**
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Carts/ActingCart" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
+## Carts
 
-### Get Guest Cart
+> There is **no** top-level `GET /Carts` list, no `/Count`, no `/Search`, no top-level
+> `POST /Carts` create, and no top-level `DELETE /Carts/{cartId}` in the Cart Service.
+> You obtain a cart through one of the four ambient getters below (or by a known `{cartId}`),
+> then operate on its sub-resources.
 
-```bash
-absuite cart get guest
-```
+### Get Guest Cart (anonymous — no tenant)
 
-**REST API equivalent:**
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Carts/GuestCart" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Get Tenant's Default Cart
+### Get Acting Cart (session cart — no tenant)
 
 ```bash
-absuite cart get tenant --TenantId $TENANT_ID
-```
-
-**REST API equivalent:**
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Carts/BusinessCart/$TENANT_ID" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Carts/ActingCart" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Get Cart by ID
+### Get Current User's Cart (JWT-user-scoped — no tenant)
 
 ```bash
-absuite cart get by-id --CartId <cart-guid>
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Carts/UserCart" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-**REST API equivalent:**
+### Get Business (Tenant) Cart — tenant in the path
+
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Carts/BusinessCart/<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+### Get Cart by ID (cart-id-scoped — no tenant)
+
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-## Adding Items to Cart
-
-### Add Item by ID
+### Update Cart (PUT — cart-id-scoped)
 
 ```bash
-absuite cart add-item-to --CartId <cart-guid> --ItemId <item-guid> --Quantity 2
-```
-
-**REST API equivalent:**
-```bash
-curl -X POST "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Items/<item-guid>" \
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{ "quantity": 2 }'
+  -d '{
+    "currencyId": "<currency-id>",
+    "countryId": "<country-id>"
+  }'
 ```
 
-### Add Product with Tracking
+`CartUpdateRequest` fields: `currencyId`, `countryId`.
+
+### Patch Cart (PATCH — JSON Patch RFC 6902)
 
 ```bash
-absuite cart add-product-to --CartId <cart-guid> --ItemId <item-guid> --Quantity 1
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[
+    { "op": "replace", "path": "/currencyId", "value": "<currency-id>" },
+    { "op": "replace", "path": "/countryId", "value": "<country-id>" }
+  ]'
 ```
 
-**REST API equivalent:**
+### Submit Cart (Checkout) — optional tenant scoping
+
+Converts the cart into an order for processing. Tenant is **optional** here: pass
+`?tenantId=<tenant-guid>` to submit under a tenant context, or omit it.
+
+```bash
+# Without tenant context
+curl -X POST "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Submit" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Under a tenant context
+curl -X POST "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Submit?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+## Cart Currency & Country (cart-id-scoped)
+
+### Get Cart Country
+
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Country" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+### Set Cart Country (PUT)
+
+```bash
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Country" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "cartId": "<cart-guid>",
+    "countryId": "<country-id>"
+  }'
+```
+
+`CountrySwitchRequest` fields: `cartId`, `countryId`.
+
+### Get Cart Currency
+
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Currency" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+### Set Cart Currency (PUT)
+
+```bash
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Currency" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "cartID": "<cart-guid>",
+    "currencyID": "<currency-id>"
+  }'
+```
+
+`CurrencySwitchRequest` fields: `cartID`, `currencyID` (note the capital `ID` — spec-verbatim).
+
+## Cart Items (cart-id-scoped)
+
+The `Items` surface lists a cart's lines and adds/removes/adjusts entries by `{itemId}`.
+
+### List Cart Items
+
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Items" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+### Add Item to Cart
+
+`quantity` is an optional query param (defaults to 1 server-side). No request body.
+
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Items/<item-guid>?quantity=2" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+### Update Item in Cart (PUT)
+
+```bash
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Items/<item-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "quantity": 3 }'
+```
+
+`ItemCartRecordUpdateDto` field: `quantity` (number).
+
+### Increase Item Quantity (PUT)
+
+Body is an `ItemCartRecordUpdateDto` (`quantity` = the amount to increase by).
+
+```bash
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Items/<item-guid>/Increase" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "quantity": 1 }'
+```
+
+### Decrease Item Quantity (PUT)
+
+```bash
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Items/<item-guid>/Decrease" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "quantity": 1 }'
+```
+
+### Remove Item from Cart (DELETE)
+
+```bash
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Items/<item-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+### Clear All Items from Cart (DELETE)
+
+```bash
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Items" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+### Check if an Item Is Already in the Cart
+
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Contains/<item-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+## Cart Lines (cart-id-scoped)
+
+The `Lines` surface addresses a cart's entries by `{lineId}`.
+
+### List Cart Lines
+
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Lines" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+### Get a Cart Line by ID
+
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Lines/<line-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+### Update a Cart Line (PUT)
+
+```bash
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Lines/<line-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "quantity": 3 }'
+```
+
+`ItemCartRecordUpdateDto` field: `quantity` (number).
+
+### Increase Cart Line Quantity (PUT)
+
+`quantity` is an optional query param (the amount to increase by). No request body.
+
+```bash
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Lines/<line-guid>/Increase?quantity=1" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+### Decrease Cart Line Quantity (PUT)
+
+```bash
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Lines/<line-guid>/Decrease?quantity=1" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+### Remove a Cart Line (DELETE)
+
+```bash
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Lines/<line-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+## Records (trackable cart records — cart-id-scoped)
+
+The `Records` surface is a flat view of cart records (`ItemCartRecord`), addressed by
+`{recordId}`, with a tracked create path and convenience query-param helpers.
+
+### Get All Items in a Cart
+
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Records/<cart-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+### Add a Product to a Cart with Tracking (POST)
+
 ```bash
 curl -X POST "$ABSUITE_HOST_URL/api/v2/CartService/Records" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
@@ -132,115 +355,26 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/CartService/Records" \
   }'
 ```
 
-## Cart Lines
+`ItemCartRecordCreateDto` fields: `id`, `timestamp`, `cartId`, `productId`, `quantity` (number).
 
-### List Cart Lines
+### Add an Item to a Cart (query-param helper, POST)
+
+All inputs are optional query params; no request body.
 
 ```bash
-absuite cart list lines --CartId <cart-guid>
-```
-
-**REST API equivalent:**
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Lines" \
+curl -X POST "$ABSUITE_HOST_URL/api/v2/CartService/Records/AddItem?cartId=<cart-guid>&itemId=<item-guid>&quantity=1" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### List Cart Items
+### Get a Cart Record by ID
 
-```bash
-absuite cart list items --CartId <cart-guid>
-```
-
-**REST API equivalent:**
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Items" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Get a Cart Line
-
-```bash
-absuite cart get line --CartId <cart-guid> --CartLineId <line-guid>
-```
-
-**REST API equivalent:**
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Lines/<line-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Update a Cart Line
-
-```bash
-absuite cart update line --CartId <cart-guid> --CartLineId <line-guid> --CartLineUpdateDto '{...}'
-```
-
-**REST API equivalent:**
-```bash
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Lines/<line-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{ "quantity": 3 }'
-```
-
-### Increase Cart Line Quantity
-
-```bash
-absuite cart convert-to-crease-cart-line --CartId <cart-guid> --CartLineId <line-guid>
-```
-
-**REST API equivalent:**
-```bash
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Lines/<line-guid>/Increase" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Decrease Cart Line Quantity
-
-```bash
-absuite cart decrease-cart-line --CartId <cart-guid> --CartLineId <line-guid>
-```
-
-**REST API equivalent:**
-```bash
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Lines/<line-guid>/Decrease" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Remove a Cart Line
-
-```bash
-absuite cart delete line --CartId <cart-guid> --CartLineId <line-guid>
-```
-
-**REST API equivalent:**
-```bash
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Lines/<line-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-## Cart Item Records
-
-### Get Cart Record
-
-```bash
-absuite cart get item-cart-record --CartId <cart-guid> --CartRecordId <record-guid>
-```
-
-**REST API equivalent:**
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Records/<record-guid>/Details" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Update Cart Record
+### Update a Cart Record (PUT)
 
-```bash
-absuite cart update item-cart-record --CartId <cart-guid> --CartRecordId <record-guid> --CartRecordUpdateDto '{...}'
-```
-
-**REST API equivalent:**
 ```bash
 curl -X PUT "$ABSUITE_HOST_URL/api/v2/CartService/Records/<record-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
@@ -248,519 +382,481 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/CartService/Records/<record-guid>" \
   -d '{ "quantity": 5 }'
 ```
 
-### Increase Item Quantity
+`ItemCartRecordUpdateDto` field: `quantity` (number).
+
+### Patch a Cart Record (PATCH — JSON Patch)
 
 ```bash
-absuite cart convert-to-crease-item-cart-record --CartId <cart-guid> --CartRecordId <record-guid>
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/CartService/Records/<record-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[
+    { "op": "replace", "path": "/quantity", "value": 5 }
+  ]'
 ```
 
-**REST API equivalent:**
+### Increase Cart Record Quantity (PUT)
+
+`quantity` is an optional query param. No request body.
+
 ```bash
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/CartService/Records/<record-guid>/Increase" \
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/CartService/Records/<record-guid>/Increase?quantity=1" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Decrease Item Quantity
+### Decrease Cart Record Quantity (PUT)
 
 ```bash
-absuite cart decrease-item-cart-record --CartId <cart-guid> --CartRecordId <record-guid>
-```
-
-**REST API equivalent:**
-```bash
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/CartService/Records/<record-guid>/Decrease" \
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/CartService/Records/<record-guid>/Decrease?quantity=1" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Remove Item from Cart
+### Remove a Product from a Cart by Record ID (DELETE)
 
-```bash
-absuite cart delete item-from --CartId <cart-guid> --ItemId <item-guid>
-```
-
-**REST API equivalent:**
-```bash
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Items/<item-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Remove Product by Record ID
-
-```bash
-absuite cart delete product-from-cart-by-record-id --CartId <cart-guid> --CartRecordId <record-guid>
-```
-
-**REST API equivalent:**
 ```bash
 curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CartService/Records/<record-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Check if Item Is in Cart
+### Remove a Product from a Cart by Params (DELETE)
+
+`cartId` and `productId` are optional query params.
 
 ```bash
-absuite cart is-item-already-in --CartId <cart-guid> --ItemId <item-guid>
-```
-
-**REST API equivalent:**
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Contains/<item-guid>" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CartService/Records?cartId=<cart-guid>&productId=<item-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-## Cart Settings
+### Clear All Items from a Cart (query-param helper, POST)
 
-### Get/Set Cart Country
-
-```bash
-absuite cart get country --CartId <cart-guid>
-absuite cart set country --CartId <cart-guid> --CountryId USA
-```
-
-**REST API equivalents:**
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Country" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Country" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{ "cartId": "<cart-guid>", "countryId": "USA" }'
-```
-
-### Get/Set Cart Currency
+`cartID` is a **required** query param (note the capital `ID` — spec-verbatim).
 
 ```bash
-absuite cart get currency --CartId <cart-guid>
-absuite cart set currency --CartId <cart-guid> --CurrencyId USD.USA
-```
-
-**REST API equivalents:**
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Currency" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Currency" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{ "cartID": "<cart-guid>", "currencyID": "USD.USA" }'
-```
-
-### Update Cart
-
-```bash
-absuite cart update --CartId <cart-guid> --CartUpdateDto '{...}'
-```
-
-**REST API equivalent:**
-```bash
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{ "currencyId": "USD.USA", "countryId": "USA" }'
-```
-
-### Clear Cart
-
-```bash
-absuite cart clear --CartId <cart-guid>
-```
-
-**REST API equivalent:**
-```bash
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Items" \
+curl -X POST "$ABSUITE_HOST_URL/api/v2/CartService/Records/ClearCart?cartID=<cart-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-## Submit Cart (Checkout)
+### Check if an Item Is in a Cart (query-param helper)
+
+`itemID` and `cartID` are **required** query params (capital `ID` — spec-verbatim).
 
 ```bash
-absuite cart submit --CartId <cart-guid>
-```
-
-**REST API equivalent:**
-```bash
-curl -X POST "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Submit" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Records/IsInCart?itemID=<item-guid>&cartID=<cart-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
-
-This converts the cart into an order for processing.
 
 ## Wish Lists
 
-### Create a Wish List
+Wish lists exist under two surfaces: nested under a cart (`Carts/{cartId}/WishLists/...`)
+and a flat surface (`WishLists/...`). Both are cart-id-scoped (no tenant).
 
-```bash
-absuite cart create wish-list --CartId <cart-guid> --WishListCreateDto '{
-  "Name": "Birthday Ideas"
-}'
-```
+### Cart-nested wish lists
 
-**REST API equivalent:**
-```bash
-curl -X POST "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/WishLists" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{ "title": "Birthday Ideas", "cartID": "<cart-guid>" }'
-```
+#### List Wish Lists in a Cart
 
-### Get Wish Lists
-
-```bash
-absuite cart get wish-list --CartId <cart-guid>
-```
-
-**REST API equivalent:**
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/WishLists" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Get Wish List Details
+#### Create a Wish List (POST)
 
 ```bash
-absuite cart list wish-list-details --CartId <cart-guid> --WishListId <wishlist-guid>
+curl -X POST "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/WishLists" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Birthday Ideas",
+    "description": "Gifts to consider",
+    "cartID": "<cart-guid>",
+    "public": false
+  }'
 ```
 
-**REST API equivalent:**
+`NewWishListRequest` fields: `title`, `description`, `cartID`, `public` (boolean).
+
+#### Get a Wish List by ID
+
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/WishLists/<wishlist-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Add Item to Wish List
+#### Update a Wish List (PUT)
 
-```bash
-absuite cart add-item-to-wish-list --CartId <cart-guid> --WishListId <wishlist-guid> --ItemId <item-guid>
-```
-
-**REST API equivalent:**
-```bash
-curl -X POST "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/WishLists/<wishlist-guid>/Records" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{ "wishListId": "<wishlist-guid>", "itemId": "<item-guid>" }'
-```
-
-### Add Product to Wish List
-
-```bash
-absuite cart add-product-to-wish-list --CartId <cart-guid> --WishListId <wishlist-guid> --ItemId <item-guid>
-```
-
-**REST API equivalent:**
-```bash
-curl -X POST "$ABSUITE_HOST_URL/api/v2/CartService/WishLists/Records" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{ "wishListId": "<wishlist-guid>", "itemId": "<item-guid>" }'
-```
-
-### Get Wish List Items
-
-```bash
-absuite cart list wish-list-items --CartId <cart-guid> --WishListId <wishlist-guid>
-```
-
-**REST API equivalent:**
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/WishLists/<wishlist-guid>/Records" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Get Wish List Item
-
-```bash
-absuite cart get wish-list-item --CartId <cart-guid> --WishListId <wishlist-guid> --WishListItemId <item-guid>
-```
-
-**REST API equivalent:**
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/WishLists/<wishlist-guid>/Records/<item-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Update Wish List
-
-```bash
-absuite cart update item-to-wish-list --CartId <cart-guid> --WishListId <wishlist-guid> --WishListUpdateDto '{...}'
-```
-
-**REST API equivalent:**
 ```bash
 curl -X PUT "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/WishLists/<wishlist-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{ "title": "Updated List", "description": "New description" }'
+  -d '{
+    "title": "Updated List",
+    "description": "New description",
+    "public": true
+  }'
 ```
 
-### Check if Item Is in Any Wish List
+`WishListUpdateDto` fields: `title` (**required**), `description`, `public` (boolean).
 
-```bash
-absuite cart is-item-in-wish-lists --CartId <cart-guid> --ItemId <item-guid>
-absuite cart is-product-in-wish-lists --CartId <cart-guid> --ItemId <item-guid>
-```
+#### Delete a Wish List (DELETE)
 
-**REST API equivalents:**
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/WishLists/Contains/<item-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/WishLists/Contains" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Check Wish List Exists
-
-```bash
-absuite cart wish-list-exists --CartId <cart-guid> --WishListId <wishlist-guid>
-```
-
-**REST API equivalent:**
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/WishLists/<wishlist-guid>/Exists" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### Delete Wish List
-
-```bash
-absuite cart delete wish-list --CartId <cart-guid> --WishListId <wishlist-guid>
-```
-
-**REST API equivalent:**
 ```bash
 curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/WishLists/<wishlist-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Delete Wish List Record
+#### Check if a Wish List Exists
 
 ```bash
-absuite cart delete wish-list-record --CartId <cart-guid> --WishListId <wishlist-guid> --WishListItemId <item-guid>
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/WishLists/<wishlist-guid>/Exists" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-**REST API equivalent:**
+#### List Records in a Wish List
+
 ```bash
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/WishLists/<wishlist-guid>/Records/<item-guid>" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/WishLists/<wishlist-guid>/Records" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+#### Add a Record to a Wish List (POST)
+
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/WishLists/<wishlist-guid>/Records" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "wishListId": "<wishlist-guid>",
+    "itemId": "<item-guid>"
+  }'
+```
+
+`ProductToWishListRequest` fields: `wishListId`, `itemId`.
+
+#### Get a Record in a Wish List
+
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/WishLists/<wishlist-guid>/Records/<record-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+#### Remove a Record from a Wish List (DELETE)
+
+```bash
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/WishLists/<wishlist-guid>/Records/<record-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+#### Check if an Item Is in Any of the Cart's Wish Lists
+
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/WishLists/Contains/<item-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+### Flat wish-list surface
+
+#### Create a Wish List (POST)
+
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/CartService/WishLists" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Birthday Ideas",
+    "description": "Gifts to consider",
+    "cartID": "<cart-guid>",
+    "public": false
+  }'
+```
+
+`NewWishListRequest` fields: `title`, `description`, `cartID`, `public` (boolean).
+
+#### Get Wish Lists for a Cart
+
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/WishLists/<cart-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+#### Get Wish List Details
+
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/WishLists/<wishlist-guid>/Details" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+#### Update a Wish List (PUT)
+
+```bash
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/CartService/WishLists/<wishlist-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Updated List",
+    "description": "New description",
+    "public": true
+  }'
+```
+
+`WishListUpdateDto` fields: `title` (**required**), `description`, `public` (boolean).
+
+#### Patch a Wish List (PATCH — JSON Patch)
+
+```bash
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/CartService/WishLists/<wishlist-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[
+    { "op": "replace", "path": "/title", "value": "Updated List" },
+    { "op": "replace", "path": "/public", "value": true }
+  ]'
+```
+
+#### Delete a Wish List (DELETE)
+
+```bash
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CartService/WishLists/<wishlist-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+#### List Wish List Item Records
+
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/WishLists/<wishlist-guid>/Records" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+#### Add a Product to a Wish List (POST)
+
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/CartService/WishLists/Records" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "wishListId": "<wishlist-guid>",
+    "itemId": "<item-guid>"
+  }'
+```
+
+`ProductToWishListRequest` fields: `wishListId`, `itemId`.
+
+#### Delete a Wish List Record (DELETE)
+
+```bash
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CartService/WishLists/Records/<record-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+#### Check if a Product Is in Any Wish List
+
+`cartId` and `productId` are optional query params.
+
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/WishLists/Contains?cartId=<cart-guid>&productId=<item-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+#### Check if a Wish List Exists
+
+`wishListId` is an optional query param.
+
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/WishLists/Exists?wishListId=<wishlist-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ## Compare Table
 
-### Add Item to Compare Table
+Compare tables exist under two surfaces: nested under a cart
+(`Carts/{cartId}/Compare/...`) and a flat surface (`Compare/...`). Both are cart-id-scoped
+(no tenant).
 
-```bash
-absuite cart add-item-to-compare-table --CartId <cart-guid> --ItemId <item-guid>
-```
+### Cart-nested compare table
 
-**REST API equivalent:**
-```bash
-curl -X POST "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Compare/<item-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
+#### List Items in the Compare Table
 
-### List Compare Records
-
-```bash
-absuite cart list compare-records --CartId <cart-guid>
-```
-
-**REST API equivalent:**
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Compare" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Get Compare Record
+#### Add an Item to the Compare Table (POST)
+
+No request body — the item is addressed by `{itemId}` in the path.
 
 ```bash
-absuite cart get compare-record --CartId <cart-guid> --CompareRecordId <record-guid>
-```
-
-**REST API equivalent:**
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Compare/<record-guid>" \
+curl -X POST "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Compare/<item-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Check if Item Is in Compare Table
+#### Get an Item from the Compare Table
 
 ```bash
-absuite cart is-item-in-compare-table --CartId <cart-guid> --ItemId <item-guid>
-```
-
-**REST API equivalent:**
-```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Compare/Contains/<item-guid>" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Compare/<item-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Remove Item from Compare Table
+#### Remove an Item from the Compare Table (DELETE)
 
-```bash
-absuite cart delete item-from-compare-table --CartId <cart-guid> --ItemId <item-guid>
-```
-
-**REST API equivalent:**
 ```bash
 curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Compare/<item-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-## Calculate Cart
-
-Calculate cart totals (subtotal, taxes, shipping, discounts) without submitting.
+#### Check if an Item Is in the Compare Table
 
 ```bash
-absuite cart calculate --CartId <cart-guid>
-```
-
-**REST API equivalent:**
-```bash
-curl -X POST "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Calculate" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Compare/Contains/<item-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-## Checkout Cart
+### Flat compare surface
 
-Initiate the checkout flow for a cart.
-
-```bash
-absuite cart checkout --CartId <cart-guid>
-```
-
-**REST API equivalent:**
-```bash
-curl -X POST "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Checkout" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-## Create and Delete Carts
-
-### Create a New Cart
+#### Add an Item to the Compare Table (POST)
 
 ```bash
-absuite cart create --CartCreateDto '{
-  "currencyId": "USD.USA",
-  "countryId": "USA"
-}'
-```
-
-**REST API equivalent:**
-```bash
-curl -X POST "$ABSUITE_HOST_URL/api/v2/CartService/Carts" \
+curl -X POST "$ABSUITE_HOST_URL/api/v2/CartService/Compare" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{ "currencyId": "USD.USA", "countryId": "USA" }'
+  -d '{
+    "cartId": "<cart-guid>",
+    "itemId": "<item-guid>"
+  }'
 ```
 
-### Delete a Cart
+`AddProductToCompareRequest` fields: `cartId`, `itemId`.
+
+#### List Items to Compare in a Cart
 
 ```bash
-absuite cart delete --CartId <cart-guid>
-```
-
-**REST API equivalent:**
-```bash
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Compare/<cart-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-## Command Quick Reference
+#### Get Compare Record Details
 
-| Action | CLI Command |
-|---|---|
-| Get user cart | `absuite cart get user` |
-| Get tenant cart | `absuite cart get tenant --TenantId <guid>` |
-| Add item | `absuite cart add-item-to --CartId <guid> --ItemId <guid> --Quantity 1` |
-| List lines | `absuite cart list lines --CartId <guid>` |
-| Remove line | `absuite cart delete line --CartId <guid> --CartLineId <guid>` |
-| Clear cart | `absuite cart clear --CartId <guid>` |
-| Submit cart | `absuite cart submit --CartId <guid>` |
-| Set currency | `absuite cart set currency --CartId <guid> --CurrencyId USD.USA` |
-| Create wish list | `absuite cart create wish-list --CartId <guid> --WishListCreateDto '{...}'` |
-| Add to compare | `absuite cart add-item-to-compare-table --CartId <guid> --ItemId <guid>` |
-| Calculate cart | `absuite cart calculate --CartId <guid>` |
-| Checkout cart | `absuite cart checkout --CartId <guid>` |
-| Create cart | `absuite cart create --CartCreateDto '{...}'` |
-| Delete cart | `absuite cart delete --CartId <guid>` |
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Compare/<record-guid>/Details" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
 
-## Critical Rules
+#### Remove an Item from the Compare Table by Record ID (DELETE)
 
-- **Authenticate first.** Use `absuite login` before any cart operation.
-- **Get the cart first.** Use `get user`, `get tenant`, or `get by-id` to obtain the cart ID.
-- **Use `submit` to checkout.** This converts the cart into an order.
-- **Check item existence** before adding to avoid duplicates with `is-item-already-in`.
+```bash
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CartService/Compare/<record-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+## End-to-End Workflow
+
+```bash
+BASE="$ABSUITE_HOST_URL/api/v2/CartService"
+
+# 1. Get the signed-in user's cart (note result.id as the cart ID)
+curl -X GET "$BASE/Carts/UserCart" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# 2. Set the cart's currency
+curl -X PUT "$BASE/Carts/<cart-guid>/Currency" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "cartID": "<cart-guid>", "currencyID": "<currency-id>" }'
+
+# 3. Add an item (quantity via query param)
+curl -X POST "$BASE/Carts/<cart-guid>/Items/<item-guid>?quantity=2" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# 4. Confirm it's in the cart
+curl -X GET "$BASE/Carts/<cart-guid>/Contains/<item-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# 5. Bump the quantity up by one
+curl -X PUT "$BASE/Carts/<cart-guid>/Items/<item-guid>/Increase" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "quantity": 1 }'
+
+# 6. Review the cart's lines
+curl -X GET "$BASE/Carts/<cart-guid>/Lines" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# 7. Submit the cart (optionally under a tenant context)
+curl -X POST "$BASE/Carts/<cart-guid>/Submit" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
 
 ## API Endpoints Quick Reference
 
-| Method | Endpoint | Description |
-|---|---|---|
-| GET | `/api/v2/CartService/Carts/UserCart` | Get current user's cart |
-| GET | `/api/v2/CartService/Carts/ActingCart` | Get acting/session cart |
-| GET | `/api/v2/CartService/Carts/GuestCart` | Get guest cart |
-| GET | `/api/v2/CartService/Carts/BusinessCart/:tenantId` | Get tenant cart |
-| GET | `/api/v2/CartService/Carts/:cartId` | Get cart by ID |
-| PUT | `/api/v2/CartService/Carts/:cartId` | Update cart |
-| POST | `/api/v2/CartService/Carts` | Create a new cart |
-| DELETE | `/api/v2/CartService/Carts/:cartId` | Delete a cart |
-| POST | `/api/v2/CartService/Carts/:cartId/Calculate` | Calculate cart totals |
-| POST | `/api/v2/CartService/Carts/:cartId/Checkout` | Initiate checkout |
-| POST | `/api/v2/CartService/Carts/:cartId/Submit` | Submit cart (checkout) |
-| GET | `/api/v2/CartService/Carts/:cartId/Items` | List cart items |
-| DELETE | `/api/v2/CartService/Carts/:cartId/Items` | Clear cart |
-| POST | `/api/v2/CartService/Carts/:cartId/Items/:itemId` | Add item to cart |
-| PUT | `/api/v2/CartService/Carts/:cartId/Items/:itemId` | Update item in cart |
-| DELETE | `/api/v2/CartService/Carts/:cartId/Items/:itemId` | Remove item from cart |
-| PUT | `/api/v2/CartService/Carts/:cartId/Items/:itemId/Increase` | Increase item qty |
-| PUT | `/api/v2/CartService/Carts/:cartId/Items/:itemId/Decrease` | Decrease item qty |
-| GET | `/api/v2/CartService/Carts/:cartId/Lines` | List cart lines |
-| GET | `/api/v2/CartService/Carts/:cartId/Lines/:lineId` | Get cart line |
-| PUT | `/api/v2/CartService/Carts/:cartId/Lines/:lineId` | Update cart line |
-| DELETE | `/api/v2/CartService/Carts/:cartId/Lines/:lineId` | Remove cart line |
-| PUT | `/api/v2/CartService/Carts/:cartId/Lines/:lineId/Increase` | Increase line qty |
-| PUT | `/api/v2/CartService/Carts/:cartId/Lines/:lineId/Decrease` | Decrease line qty |
-| GET | `/api/v2/CartService/Carts/:cartId/Country` | Get cart country |
-| PUT | `/api/v2/CartService/Carts/:cartId/Country` | Set cart country |
-| GET | `/api/v2/CartService/Carts/:cartId/Currency` | Get cart currency |
-| PUT | `/api/v2/CartService/Carts/:cartId/Currency` | Set cart currency |
-| GET | `/api/v2/CartService/Carts/:cartId/Contains/:itemId` | Check item in cart |
-| POST | `/api/v2/CartService/Records` | Add product with tracking |
-| GET | `/api/v2/CartService/Records/:cartId` | Get cart records |
-| PUT | `/api/v2/CartService/Records/:recordId` | Update cart record |
-| DELETE | `/api/v2/CartService/Records/:recordId` | Delete cart record |
-| GET | `/api/v2/CartService/Records/:recordId/Details` | Get record details |
-| PUT | `/api/v2/CartService/Records/:recordId/Increase` | Increase record qty |
-| PUT | `/api/v2/CartService/Records/:recordId/Decrease` | Decrease record qty |
-| GET | `/api/v2/CartService/Records/IsInCart` | Check item in cart |
-| POST | `/api/v2/CartService/Records/AddItem` | Add item |
-| POST | `/api/v2/CartService/Records/ClearCart` | Clear cart |
-| POST | `/api/v2/CartService/Carts/:cartId/WishLists` | Create wish list |
-| GET | `/api/v2/CartService/Carts/:cartId/WishLists` | List wish lists |
-| GET | `/api/v2/CartService/Carts/:cartId/WishLists/:wishListId` | Get wish list |
-| PUT | `/api/v2/CartService/Carts/:cartId/WishLists/:wishListId` | Update wish list |
-| DELETE | `/api/v2/CartService/Carts/:cartId/WishLists/:wishListId` | Delete wish list |
-| HEAD | `/api/v2/CartService/Carts/:cartId/WishLists/:wishListId/Exists` | Check wish list exists |
-| POST | `/api/v2/CartService/Carts/:cartId/WishLists/:wishListId/Records` | Add to wish list |
-| GET | `/api/v2/CartService/Carts/:cartId/WishLists/:wishListId/Records` | List wish list items |
-| GET | `/api/v2/CartService/Carts/:cartId/WishLists/:wishListId/Records/:recordId` | Get wish list item |
-| DELETE | `/api/v2/CartService/Carts/:cartId/WishLists/:wishListId/Records/:recordId` | Remove wish list item |
-| GET | `/api/v2/CartService/Carts/:cartId/WishLists/Contains/:itemId` | Item in wish lists? |
-| GET | `/api/v2/CartService/Carts/:cartId/Compare` | List compare items |
-| POST | `/api/v2/CartService/Carts/:cartId/Compare/:itemId` | Add to compare |
-| GET | `/api/v2/CartService/Carts/:cartId/Compare/:itemId` | Get compare item |
-| DELETE | `/api/v2/CartService/Carts/:cartId/Compare/:itemId` | Remove from compare |
-| GET | `/api/v2/CartService/Carts/:cartId/Compare/Contains/:itemId` | Item in compare? |
-| POST | `/api/v2/CartService/WishLists` | Create wish list (alt) |
-| GET | `/api/v2/CartService/WishLists/:cartId` | Get wish lists (alt) |
-| PUT | `/api/v2/CartService/WishLists/:wishListId` | Update wish list (alt) |
-| DELETE | `/api/v2/CartService/WishLists/:wishListId` | Delete wish list (alt) |
-| POST | `/api/v2/CartService/WishLists/Records` | Add to wish list (alt) |
-| DELETE | `/api/v2/CartService/WishLists/Records/:recordId` | Remove record (alt) |
-| GET | `/api/v2/CartService/WishLists/Contains` | Product in wish lists? |
-| GET | `/api/v2/CartService/WishLists/Exists` | Wish list exists? |
-| POST | `/api/v2/CartService/Compare` | Add to compare (alt) |
-| GET | `/api/v2/CartService/Compare/:cartId` | List compare (alt) |
-| DELETE | `/api/v2/CartService/Compare/:recordId` | Remove compare (alt) |
-| GET | `/api/v2/CartService/Compare/:recordId/Details` | Compare details (alt) |
+Scope column: **none** = anonymous/ambient; **user** = JWT-user-scoped; **cartId** =
+scoped by the `{cartId}`/`{recordId}` path or `cartId`/`cartID` param (no tenant);
+**tenant** = takes a tenant. Do **not** add `?tenantId=` to any row not marked *tenant*.
+
+| Action | Method | Path | Scope |
+|---|---|---|---|
+| Get guest cart | GET | `/api/v2/CartService/Carts/GuestCart` | none |
+| Get acting cart | GET | `/api/v2/CartService/Carts/ActingCart` | none |
+| Get user cart | GET | `/api/v2/CartService/Carts/UserCart` | user |
+| Get business (tenant) cart | GET | `/api/v2/CartService/Carts/BusinessCart/{tenantId}` | tenant (path) |
+| Get cart by ID | GET | `/api/v2/CartService/Carts/{cartId}` | cartId |
+| Update cart | PUT | `/api/v2/CartService/Carts/{cartId}` | cartId |
+| Patch cart | PATCH | `/api/v2/CartService/Carts/{cartId}` | cartId |
+| Submit cart | POST | `/api/v2/CartService/Carts/{cartId}/Submit` | tenant (optional query) |
+| Get cart country | GET | `/api/v2/CartService/Carts/{cartId}/Country` | cartId |
+| Set cart country | PUT | `/api/v2/CartService/Carts/{cartId}/Country` | cartId |
+| Get cart currency | GET | `/api/v2/CartService/Carts/{cartId}/Currency` | cartId |
+| Set cart currency | PUT | `/api/v2/CartService/Carts/{cartId}/Currency` | cartId |
+| List cart items | GET | `/api/v2/CartService/Carts/{cartId}/Items` | cartId |
+| Clear cart items | DELETE | `/api/v2/CartService/Carts/{cartId}/Items` | cartId |
+| Add item to cart | POST | `/api/v2/CartService/Carts/{cartId}/Items/{itemId}` | cartId |
+| Update item in cart | PUT | `/api/v2/CartService/Carts/{cartId}/Items/{itemId}` | cartId |
+| Remove item from cart | DELETE | `/api/v2/CartService/Carts/{cartId}/Items/{itemId}` | cartId |
+| Increase item quantity | PUT | `/api/v2/CartService/Carts/{cartId}/Items/{itemId}/Increase` | cartId |
+| Decrease item quantity | PUT | `/api/v2/CartService/Carts/{cartId}/Items/{itemId}/Decrease` | cartId |
+| Check item in cart | GET | `/api/v2/CartService/Carts/{cartId}/Contains/{itemId}` | cartId |
+| List cart lines | GET | `/api/v2/CartService/Carts/{cartId}/Lines` | cartId |
+| Get cart line | GET | `/api/v2/CartService/Carts/{cartId}/Lines/{lineId}` | cartId |
+| Update cart line | PUT | `/api/v2/CartService/Carts/{cartId}/Lines/{lineId}` | cartId |
+| Remove cart line | DELETE | `/api/v2/CartService/Carts/{cartId}/Lines/{lineId}` | cartId |
+| Increase cart line quantity | PUT | `/api/v2/CartService/Carts/{cartId}/Lines/{lineId}/Increase` | cartId |
+| Decrease cart line quantity | PUT | `/api/v2/CartService/Carts/{cartId}/Lines/{lineId}/Decrease` | cartId |
+| Get items in a cart | GET | `/api/v2/CartService/Records/{cartId}` | cartId |
+| Add product with tracking | POST | `/api/v2/CartService/Records` | cartId |
+| Add item (helper) | POST | `/api/v2/CartService/Records/AddItem` | cartId |
+| Get record details | GET | `/api/v2/CartService/Records/{recordId}/Details` | cartId |
+| Update cart record | PUT | `/api/v2/CartService/Records/{recordId}` | cartId |
+| Patch cart record | PATCH | `/api/v2/CartService/Records/{recordId}` | cartId |
+| Increase record quantity | PUT | `/api/v2/CartService/Records/{recordId}/Increase` | cartId |
+| Decrease record quantity | PUT | `/api/v2/CartService/Records/{recordId}/Decrease` | cartId |
+| Remove product by record ID | DELETE | `/api/v2/CartService/Records/{recordId}` | cartId |
+| Remove product by params | DELETE | `/api/v2/CartService/Records` | cartId |
+| Clear cart (helper) | POST | `/api/v2/CartService/Records/ClearCart` | cartId |
+| Check item in cart (helper) | GET | `/api/v2/CartService/Records/IsInCart` | cartId |
+| List wish lists in cart | GET | `/api/v2/CartService/Carts/{cartId}/WishLists` | cartId |
+| Create wish list (nested) | POST | `/api/v2/CartService/Carts/{cartId}/WishLists` | cartId |
+| Get wish list (nested) | GET | `/api/v2/CartService/Carts/{cartId}/WishLists/{wishListId}` | cartId |
+| Update wish list (nested) | PUT | `/api/v2/CartService/Carts/{cartId}/WishLists/{wishListId}` | cartId |
+| Delete wish list (nested) | DELETE | `/api/v2/CartService/Carts/{cartId}/WishLists/{wishListId}` | cartId |
+| Wish list exists (nested) | GET | `/api/v2/CartService/Carts/{cartId}/WishLists/{wishListId}/Exists` | cartId |
+| List wish list records (nested) | GET | `/api/v2/CartService/Carts/{cartId}/WishLists/{wishListId}/Records` | cartId |
+| Add record to wish list (nested) | POST | `/api/v2/CartService/Carts/{cartId}/WishLists/{wishListId}/Records` | cartId |
+| Get wish list record (nested) | GET | `/api/v2/CartService/Carts/{cartId}/WishLists/{wishListId}/Records/{recordId}` | cartId |
+| Remove wish list record (nested) | DELETE | `/api/v2/CartService/Carts/{cartId}/WishLists/{wishListId}/Records/{recordId}` | cartId |
+| Item in cart wish lists? (nested) | GET | `/api/v2/CartService/Carts/{cartId}/WishLists/Contains/{itemId}` | cartId |
+| Create wish list (flat) | POST | `/api/v2/CartService/WishLists` | cartId |
+| Get wish lists for cart (flat) | GET | `/api/v2/CartService/WishLists/{cartId}` | cartId |
+| Get wish list details (flat) | GET | `/api/v2/CartService/WishLists/{wishListId}/Details` | cartId |
+| Update wish list (flat) | PUT | `/api/v2/CartService/WishLists/{wishListId}` | cartId |
+| Patch wish list (flat) | PATCH | `/api/v2/CartService/WishLists/{wishListId}` | cartId |
+| Delete wish list (flat) | DELETE | `/api/v2/CartService/WishLists/{wishListId}` | cartId |
+| List wish list records (flat) | GET | `/api/v2/CartService/WishLists/{wishListId}/Records` | cartId |
+| Add product to wish list (flat) | POST | `/api/v2/CartService/WishLists/Records` | cartId |
+| Delete wish list record (flat) | DELETE | `/api/v2/CartService/WishLists/Records/{recordId}` | cartId |
+| Product in wish lists? (flat) | GET | `/api/v2/CartService/WishLists/Contains` | cartId |
+| Wish list exists? (flat) | GET | `/api/v2/CartService/WishLists/Exists` | cartId |
+| List compare items (nested) | GET | `/api/v2/CartService/Carts/{cartId}/Compare` | cartId |
+| Add item to compare (nested) | POST | `/api/v2/CartService/Carts/{cartId}/Compare/{itemId}` | cartId |
+| Get compare item (nested) | GET | `/api/v2/CartService/Carts/{cartId}/Compare/{itemId}` | cartId |
+| Remove from compare (nested) | DELETE | `/api/v2/CartService/Carts/{cartId}/Compare/{itemId}` | cartId |
+| Item in compare? (nested) | GET | `/api/v2/CartService/Carts/{cartId}/Compare/Contains/{itemId}` | cartId |
+| Add item to compare (flat) | POST | `/api/v2/CartService/Compare` | cartId |
+| List compare items (flat) | GET | `/api/v2/CartService/Compare/{cartId}` | cartId |
+| Get compare record details (flat) | GET | `/api/v2/CartService/Compare/{recordId}/Details` | cartId |
+| Remove from compare by record ID (flat) | DELETE | `/api/v2/CartService/Compare/{recordId}` | cartId |
