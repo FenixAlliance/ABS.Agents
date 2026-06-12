@@ -1,89 +1,118 @@
 ---
 name: absuite-marketing
 description: >
-  Manage marketing campaigns, email groups, email signatures, email templates,
-  marketing lists, newsletters, social media posts, and social post buckets in the
-  Alliance Business Suite (ABS) using the `absuite` CLI. Includes tracking pixel
-  retrieval. Requires an authenticated CLI session.
+  Create, read, update, patch, and delete marketing records in the Alliance Business
+  Suite (ABS) Marketing Service via the REST API. Covers marketing campaigns, marketing
+  areas, marketing lists, marketing leads, newsletters, email groups, email signatures,
+  email templates, social media posts, social post buckets, and tracking-pixel
+  retrieval, including atomic PATCH (JSON Patch) updates. All operations are tenant-scoped
+  (except the public tracking pixel) and require a bearer token (see the absuite-login
+  skill to authenticate).
 ---
 
-# Alliance Business Suite — Marketing Skill
+# Alliance Business Suite — Marketing Skill (REST)
 
-Manage marketing through the `absuite` CLI's `marketing` service. All operations are tenant-scoped.
+Manage marketing assets through the ABS Marketing Service REST API. Every Marketing
+Service endpoint is tenant-scoped: pass `?tenantId=<tenant-guid>` (or the equivalent
+`X-TenantId: <tenant-guid>` header) on **every** request — GET, POST, PUT, PATCH, and
+DELETE alike. The single exception is the public **tracking pixel** read, which takes
+no tenant.
 
-## Prerequisites
+> For the CLI equivalent see `absuite-marketing-cli`; for general REST conventions
+> (envelope, tenant scoping, JSON Patch) see `absuite-rest`.
 
-1. **Authenticate first** using `absuite login` (see the `absuite-login` skill).
-2. **Set your tenant**: `absuite config set --tenant-id <tenant-guid>` or pass `--TenantId` on each call.
-3. **Discover commands**: `absuite marketing list-commands`
-
-## REST API Authentication
-
-To call the API directly via REST instead of the CLI:
+## Authentication
 
 1. **Obtain a bearer token:**
 ```bash
 curl -X POST "$ABSUITE_HOST_URL/login" \
   -H "Content-Type: application/json" \
-  -d '{"email": "'$ABSUITE_USER_EMAIL'", "password": "'$ABSUITE_USER_PASSWORD'"}'
+  -d '{"email": "<your-email>", "password": "<your-password>"}'
 ```
-Extract the `accessToken` from the JSON response.
+Extract `accessToken` from the JSON response and export it:
+```bash
+export ABSUITE_ACCESS_TOKEN="<accessToken-from-response>"
+```
 
-2. **Use the token in all subsequent requests:**
+2. **Send the token on every subsequent request:**
 ```bash
 -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-3. **All REST endpoints use the base path:** `$ABSUITE_HOST_URL/api/v2/`
+3. **Base path:** `$ABSUITE_HOST_URL/api/v2/MarketingService/<Resource>`
 
-## Campaigns
-
-```bash
-# List (OData)
-absuite marketing get campaign-o-data --TenantId $TENANT_ID
-
-# Count
-absuite marketing count campaigns --TenantId $TENANT_ID
-
-# Get details by ID
-absuite marketing list campaign-details --TenantId $TENANT_ID --MarketingCampaignId <campaign-guid>
-
-# Create
-absuite marketing create campaign --TenantId $TENANT_ID --MarketingCampaignCreateDto '{
-  "Name": "Spring Sale 2026",
-  "Offer": "20% off all products",
-  "Active": true,
-  "ProposedStart": "2026-03-01T00:00:00Z",
-  "ProposedEnd": "2026-04-30T23:59:59Z",
-  "AllocatedBudget": 10000.00,
-  "CurrencyId": "<currency-guid>",
-  "Code": "SPRING26"
-}'
-
-# Update
-absuite marketing update campaign --TenantId $TENANT_ID --MarketingCampaignId <campaign-guid> --MarketingCampaignUpdateDto '{...}'
-
-# Delete
-absuite marketing delete campaign --TenantId $TENANT_ID --MarketingCampaignId <campaign-guid>
+4. **Response envelope** — every response is wrapped:
+```json
+{
+  "isSuccess": true,
+  "errorMessage": null,
+  "correlationId": "…",
+  "timestamp": "…",
+  "result": { }
+}
 ```
+Always check `isSuccess`; read the payload from `result` (an object, an array, an int
+for `Count`, or `null`).
 
-REST API equivalent:
+5. **Tenant scoping** — every Marketing Service operation here requires
+`?tenantId=<tenant-guid>` on the query string (the platform also accepts the
+`X-TenantId: <tenant-guid>` header equivalently). The only endpoint with **no** tenant
+param is `GET /TrackingPixels/{pixelId}` — do not add a tenant to it.
+
+## Key Concepts
+
+- **Marketing Campaign** — a planned promotional effort with an offer, budget, costs,
+  proposed/actual date windows, an expected-response rate, and an optional marketing
+  area and budget currency.
+- **Marketing Area** — a named market region/segment used to scope campaigns.
+- **Marketing List** — a static or dynamic audience list targeting individuals,
+  organizations, or leads, with purpose/source/cost metadata.
+- **Marketing Lead** — a prospective contact (name, email, phone, company, job title,
+  source, score, status).
+- **Newsletter** — a named, titled, coded newsletter publication.
+- **Email Group** — a named, optionally-described group used to organize email
+  recipients (enabled/disabled).
+- **Email Signature** / **Email Template** — content assets with a title, body content,
+  markup, and a `codeType` rendering mode; templates can be tied to a campaign.
+- **Social Media Post** — a titled post with content and an optional featured image,
+  filed into a social post bucket.
+- **Social Post Bucket** — a named container that groups social media posts.
+- **Tracking Pixel** — a public read returning a pixel by its `pixelId` (no tenant).
+
+### Enumerations (authoritative — from the OpenAPI spec)
+
+- **`marketingListType`** — `Static` | `Dynamic`.
+- **`marketingListTarget`** — `Individual` | `Organization` | `Lead`.
+- **`codeType`** (email signatures & templates) — `Razor` | `CSharp` | `CSHtml` |
+  `Liquid` | `Html5` | `Markdown` | `Markup`.
+
+### Field-name conventions
+
+Request bodies use **PascalCase** keys (e.g. `"Name"`, `"Title"`, `"CurrencyId"`,
+`"MarketingAreaId"`). JSON-Patch `path` pointers use **camelCase** (e.g. `/name`,
+`/active`, `/allocatedBudget`) — these mirror the response/DTO property names.
+
+## Marketing Campaigns
 
 ```bash
-# List (OData)
-curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingCampaigns" \
+# List (OData) — supports $filter/$top/$orderby query options
+curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingCampaigns?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Search — OData $filter (this is how "search" is expressed; no separate search endpoint)
+curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingCampaigns?tenantId=<tenant-guid>&\$filter=contains(name,'Spring')&\$top=25" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Count
-curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingCampaigns/Count" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingCampaigns/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Get details by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingCampaigns/<campaign-guid>" \
+# Get by ID
+curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingCampaigns/<campaign-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingCampaigns" \
+curl -X POST "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingCampaigns?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -92,68 +121,71 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingCampaigns" \
     "Active": true,
     "ProposedStart": "2026-03-01T00:00:00Z",
     "ProposedEnd": "2026-04-30T23:59:59Z",
+    "ActualStart": null,
+    "ActualEnd": null,
+    "Code": "SPRING26",
     "AllocatedBudget": 10000.00,
-    "CurrencyId": "<currency-guid>",
-    "Code": "SPRING26"
+    "ActivityCost": 0,
+    "MiscCost": 0,
+    "ExpectedResponsePercent": 5,
+    "MarketingAreaId": "<area-guid>",
+    "CurrencyId": "<currency-guid>"
   }'
 
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingCampaigns/<campaign-guid>" \
+# Update (PUT — full replace)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingCampaigns/<campaign-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{...}'
+  -d '{
+    "Name": "Spring Sale 2026 (Extended)",
+    "Offer": "25% off all products",
+    "Active": true,
+    "ProposedStart": "2026-03-01T00:00:00Z",
+    "ProposedEnd": "2026-05-15T23:59:59Z",
+    "Code": "SPRING26",
+    "AllocatedBudget": 12000.00,
+    "ExpectedResponsePercent": 6,
+    "MarketingAreaId": "<area-guid>",
+    "CurrencyId": "<currency-guid>"
+  }'
+
+# Patch (PATCH — JSON Patch, partial update)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingCampaigns/<campaign-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[
+    { "op": "replace", "path": "/active", "value": false },
+    { "op": "replace", "path": "/actualEnd", "value": "2026-05-01T00:00:00Z" }
+  ]'
 
 # Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingCampaigns/<campaign-guid>" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingCampaigns/<campaign-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-**Key MarketingCampaignCreateDto fields:**
-
-| Field | Type | Description |
-|---|---|---|
-| `Name` | String | Campaign name |
-| `Offer` | String | Campaign offer text |
-| `Code` | String | Promo code |
-| `Active` | Boolean | Whether campaign is active |
-| `ProposedStart` / `ProposedEnd` | DateTime | Planned dates |
-| `ActualStart` / `ActualEnd` | DateTime | Actual execution dates |
-| `AllocatedBudget` | Double | Budget |
-| `ActivityCost` / `MiscCost` | Double | Cost tracking |
-| `ExpectedResponsePercent` | Double | Expected response rate |
-| `CurrencyId` | String | Budget currency |
+**`MarketingCampaignCreateDto` fields:** `Id`, `Timestamp`, `Name`, `Offer`, `Active`
+(boolean), `ProposedStart`, `ProposedEnd`, `ActualStart`, `ActualEnd` (date-times),
+`Code`, `AllocatedBudget`, `ActivityCost`, `MiscCost`, `ExpectedResponsePercent`
+(numbers), `MarketingAreaId`, `CurrencyId`.
+**`MarketingCampaignUpdateDto`** has the same fields minus `Id`/`Timestamp`.
 
 ## Marketing Areas
 
 ```bash
-absuite marketing get marketing-areas-o-data --TenantId $TENANT_ID
-absuite marketing count marketing-areas --TenantId $TENANT_ID
-absuite marketing list marketing-area-details --TenantId $TENANT_ID --MarketingAreaId <area-guid>
-absuite marketing create marketing-area --TenantId $TENANT_ID --MarketingAreaAreaCreateDto '{
-  "Name": "North America",
-  "Description": "North American market region"
-}'
-absuite marketing update marketing-area --TenantId $TENANT_ID --MarketingAreaId <area-guid> --MarketingAreaUpdateDto '{...}'
-absuite marketing delete marketing-area --TenantId $TENANT_ID --MarketingAreaId <area-guid>
-```
-
-REST API equivalent:
-
-```bash
-# List (OData)
-curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingAreas" \
+# List
+curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingAreas?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Count
-curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingAreas/Count" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingAreas/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Get details by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingAreas/<area-guid>" \
+# Get by ID
+curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingAreas/<area-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingAreas" \
+curl -X POST "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingAreas?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -161,514 +193,656 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingAreas" \
     "Description": "North American market region"
   }'
 
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingAreas/<area-guid>" \
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingAreas/<area-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{...}'
+  -d '{
+    "Name": "North America (NA)",
+    "Description": "Updated region description"
+  }'
+
+# Patch (PATCH — JSON Patch)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingAreas/<area-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[ { "op": "replace", "path": "/description", "value": "Revised description" } ]'
 
 # Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingAreas/<area-guid>" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingAreas/<area-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
+
+**`MarketingAreaCreateDto` fields:** `Id`, `Timestamp`, `Name` (**required**),
+`Description`. **`MarketingAreaUpdateDto`:** `Name`, `Description`.
 
 ## Marketing Lists
 
 ```bash
-absuite marketing get list-o-data --TenantId $TENANT_ID
-absuite marketing count lists --TenantId $TENANT_ID
-absuite marketing list list-details --TenantId $TENANT_ID --MarketingListId <list-guid>
-absuite marketing create list --TenantId $TENANT_ID --MarketingListCreateDto '{
-  "Name": "VIP Customers",
-  "Description": "High-value customer segment"
-}'
-absuite marketing update list --TenantId $TENANT_ID --MarketingListId <list-guid> --MarketingListUpdateDto '{...}'
-absuite marketing delete list --TenantId $TENANT_ID --MarketingListId <list-guid>
-```
-
-REST API equivalent:
-
-```bash
-# List (OData)
-curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingLists" \
+# List
+curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingLists?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Count
-curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingLists/Count" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingLists/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Get details by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingLists/<list-guid>" \
+# Get by ID
+curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingLists/<list-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingLists" \
+curl -X POST "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingLists?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "Name": "VIP Customers",
-    "Description": "High-value customer segment"
+    "Purpose": "Retention",
+    "Description": "High-value customer segment",
+    "Source": "CRM export",
+    "Locked": false,
+    "Cost": 0,
+    "CurrencyId": "<currency-guid>",
+    "MarketingListType": "Static",
+    "MarketingListTarget": "Individual"
   }'
 
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingLists/<list-guid>" \
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingLists/<list-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{...}'
+  -d '{
+    "Name": "VIP Customers",
+    "Purpose": "Retention",
+    "Description": "Refreshed segment",
+    "Source": "CRM export",
+    "Locked": true,
+    "MarketingListType": "Dynamic",
+    "MarketingListTarget": "Individual"
+  }'
+
+# Patch (PATCH — JSON Patch)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingLists/<list-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[
+    { "op": "replace", "path": "/marketingListType", "value": "Dynamic" },
+    { "op": "replace", "path": "/locked", "value": true }
+  ]'
 
 # Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingLists/<list-guid>" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingLists/<list-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
+
+**`MarketingListCreateDto` fields:** `Id`, `Timestamp`, `Locked` (boolean), `Name`,
+`Purpose`, `Description`, `Source`, `Cost` (number), `ModifiedOn`, `LastUsedOn`
+(date-times), `CurrencyId`, `MarketingListType` (`Static|Dynamic`), `MarketingListTarget`
+(`Individual|Organization|Lead`). **`MarketingListUpdateDto`** is the same minus
+`Id`/`Timestamp`.
 
 ## Marketing Leads
 
 ```bash
-absuite marketing get marketing-leads-o-data --TenantId $TENANT_ID
-absuite marketing count marketing-leads --TenantId $TENANT_ID
-absuite marketing list marketing-lead-details --TenantId $TENANT_ID --MarketingLeadId <lead-guid>
-absuite marketing create marketing-lead --TenantId $TENANT_ID --MarketingLeadCreateDto '{
-  "FirstName": "Jane",
-  "LastName": "Doe",
-  "Email": "jane@example.com",
-  "Company": "Acme Corp"
-}'
-absuite marketing update marketing-lead --TenantId $TENANT_ID --MarketingLeadId <lead-guid> --MarketingLeadUpdateDto '{...}'
-absuite marketing delete marketing-lead --TenantId $TENANT_ID --MarketingLeadId <lead-guid>
-```
-
-REST API equivalent:
-
-```bash
-# List (OData)
-curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingLeads" \
+# List
+curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingLeads?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Count
-curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingLeads/Count" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingLeads/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Get details by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingLeads/<lead-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingLeads" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "FirstName": "Jane",
-    "LastName": "Doe",
-    "Email": "jane@example.com",
-    "Company": "Acme Corp"
-  }'
-
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingLeads/<lead-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{...}'
-
-# Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingLeads/<lead-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-## Email Groups
-
-```bash
-absuite marketing get email-groups-o-data --TenantId $TENANT_ID
-absuite marketing count email-groups --TenantId $TENANT_ID
-absuite marketing list email-group-details --TenantId $TENANT_ID --EmailGroupId <group-guid>
-absuite marketing create email-group --TenantId $TENANT_ID --EmailGroupCreateDto '{
-  "Name": "Newsletter Subscribers"
-}'
-absuite marketing update email-group --TenantId $TENANT_ID --EmailGroupId <group-guid> --EmailGroupUpdateDto '{...}'
-absuite marketing delete email-group --TenantId $TENANT_ID --EmailGroupId <group-guid>
-```
-
-REST API equivalent:
-
-```bash
-# List (OData)
-curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailGroups" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count
-curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailGroups/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get details by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailGroups/<group-guid>" \
+# Get by ID
+curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingLeads/<lead-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailGroups" \
+curl -X POST "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingLeads?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "Name": "Newsletter Subscribers"
+    "FirstName": "<first-name>",
+    "LastName": "<last-name>",
+    "Email": "<lead-email>",
+    "Phone": "<phone>",
+    "Company": "<company>",
+    "JobTitle": "<job-title>",
+    "Source": "Web form",
+    "Notes": "Requested a demo",
+    "Score": 50
   }'
 
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailGroups/<group-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{...}'
-
-# Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailGroups/<group-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-## Email Signatures
-
-```bash
-absuite marketing get email-signatures-o-data --TenantId $TENANT_ID
-absuite marketing count email-signatures --TenantId $TENANT_ID
-absuite marketing list email-signature-details --TenantId $TENANT_ID --EmailSignatureId <sig-guid>
-absuite marketing create email-signature --TenantId $TENANT_ID --EmailSignatureCreateDto '{
-  "Name": "Corporate Signature",
-  "Content": "<p>Best regards,<br/>Acme Corp</p>"
-}'
-absuite marketing update email-signature --TenantId $TENANT_ID --EmailSignatureId <sig-guid> --EmailSignatureUpdateDto '{...}'
-absuite marketing delete email-signature --TenantId $TENANT_ID --EmailSignatureId <sig-guid>
-```
-
-REST API equivalent:
-
-```bash
-# List (OData)
-curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailSignatures" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count
-curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailSignatures/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get details by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailSignatures/<sig-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailSignatures" \
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingLeads/<lead-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "Name": "Corporate Signature",
-    "Content": "<p>Best regards,<br/>Acme Corp</p>"
+    "FirstName": "<first-name>",
+    "LastName": "<last-name>",
+    "Email": "<lead-email>",
+    "Phone": "<phone>",
+    "Company": "<company>",
+    "JobTitle": "<job-title>",
+    "Source": "Web form",
+    "Status": "Qualified",
+    "Notes": "Demo completed",
+    "Score": 80
   }'
 
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailSignatures/<sig-guid>" \
+# Patch (PATCH — JSON Patch)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingLeads/<lead-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{...}'
+  -d '[
+    { "op": "replace", "path": "/status", "value": "Qualified" },
+    { "op": "replace", "path": "/score", "value": 80 }
+  ]'
 
 # Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailSignatures/<sig-guid>" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingLeads/<lead-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-## Email Templates
-
-```bash
-absuite marketing get email-templates-o-data --TenantId $TENANT_ID
-absuite marketing count email-templates --TenantId $TENANT_ID
-absuite marketing list email-template-details --TenantId $TENANT_ID --EmailTemplateId <template-guid>
-absuite marketing create email-template --TenantId $TENANT_ID --EmailTemplateCreateDto '{
-  "Name": "Welcome Email",
-  "Subject": "Welcome to {{CompanyName}}",
-  "Body": "<h1>Welcome!</h1><p>Thank you for joining.</p>"
-}'
-absuite marketing update email-template --TenantId $TENANT_ID --EmailTemplateId <template-guid> --EmailTemplateUpdateDto '{...}'
-absuite marketing delete email-template --TenantId $TENANT_ID --EmailTemplateId <template-guid>
-```
-
-REST API equivalent:
-
-```bash
-# List (OData)
-curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailTemplates" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Count
-curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailTemplates/Count" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Get details by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailTemplates/<template-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailTemplates" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "Name": "Welcome Email",
-    "Subject": "Welcome to {{CompanyName}}",
-    "Body": "<h1>Welcome!</h1><p>Thank you for joining.</p>"
-  }'
-
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailTemplates/<template-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{...}'
-
-# Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailTemplates/<template-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
+**`MarketingLeadCreateDto` fields:** `Id`, `Timestamp`, `FirstName`, `LastName`,
+`Email`, `Phone`, `Company`, `JobTitle`, `Source`, `Notes`, `Score` (integer).
+**`MarketingLeadUpdateDto`** adds a `Status` field and drops `Id`/`Timestamp`:
+`FirstName`, `LastName`, `Email`, `Phone`, `Company`, `JobTitle`, `Source`, `Status`,
+`Notes`, `Score`.
 
 ## Newsletters
 
 ```bash
-absuite marketing get newsletter-o-data --TenantId $TENANT_ID
-absuite marketing count newsletters --TenantId $TENANT_ID
-absuite marketing list newsletter-details --TenantId $TENANT_ID --NewsletterId <newsletter-guid>
-absuite marketing create newsletter --TenantId $TENANT_ID --NewsletterCreateDto '{
-  "Name": "Monthly Digest - April 2026"
-}'
-absuite marketing update newsletter --TenantId $TENANT_ID --NewsletterId <newsletter-guid> --NewsletterUpdateDto '{...}'
-absuite marketing delete newsletter --TenantId $TENANT_ID --NewsletterId <newsletter-guid>
-```
-
-REST API equivalent:
-
-```bash
-# List (OData)
-curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/Newsletters" \
+# List
+curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/Newsletters?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Count
-curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/Newsletters/Count" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/Newsletters/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Get details by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/Newsletters/<newsletter-guid>" \
+# Get by ID
+curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/Newsletters/<newsletter-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/MarketingService/Newsletters" \
+curl -X POST "$ABSUITE_HOST_URL/api/v2/MarketingService/Newsletters?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "Name": "Monthly Digest - April 2026"
+    "Name": "Monthly Digest",
+    "Code": "DIGEST-2026-04",
+    "Title": "Monthly Digest — April 2026"
   }'
 
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/MarketingService/Newsletters/<newsletter-guid>" \
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/MarketingService/Newsletters/<newsletter-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{...}'
+  -d '{
+    "Name": "Monthly Digest",
+    "Code": "DIGEST-2026-05",
+    "Title": "Monthly Digest — May 2026"
+  }'
+
+# Patch (PATCH — JSON Patch)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/MarketingService/Newsletters/<newsletter-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[ { "op": "replace", "path": "/title", "value": "Monthly Digest — May 2026" } ]'
 
 # Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/MarketingService/Newsletters/<newsletter-guid>" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/MarketingService/Newsletters/<newsletter-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
+
+**`NewsletterCreateDto` fields:** `Id`, `Timestamp`, `Name`, `Code`, `Title`.
+**`NewsletterUpdateDto`:** `Code`, `Title`, `Name`.
+
+## Email Groups
+
+```bash
+# List
+curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailGroups?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count
+curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailGroups/Count?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get by ID
+curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailGroups/<group-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create
+curl -X POST "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailGroups?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "Name": "Newsletter Subscribers",
+    "Description": "Opted-in newsletter audience",
+    "Enabled": true
+  }'
+
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailGroups/<group-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "Name": "Newsletter Subscribers",
+    "Description": "Updated description",
+    "Enabled": false
+  }'
+
+# Patch (PATCH — JSON Patch)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailGroups/<group-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[ { "op": "replace", "path": "/enabled", "value": false } ]'
+
+# Delete
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailGroups/<group-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+**`EmailGroupCreateDto` fields:** `Id`, `Timestamp`, `Name`, `Description`, `Enabled`
+(boolean). **`EmailGroupUpdateDto`:** `Name`, `Description`, `Enabled`.
+
+## Email Signatures
+
+```bash
+# List
+curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailSignatures?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count
+curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailSignatures/Count?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get by ID
+curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailSignatures/<signature-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create
+curl -X POST "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailSignatures?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "Title": "Corporate Signature",
+    "Published": true,
+    "Description": "Default outbound signature",
+    "Code": "<p>Best regards,<br/>The Team</p>",
+    "Markup": "<p>Best regards,<br/>The Team</p>",
+    "FeaturedImageUrl": "https://cdn.example/sig.png",
+    "CodeType": "Html5"
+  }'
+
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailSignatures/<signature-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "Title": "Corporate Signature",
+    "HtmlContent": "<p>Best regards,<br/>The Team</p>",
+    "CodeType": "Html5",
+    "Published": true,
+    "Default": true
+  }'
+
+# Patch (PATCH — JSON Patch)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailSignatures/<signature-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[
+    { "op": "replace", "path": "/published", "value": true },
+    { "op": "replace", "path": "/codeType", "value": "Liquid" }
+  ]'
+
+# Delete
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailSignatures/<signature-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+**`EmailSignatureCreateDto` fields:** `Id`, `Timestamp`, `Title` (**required**),
+`Published` (boolean), `Description`, `Code`, `Markup`, `FeaturedImageUrl`, `CodeType`
+(`Razor|CSharp|CSHtml|Liquid|Html5|Markdown|Markup`). **`EmailSignatureUpdateDto`** is a
+large content DTO (the same shape as email templates) — its notable fields include
+`Order`, `Slug`, `Name`, `Title`, `Excerpt`, `Description`, `CanonicalUrl`, SEO fields
+(`SeoTitle`, `SeoKeyWords`, `SeoKeyPhrases`, `MetaDescription`), social-card fields
+(`TwitterImage/Title/Description`, `FacebookImage/Title/Description`),
+`FeaturedImageUrl`, `Content`, `Code`, `HtmlContent`, `CodeType`, `CSharpContent`,
+`RazorContent`, `CssContent`, `JsContent`, and boolean flags such as `Template`,
+`Default`, `Enable`, `Published`, `InTrashCan`, `SystemLocked`. Use PATCH for small edits
+rather than resending the full body.
+
+## Email Templates
+
+```bash
+# List
+curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailTemplates?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Count
+curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailTemplates/Count?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Get by ID
+curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailTemplates/<template-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Create
+curl -X POST "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailTemplates?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "Title": "Welcome Email",
+    "Published": true,
+    "Description": "Sent on signup",
+    "Code": "<h1>Welcome!</h1><p>Thanks for joining.</p>",
+    "Markup": "<h1>Welcome!</h1><p>Thanks for joining.</p>",
+    "FeaturedImageUrl": "https://cdn.example/welcome.png",
+    "CodeType": "Liquid",
+    "MarketingCampaignId": "<campaign-guid>"
+  }'
+
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailTemplates/<template-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "Title": "Welcome Email",
+    "HtmlContent": "<h1>Welcome!</h1><p>Thanks for joining.</p>",
+    "CodeType": "Liquid",
+    "Published": true,
+    "MarketingCampaignId": "<campaign-guid>"
+  }'
+
+# Patch (PATCH — JSON Patch)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailTemplates/<template-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[
+    { "op": "replace", "path": "/published", "value": true },
+    { "op": "replace", "path": "/marketingCampaignId", "value": "<campaign-guid>" }
+  ]'
+
+# Delete
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailTemplates/<template-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+**`EmailTemplateCreateDto` fields:** `Id`, `Timestamp`, `Title` (**required**),
+`Published` (boolean), `Description`, `Code`, `Markup`, `FeaturedImageUrl`, `CodeType`
+(`Razor|CSharp|CSHtml|Liquid|Html5|Markdown|Markup`), `MarketingCampaignId`.
+**`EmailTemplateUpdateDto`** is the same large content DTO as email signatures plus a
+`MarketingCampaignId` field (notable fields: `Order`, `Slug`, `Name`, `Title`,
+`Excerpt`, `Description`, SEO/social fields, `Content`, `Code`, `HtmlContent`,
+`CodeType`, `CSharpContent`, `RazorContent`, `CssContent`, `JsContent`, and boolean
+flags `Template`, `Default`, `Enable`, `Published`, `InTrashCan`, `SystemLocked`).
 
 ## Social Media Posts
 
 ```bash
-absuite marketing get social-media-posts-o-data --TenantId $TENANT_ID
-absuite marketing count social-media-posts --TenantId $TENANT_ID
-absuite marketing list social-media-post-details --TenantId $TENANT_ID --SocialMediaPostId <post-guid>
-absuite marketing create social-media-post --TenantId $TENANT_ID --SocialMediaPostCreateDto '{
-  "Title": "Spring Sale Announcement",
-  "Content": "Get 20% off everything this spring! Use code SPRING26"
-}'
-absuite marketing update social-media-post --TenantId $TENANT_ID --SocialMediaPostId <post-guid> --SocialMediaPostUpdateDto '{...}'
-absuite marketing delete social-media-post --TenantId $TENANT_ID --SocialMediaPostId <post-guid>
-```
-
-REST API equivalent:
-
-```bash
-# List (OData)
-curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/SocialMediaPosts" \
+# List
+curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/SocialMediaPosts?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Count
-curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/SocialMediaPosts/Count" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/SocialMediaPosts/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Get details by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/SocialMediaPosts/<post-guid>" \
+# Get by ID
+curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/SocialMediaPosts/<post-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/MarketingService/SocialMediaPosts" \
+curl -X POST "$ABSUITE_HOST_URL/api/v2/MarketingService/SocialMediaPosts?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "Title": "Spring Sale Announcement",
-    "Content": "Get 20% off everything this spring! Use code SPRING26"
+    "Content": "Get 20% off everything this spring! Use code SPRING26",
+    "FeaturedImageUrl": "https://cdn.example/spring.png",
+    "SocialPostBucketId": "<bucket-guid>"
   }'
 
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/MarketingService/SocialMediaPosts/<post-guid>" \
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/MarketingService/SocialMediaPosts/<post-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{...}'
+  -d '{
+    "Title": "Spring Sale — Final Days",
+    "Content": "Last chance: 20% off ends Sunday. Code SPRING26",
+    "FeaturedImageUrl": "https://cdn.example/spring-final.png",
+    "SocialPostBucketId": "<bucket-guid>"
+  }'
+
+# Patch (PATCH — JSON Patch)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/MarketingService/SocialMediaPosts/<post-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[ { "op": "replace", "path": "/socialPostBucketId", "value": "<bucket-guid>" } ]'
 
 # Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/MarketingService/SocialMediaPosts/<post-guid>" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/MarketingService/SocialMediaPosts/<post-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
+
+**`SocialMediaPostCreateDto` fields:** `Id`, `Timestamp`, `Title`, `Content`,
+`FeaturedImageUrl`, `SocialPostBucketId`. **`SocialMediaPostUpdateDto`:** `Title`,
+`Content`, `FeaturedImageUrl`, `SocialPostBucketId`.
 
 ## Social Post Buckets
 
-Organize social media posts into scheduled buckets.
-
 ```bash
-absuite marketing get social-post-buckets-o-data --TenantId $TENANT_ID
-absuite marketing count social-post-buckets --TenantId $TENANT_ID
-absuite marketing list social-post-bucket-details --TenantId $TENANT_ID --SocialPostBucketId <bucket-guid>
-absuite marketing create social-post-bucket --TenantId $TENANT_ID --SocialPostBucketCreateDto '{...}'
-absuite marketing update social-post-bucket --TenantId $TENANT_ID --SocialPostBucketId <bucket-guid> --SocialPostBucketUpdateDto '{...}'
-absuite marketing delete social-post-bucket --TenantId $TENANT_ID --SocialPostBucketId <bucket-guid>
-```
-
-REST API equivalent:
-
-```bash
-# List (OData)
-curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/SocialPostBuckets" \
+# List
+curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/SocialPostBuckets?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Count
-curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/SocialPostBuckets/Count" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/SocialPostBuckets/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Get details by ID
-curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/SocialPostBuckets/<bucket-guid>" \
+# Get by ID
+curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/SocialPostBuckets/<bucket-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Create
-curl -X POST "$ABSUITE_HOST_URL/api/v2/MarketingService/SocialPostBuckets" \
+curl -X POST "$ABSUITE_HOST_URL/api/v2/MarketingService/SocialPostBuckets?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{...}'
+  -d '{
+    "Name": "Spring Campaign Bucket"
+  }'
 
-# Update
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/MarketingService/SocialPostBuckets/<bucket-guid>" \
+# Update (PUT)
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/MarketingService/SocialPostBuckets/<bucket-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{...}'
+  -d '{
+    "Name": "Spring Campaign Bucket (2026)"
+  }'
+
+# Patch (PATCH — JSON Patch)
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/MarketingService/SocialPostBuckets/<bucket-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[ { "op": "replace", "path": "/name", "value": "Spring Campaign Bucket (2026)" } ]'
 
 # Delete
-curl -X DELETE "$ABSUITE_HOST_URL/api/v2/MarketingService/SocialPostBuckets/<bucket-guid>" \
+curl -X DELETE "$ABSUITE_HOST_URL/api/v2/MarketingService/SocialPostBuckets/<bucket-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
+**`SocialPostBucketCreateDto` fields:** `Id`, `Timestamp`, `Name`.
+**`SocialPostBucketUpdateDto`:** `Name`.
+
 ## Tracking Pixel
 
-```bash
-absuite marketing get tracking-pixel --TenantId $TENANT_ID
-```
-
-REST API equivalent:
+A **public** read — fetched by `pixelId` with **no** tenant param. Do not append
+`?tenantId=`.
 
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/TrackingPixels/<pixel-id>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-## Command Quick Reference
+## PATCH (JSON Patch, RFC 6902)
 
-| Action | CLI Command |
-|---|---|
-| List campaigns | `absuite marketing get campaign-o-data --TenantId <guid>` |
-| Create campaign | `absuite marketing create campaign --TenantId <guid> --MarketingCampaignCreateDto '{...}'` |
-| List marketing areas | `absuite marketing get marketing-areas-o-data --TenantId <guid>` |
-| Create marketing area | `absuite marketing create marketing-area --TenantId <guid> --MarketingAreaAreaCreateDto '{...}'` |
-| List marketing lists | `absuite marketing get list-o-data --TenantId <guid>` |
-| Create marketing list | `absuite marketing create list --TenantId <guid> --MarketingListCreateDto '{...}'` |
-| List marketing leads | `absuite marketing get marketing-leads-o-data --TenantId <guid>` |
-| Create marketing lead | `absuite marketing create marketing-lead --TenantId <guid> --MarketingLeadCreateDto '{...}'` |
-| List email templates | `absuite marketing get email-templates-o-data --TenantId <guid>` |
-| Create email template | `absuite marketing create email-template --TenantId <guid> --EmailTemplateCreateDto '{...}'` |
-| List email groups | `absuite marketing get email-groups-o-data --TenantId <guid>` |
-| Create email group | `absuite marketing create email-group --TenantId <guid> --EmailGroupCreateDto '{...}'` |
-| List email signatures | `absuite marketing get email-signatures-o-data --TenantId <guid>` |
-| Create email signature | `absuite marketing create email-signature --TenantId <guid> --EmailSignatureCreateDto '{...}'` |
-| List newsletters | `absuite marketing get newsletter-o-data --TenantId <guid>` |
-| Create newsletter | `absuite marketing create newsletter --TenantId <guid> --NewsletterCreateDto '{...}'` |
-| List social media posts | `absuite marketing get social-media-posts-o-data --TenantId <guid>` |
-| Create social media post | `absuite marketing create social-media-post --TenantId <guid> --SocialMediaPostCreateDto '{...}'` |
-| List social post buckets | `absuite marketing get social-post-buckets-o-data --TenantId <guid>` |
-| Create social post bucket | `absuite marketing create social-post-bucket --TenantId <guid> --SocialPostBucketCreateDto '{...}'` |
-| Get tracking pixel | `absuite marketing get tracking-pixel --TenantId <guid>` |
+PATCH performs an **atomic partial update**: send only the fields you want to change as a
+JSON **array** of operations, rather than resending the whole object (safer than PUT for
+concurrent edits). `Content-Type: application/json`, and `?tenantId=<tenant-guid>` is
+still required on the request.
 
-## Critical Rules
+- Operations: `op` ∈ `add | remove | replace | move | copy | test`.
+- `path` / `from` are JSON-Pointers: a leading `/` then the **camelCase** field name
+  (e.g. `/active`, `/allocatedBudget`, `/marketingListType`).
 
-- **Authenticate first.** Always provide a tenant context.
-- **List commands use OData** (e.g., `get campaign-o-data`), while detail views use `list *-details`.
-- **Use `--help`** on any command for full DTO schemas.
+```bash
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingCampaigns/<campaign-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '[
+    { "op": "replace", "path": "/active", "value": false },
+    { "op": "replace", "path": "/expectedResponsePercent", "value": 7.5 }
+  ]'
+```
+
+**PATCH is available on every Marketing Service aggregate:** Marketing Campaigns,
+Marketing Areas, Marketing Lists, Marketing Leads, Newsletters, Email Groups, Email
+Signatures, Email Templates, Social Media Posts, and Social Post Buckets. (The tracking
+pixel is read-only and has no PATCH.)
+
+## End-to-End Workflow
+
+A campaign with a targeted list, a campaign-linked email template, and a scheduled
+social post:
+
+```bash
+# 1) Create a marketing area
+curl -X POST "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingAreas?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "Name": "North America", "Description": "NA region" }'
+# → result.id = <area-guid>
+
+# 2) Create the campaign (referencing the area)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingCampaigns?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "Name": "Spring Sale 2026", "Offer": "20% off", "Active": true,
+        "Code": "SPRING26", "AllocatedBudget": 10000, "MarketingAreaId": "<area-guid>",
+        "CurrencyId": "<currency-guid>" }'
+# → result.id = <campaign-guid>
+
+# 3) Create a target list
+curl -X POST "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingLists?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "Name": "Spring VIPs", "MarketingListType": "Static", "MarketingListTarget": "Individual" }'
+
+# 4) Create a campaign-linked email template
+curl -X POST "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailTemplates?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "Title": "Spring Sale Email", "Published": true, "CodeType": "Liquid",
+        "MarketingCampaignId": "<campaign-guid>" }'
+
+# 5) Create a social bucket, then a post in it
+curl -X POST "$ABSUITE_HOST_URL/api/v2/MarketingService/SocialPostBuckets?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "Name": "Spring Campaign Bucket" }'
+# → result.id = <bucket-guid>
+curl -X POST "$ABSUITE_HOST_URL/api/v2/MarketingService/SocialMediaPosts?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{ "Title": "Spring Sale!", "Content": "20% off — code SPRING26", "SocialPostBucketId": "<bucket-guid>" }'
+
+# 6) Close the campaign with a PATCH when it ends
+curl -X PATCH "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingCampaigns/<campaign-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '[ { "op": "replace", "path": "/active", "value": false },
+        { "op": "replace", "path": "/actualEnd", "value": "2026-05-01T00:00:00Z" } ]'
+```
 
 ## API Endpoints Quick Reference
 
-| Resource | Method | Endpoint |
+| Action | Method | Path |
 |---|---|---|
-| Marketing Campaigns | GET | `/api/v2/MarketingService/MarketingCampaigns` |
-| Marketing Campaigns | POST | `/api/v2/MarketingService/MarketingCampaigns` |
-| Campaign by ID | GET | `/api/v2/MarketingService/MarketingCampaigns/:marketingcampaignId` |
-| Campaign by ID | PUT | `/api/v2/MarketingService/MarketingCampaigns/:marketingcampaignId` |
-| Campaign by ID | DELETE | `/api/v2/MarketingService/MarketingCampaigns/:marketingcampaignId` |
-| Campaigns Count | GET | `/api/v2/MarketingService/MarketingCampaigns/Count` |
-| Marketing Areas | GET | `/api/v2/MarketingService/MarketingAreas` |
-| Marketing Areas | POST | `/api/v2/MarketingService/MarketingAreas` |
-| Area by ID | GET | `/api/v2/MarketingService/MarketingAreas/:marketingAreaId` |
-| Area by ID | PUT | `/api/v2/MarketingService/MarketingAreas/:marketingAreaId` |
-| Area by ID | DELETE | `/api/v2/MarketingService/MarketingAreas/:marketingAreaId` |
-| Areas Count | GET | `/api/v2/MarketingService/MarketingAreas/Count` |
-| Marketing Lists | GET | `/api/v2/MarketingService/MarketingLists` |
-| Marketing Lists | POST | `/api/v2/MarketingService/MarketingLists` |
-| List by ID | GET | `/api/v2/MarketingService/MarketingLists/:marketinglistId` |
-| List by ID | PUT | `/api/v2/MarketingService/MarketingLists/:marketinglistId` |
-| List by ID | DELETE | `/api/v2/MarketingService/MarketingLists/:marketinglistId` |
-| Lists Count | GET | `/api/v2/MarketingService/MarketingLists/Count` |
-| Marketing Leads | GET | `/api/v2/MarketingService/MarketingLeads` |
-| Marketing Leads | POST | `/api/v2/MarketingService/MarketingLeads` |
-| Lead by ID | GET | `/api/v2/MarketingService/MarketingLeads/:marketingLeadId` |
-| Lead by ID | PUT | `/api/v2/MarketingService/MarketingLeads/:marketingLeadId` |
-| Lead by ID | DELETE | `/api/v2/MarketingService/MarketingLeads/:marketingLeadId` |
-| Leads Count | GET | `/api/v2/MarketingService/MarketingLeads/Count` |
-| Email Signatures | GET | `/api/v2/MarketingService/EmailSignatures` |
-| Email Signatures | POST | `/api/v2/MarketingService/EmailSignatures` |
-| Signature by ID | GET | `/api/v2/MarketingService/EmailSignatures/:emailsignatureId` |
-| Signature by ID | PUT | `/api/v2/MarketingService/EmailSignatures/:emailsignatureId` |
-| Signature by ID | DELETE | `/api/v2/MarketingService/EmailSignatures/:emailsignatureId` |
-| Signatures Count | GET | `/api/v2/MarketingService/EmailSignatures/Count` |
-| Email Templates | GET | `/api/v2/MarketingService/EmailTemplates` |
-| Email Templates | POST | `/api/v2/MarketingService/EmailTemplates` |
-| Template by ID | GET | `/api/v2/MarketingService/EmailTemplates/:emailTemplateId` |
-| Template by ID | PUT | `/api/v2/MarketingService/EmailTemplates/:emailTemplateId` |
-| Template by ID | DELETE | `/api/v2/MarketingService/EmailTemplates/:emailTemplateId` |
-| Templates Count | GET | `/api/v2/MarketingService/EmailTemplates/Count` |
-| Email Groups | GET | `/api/v2/MarketingService/EmailGroups` |
-| Email Groups | POST | `/api/v2/MarketingService/EmailGroups` |
-| Group by ID | GET | `/api/v2/MarketingService/EmailGroups/:emailgroupId` |
-| Group by ID | PUT | `/api/v2/MarketingService/EmailGroups/:emailgroupId` |
-| Group by ID | DELETE | `/api/v2/MarketingService/EmailGroups/:emailgroupId` |
-| Groups Count | GET | `/api/v2/MarketingService/EmailGroups/Count` |
-| Social Media Posts | GET | `/api/v2/MarketingService/SocialMediaPosts` |
-| Social Media Posts | POST | `/api/v2/MarketingService/SocialMediaPosts` |
-| Social Media Post by ID | GET | `/api/v2/MarketingService/SocialMediaPosts/:socialmediapostId` |
-| Social Media Post by ID | PUT | `/api/v2/MarketingService/SocialMediaPosts/:socialmediapostId` |
-| Social Media Post by ID | DELETE | `/api/v2/MarketingService/SocialMediaPosts/:socialmediapostId` |
-| Social Media Posts Count | GET | `/api/v2/MarketingService/SocialMediaPosts/Count` |
-| Newsletters | GET | `/api/v2/MarketingService/Newsletters` |
-| Newsletters | POST | `/api/v2/MarketingService/Newsletters` |
-| Newsletter by ID | GET | `/api/v2/MarketingService/Newsletters/:newsletterId` |
-| Newsletter by ID | PUT | `/api/v2/MarketingService/Newsletters/:newsletterId` |
-| Newsletter by ID | DELETE | `/api/v2/MarketingService/Newsletters/:newsletterId` |
-| Newsletters Count | GET | `/api/v2/MarketingService/Newsletters/Count` |
-| Social Post Buckets | GET | `/api/v2/MarketingService/SocialPostBuckets` |
-| Social Post Buckets | POST | `/api/v2/MarketingService/SocialPostBuckets` |
-| Bucket by ID | GET | `/api/v2/MarketingService/SocialPostBuckets/:socialpostbucketId` |
-| Bucket by ID | PUT | `/api/v2/MarketingService/SocialPostBuckets/:socialpostbucketId` |
-| Bucket by ID | DELETE | `/api/v2/MarketingService/SocialPostBuckets/:socialpostbucketId` |
-| Buckets Count | GET | `/api/v2/MarketingService/SocialPostBuckets/Count` |
-| Tracking Pixel | GET | `/api/v2/MarketingService/TrackingPixels/:pixelId` |
+| List campaigns | GET | `/api/v2/MarketingService/MarketingCampaigns` |
+| Count campaigns | GET | `/api/v2/MarketingService/MarketingCampaigns/Count` |
+| Get campaign | GET | `/api/v2/MarketingService/MarketingCampaigns/{marketingcampaignId}` |
+| Create campaign | POST | `/api/v2/MarketingService/MarketingCampaigns` |
+| Update campaign | PUT | `/api/v2/MarketingService/MarketingCampaigns/{marketingcampaignId}` |
+| Patch campaign | PATCH | `/api/v2/MarketingService/MarketingCampaigns/{marketingcampaignId}` |
+| Delete campaign | DELETE | `/api/v2/MarketingService/MarketingCampaigns/{marketingcampaignId}` |
+| List areas | GET | `/api/v2/MarketingService/MarketingAreas` |
+| Count areas | GET | `/api/v2/MarketingService/MarketingAreas/Count` |
+| Get area | GET | `/api/v2/MarketingService/MarketingAreas/{marketingAreaId}` |
+| Create area | POST | `/api/v2/MarketingService/MarketingAreas` |
+| Update area | PUT | `/api/v2/MarketingService/MarketingAreas/{marketingAreaId}` |
+| Patch area | PATCH | `/api/v2/MarketingService/MarketingAreas/{marketingAreaId}` |
+| Delete area | DELETE | `/api/v2/MarketingService/MarketingAreas/{marketingAreaId}` |
+| List lists | GET | `/api/v2/MarketingService/MarketingLists` |
+| Count lists | GET | `/api/v2/MarketingService/MarketingLists/Count` |
+| Get list | GET | `/api/v2/MarketingService/MarketingLists/{marketinglistId}` |
+| Create list | POST | `/api/v2/MarketingService/MarketingLists` |
+| Update list | PUT | `/api/v2/MarketingService/MarketingLists/{marketinglistId}` |
+| Patch list | PATCH | `/api/v2/MarketingService/MarketingLists/{marketinglistId}` |
+| Delete list | DELETE | `/api/v2/MarketingService/MarketingLists/{marketinglistId}` |
+| List leads | GET | `/api/v2/MarketingService/MarketingLeads` |
+| Count leads | GET | `/api/v2/MarketingService/MarketingLeads/Count` |
+| Get lead | GET | `/api/v2/MarketingService/MarketingLeads/{marketingLeadId}` |
+| Create lead | POST | `/api/v2/MarketingService/MarketingLeads` |
+| Update lead | PUT | `/api/v2/MarketingService/MarketingLeads/{marketingLeadId}` |
+| Patch lead | PATCH | `/api/v2/MarketingService/MarketingLeads/{marketingLeadId}` |
+| Delete lead | DELETE | `/api/v2/MarketingService/MarketingLeads/{marketingLeadId}` |
+| List newsletters | GET | `/api/v2/MarketingService/Newsletters` |
+| Count newsletters | GET | `/api/v2/MarketingService/Newsletters/Count` |
+| Get newsletter | GET | `/api/v2/MarketingService/Newsletters/{newsletterId}` |
+| Create newsletter | POST | `/api/v2/MarketingService/Newsletters` |
+| Update newsletter | PUT | `/api/v2/MarketingService/Newsletters/{newsletterId}` |
+| Patch newsletter | PATCH | `/api/v2/MarketingService/Newsletters/{newsletterId}` |
+| Delete newsletter | DELETE | `/api/v2/MarketingService/Newsletters/{newsletterId}` |
+| List email groups | GET | `/api/v2/MarketingService/EmailGroups` |
+| Count email groups | GET | `/api/v2/MarketingService/EmailGroups/Count` |
+| Get email group | GET | `/api/v2/MarketingService/EmailGroups/{emailgroupId}` |
+| Create email group | POST | `/api/v2/MarketingService/EmailGroups` |
+| Update email group | PUT | `/api/v2/MarketingService/EmailGroups/{emailgroupId}` |
+| Patch email group | PATCH | `/api/v2/MarketingService/EmailGroups/{emailgroupId}` |
+| Delete email group | DELETE | `/api/v2/MarketingService/EmailGroups/{emailgroupId}` |
+| List email signatures | GET | `/api/v2/MarketingService/EmailSignatures` |
+| Count email signatures | GET | `/api/v2/MarketingService/EmailSignatures/Count` |
+| Get email signature | GET | `/api/v2/MarketingService/EmailSignatures/{emailsignatureId}` |
+| Create email signature | POST | `/api/v2/MarketingService/EmailSignatures` |
+| Update email signature | PUT | `/api/v2/MarketingService/EmailSignatures/{emailsignatureId}` |
+| Patch email signature | PATCH | `/api/v2/MarketingService/EmailSignatures/{emailsignatureId}` |
+| Delete email signature | DELETE | `/api/v2/MarketingService/EmailSignatures/{emailsignatureId}` |
+| List email templates | GET | `/api/v2/MarketingService/EmailTemplates` |
+| Count email templates | GET | `/api/v2/MarketingService/EmailTemplates/Count` |
+| Get email template | GET | `/api/v2/MarketingService/EmailTemplates/{emailTemplateId}` |
+| Create email template | POST | `/api/v2/MarketingService/EmailTemplates` |
+| Update email template | PUT | `/api/v2/MarketingService/EmailTemplates/{emailTemplateId}` |
+| Patch email template | PATCH | `/api/v2/MarketingService/EmailTemplates/{emailTemplateId}` |
+| Delete email template | DELETE | `/api/v2/MarketingService/EmailTemplates/{emailTemplateId}` |
+| List social posts | GET | `/api/v2/MarketingService/SocialMediaPosts` |
+| Count social posts | GET | `/api/v2/MarketingService/SocialMediaPosts/Count` |
+| Get social post | GET | `/api/v2/MarketingService/SocialMediaPosts/{socialmediapostId}` |
+| Create social post | POST | `/api/v2/MarketingService/SocialMediaPosts` |
+| Update social post | PUT | `/api/v2/MarketingService/SocialMediaPosts/{socialmediapostId}` |
+| Patch social post | PATCH | `/api/v2/MarketingService/SocialMediaPosts/{socialmediapostId}` |
+| Delete social post | DELETE | `/api/v2/MarketingService/SocialMediaPosts/{socialmediapostId}` |
+| List social buckets | GET | `/api/v2/MarketingService/SocialPostBuckets` |
+| Count social buckets | GET | `/api/v2/MarketingService/SocialPostBuckets/Count` |
+| Get social bucket | GET | `/api/v2/MarketingService/SocialPostBuckets/{socialpostbucketId}` |
+| Create social bucket | POST | `/api/v2/MarketingService/SocialPostBuckets` |
+| Update social bucket | PUT | `/api/v2/MarketingService/SocialPostBuckets/{socialpostbucketId}` |
+| Patch social bucket | PATCH | `/api/v2/MarketingService/SocialPostBuckets/{socialpostbucketId}` |
+| Delete social bucket | DELETE | `/api/v2/MarketingService/SocialPostBuckets/{socialpostbucketId}` |
+| Get tracking pixel (public, no tenant) | GET | `/api/v2/MarketingService/TrackingPixels/{pixelId}` |
+
+## Critical Rules
+
+- **Authenticate first**, then send `Authorization: Bearer …` on every call.
+- **Pass `?tenantId=<tenant-guid>` on every Marketing Service request** — including
+  POST, PUT, PATCH, and DELETE. Omitting it on writes returns `400`. The only exception
+  is `GET /TrackingPixels/{pixelId}` (public, no tenant).
+- **List = OData.** The list endpoints accept OData query options (`$filter`, `$top`,
+  `$orderby`, …); there is no separate "search" endpoint — express search via `$filter`.
+- **PATCH bodies are JSON-Patch arrays** with camelCase `path` pointers; PUT bodies are
+  full PascalCase objects.
+- Always check `isSuccess` and read data from `result`.
