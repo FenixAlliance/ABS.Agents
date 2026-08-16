@@ -23,6 +23,14 @@ require an admin-level account. Treat user/tenant deletion and migration as dest
 > For the CLI equivalent of these operations, see `absuite-system-cli`. For general REST conventions
 > (auth, envelope, paging, JSON Patch), see `absuite-rest`.
 
+## API usage essentials
+
+> Full detail in `absuite-rest`; these rules apply across this skill's endpoints.
+
+- **Lists & counts are OData-enabled.** `GET` collection endpoints accept `$filter`, `$top`, `$skip`, `$orderby`, `$select` — page through results, don't fetch-all-and-filter. Each dedicated `.../Count` endpoint returns an integer and is **also** filterable (`?$filter=...` -> a filtered count). OData is a REST/HTTP-layer feature (the CLI does not expose it).
+- **`PUT` replaces the ENTIRE resource** — it overwrites, not merges, so any omitted field is reset to default/null. **GET the resource first, change the full object, then PUT it back**; sending a partial body to `PUT` (or an incomplete `POST` create) causes silent data loss.
+- **`PATCH`, where this service exposes it, is atomic and partial** (JSON Patch / RFC 6902) — it changes only the fields you name, needs no prior GET, and won't clobber the rest. Prefer it for small edits; use `PUT` only for a deliberate full replacement.
+
 ## Authentication
 
 1. **Obtain a bearer token:**

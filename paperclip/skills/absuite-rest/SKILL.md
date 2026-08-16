@@ -99,16 +99,53 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Currencies" \
 | `PATCH` | **atomic partial update** | **JSON Patch** body — see below. |
 | `DELETE` | delete | Usually no body. |
 
-## OData list queries
+## Reads — lists, counts, and OData
 
-List (`GET` collection) endpoints accept OData query options. Combine them with `tenantId`:
+**Every collection (`GET`) endpoint is OData-enabled — and so is its dedicated `Count` endpoint.** Filtering, paging, and sorting happen server-side (at the database), so never pull a whole collection and trim it client-side.
 
 ```bash
+# Filtered, paged, sorted, projected list:
 curl -X GET "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices?tenantId=<tenant-guid>&\$top=20&\$skip=0&\$orderby=Timestamp%20desc&\$filter=InvoiceStatus%20eq%20'Draft'&\$select=Id,Title,Total" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-Supported options where a list endpoint exposes them: `$filter`, `$top`, `$skip`, `$orderby`, `$select`, `$count`. Use the dedicated `.../Count` endpoint for a plain total.
+Options: `$filter`, `$top`, `$skip`, `$orderby`, `$select`, `$count`.
+
+**Counting.** Most list resources have a dedicated **`.../Count`** endpoint that returns an integer in `result` — use it instead of listing just to measure size. It is **also OData-enabled**, so a `$filter` returns a *filtered* count:
+
+```bash
+# Total count:
+curl -X GET "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/Count?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Filtered count (how many Draft invoices) — no need to fetch the rows:
+curl -X GET "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/Count?tenantId=<tenant-guid>&\$filter=InvoiceStatus%20eq%20'Draft'" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+> **Note:** OData options are a REST/HTTP-layer feature — they are accepted on the URL but are **not** declared in the OpenAPI spec (the controllers bind `ODataQueryOptions<T>`), so the generated SDKs and the `absuite` CLI do **not** expose them as parameters. To filter/page or take a filtered count, call REST directly.
+
+## Updating safely — PUT replaces the whole object; PATCH patches it
+
+**`PUT` is a full replacement, not a merge.** The server overwrites the entire resource with the body you send, so **any field you omit is reset to its default/null**. A "quick update" that sends only the changed fields will silently wipe everything else — a common and costly data-loss bug.
+
+The safe `PUT` pattern is **read‑modify‑write**: GET the current resource, change only what you need on the *complete* object, then PUT the whole thing back.
+
+```bash
+# 1) GET the current resource
+CURRENT=$(curl -s "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/<invoice-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" | jq '.result')
+# 2) modify only what you need on the FULL object
+UPDATED=$(echo "$CURRENT" | jq '.customerNotes = "Approved by finance."')
+# 3) PUT the COMPLETE object back
+curl -X PUT "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/<invoice-guid>?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d "$UPDATED"
+```
+
+The same applies to **`POST` (create)** — send the complete `*CreateDto`; fields left out are created empty.
+
+**Prefer `PATCH` for small changes.** A JSON Patch touches only the fields you name, needs no prior GET, can't clobber the rest of the object, and behaves better under concurrent edits — it is both safer and cheaper than a read‑modify‑write `PUT`. Use `PUT` only when you deliberately want to replace the whole object.
 
 ## PATCH — atomic partial updates (JSON Patch, RFC 6902)
 
@@ -149,5 +186,6 @@ Operation shape: `{ "op": "<add|remove|replace|move|copy|test>", "path": "/<came
 - **Always parse the envelope** — check `isSuccess`, then read `result`.
 - **Match field casing and enum values to the spec.** Request bodies use PascalCase property names (`"CurrencyId"`, `"InvoiceStatus"`). Enum values are exact strings from the endpoint's schema — do not guess.
 - **Apply tenant scoping per endpoint** — required vs optional vs none, as documented per call. Add `?tenantId=` to tenant-scoped writes, not just reads.
-- **Use PATCH for atomic edits**, PUT for full replacement.
+- **`PUT` replaces the ENTIRE resource — never send a partial body to `PUT` (or `POST`).** GET first, modify the full object, then PUT; or use `PATCH` (JSON Patch) for a safe partial edit. A partial `PUT` blanks the omitted fields → data loss.
+- **Filter and count server-side.** Use OData (`$filter`/`$top`/`$skip`/`$orderby`/`$select`) on list endpoints and the dedicated, filterable `.../Count` endpoints — don't pull whole collections to filter or count in the client.
 - **Idempotency:** GET/PUT/DELETE are idempotent; POST is not. Do not blindly retry a failed POST without checking whether it partially applied.
