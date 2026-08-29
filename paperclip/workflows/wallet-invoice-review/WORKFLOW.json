@@ -1,0 +1,27 @@
+{
+  "apiVersion": "abs.fenixalliance.com/v1alpha1",
+  "key": "fenixalliance.flows.wallet-invoice-review",
+  "name": "Wallet Invoice Review",
+  "version": "1.0.0",
+  "description": "Reads the tenant wallet and its invoices for review. A read-only first-party template: no mutation, no provider egress, no human approval, no financial consequence.",
+  "requires": {
+    "capabilities": [
+      "abs.wallets.get_tenant_wallet",
+      "abs.wallets.get_wallet_invoices"
+    ]
+  },
+  "definition": {
+    "nodes": [
+      { "id": "start", "type": "Start" },
+      { "id": "wallet", "type": "ServiceQuery", "config": { "capabilityKey": "abs.wallets.get_tenant_wallet", "outputVar": "wallet" } },
+      { "id": "invoices", "type": "ServiceQuery", "config": { "capabilityKey": "abs.wallets.get_wallet_invoices", "outputVar": "invoices" } },
+      { "id": "end", "type": "End" }
+    ],
+    "edges": [
+      { "id": "e1", "sourceNodeId": "start", "targetNodeId": "wallet" },
+      { "id": "e2", "sourceNodeId": "wallet", "targetNodeId": "invoices" },
+      { "id": "e3", "sourceNodeId": "invoices", "targetNodeId": "end" }
+    ],
+    "variables": []
+  }
+}
