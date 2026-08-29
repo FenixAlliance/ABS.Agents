@@ -756,6 +756,15 @@
       "version": null,
       "description": "Manage wallets and their sub-resources — bank accounts, payments, payment tokens, locations, withdraws/withdraw-requests — plus read access to orders, invoices, quotes, refunds and chargebacks, via the Alliance Business Suite (ABS) REST API. Covers create / read / update (PUT) / delete and atomic PATCH (JSON Patch) updates. Wallets are scoped by walletId (ownership-keyed), not by tenant, and every call requires a bearer token (see the absuite-login skill to authenticate).",
       "contentHash": "a5e266141290f4085b1095099d028c88d9650ee66fe5d7d64513d7cdbab98f56"
+    },
+    {
+      "kind": "Workflow",
+      "key": "fenixalliance.flows.wallet-invoice-review",
+      "path": "paperclip/workflows/wallet-invoice-review/WORKFLOW.json",
+      "name": "Wallet Invoice Review",
+      "version": "1.0.2",
+      "description": "Reads the tenant wallet and its invoices for review. A read-only first-party template: no mutation, no provider egress, no human approval, no financial consequence.",
+      "contentHash": "762c00b725caed4ee3d5add04cd86c5d0921dd8872b2b438bf7b69d8838e84c6"
     }
   ]
 }
