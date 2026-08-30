@@ -224,7 +224,7 @@
       "name": "absuite-cli",
       "version": null,
       "description": "General-purpose usage of the `absuite` CLI for interacting with the Alliance Business Suite (ABS) API. Covers service discovery, command discovery, calling API functions, passing parameters and JSON bodies, reading help and output schemas, OData queries, tenant scoping, and interpreting responses. Use for any ABS domain operation (tenants, invoices, contacts, catalog, CRM, etc.) after authentication. Do NOT use for login/authentication — use the `absuite-login` skill instead.",
-      "contentHash": "989c4339a7911d77992fbfd1cfa54dc03fef9b1f82a1431034bc19ef8dd55d23"
+      "contentHash": "1b31d7faf9f3b7c5166c1d9df5650354d10ad75f96146badd4dd0fe4e9aeb773"
     },
     {
       "kind": "Skill",
@@ -756,6 +756,33 @@
       "version": null,
       "description": "Manage wallets and their sub-resources — bank accounts, payments, payment tokens, locations, withdraws/withdraw-requests — plus read access to orders, invoices, quotes, refunds and chargebacks, via the Alliance Business Suite (ABS) REST API. Covers create / read / update (PUT) / delete and atomic PATCH (JSON Patch) updates. Wallets are scoped by walletId (ownership-keyed), not by tenant, and every call requires a bearer token (see the absuite-login skill to authenticate).",
       "contentHash": "a5e266141290f4085b1095099d028c88d9650ee66fe5d7d64513d7cdbab98f56"
+    },
+    {
+      "kind": "Workflow",
+      "key": "fenixalliance.flows.deal-follow-up",
+      "path": "paperclip/workflows/deal-follow-up/WORKFLOW.json",
+      "name": "Deal Follow-up",
+      "version": "1.0.0",
+      "description": "Reads a tenant-owned deal and records one bounded governed follow-up note on it: a single idempotent, tenant-guarded write (RFC 6902 replace). Driven by a dealUnitId run input; the mutation happens ONCE (no ForEach), carries no external effect, and is replay-safe (re-running yields the same deal state).",
+      "contentHash": "d400195d5c217b1bfa67e83c772776d3b46d7f00f7fb952f4b9d8b796a9e85e4"
+    },
+    {
+      "kind": "Workflow",
+      "key": "fenixalliance.flows.project-task-review",
+      "path": "paperclip/workflows/project-task-review/WORKFLOW.json",
+      "name": "Project Task Review",
+      "version": "1.0.0",
+      "description": "Reviews one project and its tasks: reads the project, lists its tasks, then fetches each task's detail in a governed ForEach loop. A read-only first-party template driven by a projectId run input; no mutation, no approval, no financial consequence.",
+      "contentHash": "41a32566e7bd69f0750ae6d9bf11e511ae5a836cdd5ec6626800722f2d2eb268"
+    },
+    {
+      "kind": "Workflow",
+      "key": "fenixalliance.flows.wallet-invoice-review",
+      "path": "paperclip/workflows/wallet-invoice-review/WORKFLOW.json",
+      "name": "Wallet Invoice Review",
+      "version": "1.0.3",
+      "description": "Reads the tenant wallet and its invoices for review. A read-only first-party template: no mutation, no provider egress, no human approval, no financial consequence.",
+      "contentHash": "41e5807d9e73b789a736306ba148afa58c2fe39989428030b7e3ecf3ea273767"
     }
   ]
 }

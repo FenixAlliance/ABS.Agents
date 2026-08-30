@@ -1,0 +1,60 @@
+{
+  "apiVersion": "abs.fenixalliance.com/v1alpha1",
+  "key": "fenixalliance.flows.deal-follow-up",
+  "name": "Deal Follow-up",
+  "version": "1.0.0",
+  "description": "Reads a tenant-owned deal and records one bounded governed follow-up note on it: a single idempotent, tenant-guarded write (RFC 6902 replace). Driven by a dealUnitId run input; the mutation happens ONCE (no ForEach), carries no external effect, and is replay-safe (re-running yields the same deal state).",
+  "requires": {
+    "capabilities": [
+      "abs.sales.get_deal_unit",
+      "abs.sales.patch_deal_unit"
+    ]
+  },
+  "definition": {
+    "nodes": [
+      { "id": "start", "type": "Start", "position": { "x": 0, "y": 140 } },
+      {
+        "id": "deal",
+        "type": "ServiceQuery",
+        "position": { "x": 240, "y": 140 },
+        "config": {
+          "capabilityKey": "abs.sales.get_deal_unit",
+          "input": {
+            "TenantId": "{{workflow.tenantId}}",
+            "ActorUserId": "{{workflow.actorUserId}}",
+            "DealUnitId": "{{input.dealUnitId}}"
+          },
+          "outputVar": "deal"
+        }
+      },
+      {
+        "id": "followup",
+        "type": "ServiceCommand",
+        "position": { "x": 480, "y": 140 },
+        "config": {
+          "capabilityKey": "abs.sales.patch_deal_unit",
+          "input": {
+            "TenantId": "{{workflow.tenantId}}",
+            "ActorUserId": "{{workflow.actorUserId}}",
+            "DealUnitId": "{{steps.deal.id}}",
+            "Patch": [
+              {
+                "op": "replace",
+                "path": "/proposedSolution",
+                "value": "Follow-up recorded by the governed deal-follow-up workflow."
+              }
+            ]
+          },
+          "outputVar": "followup"
+        }
+      },
+      { "id": "end", "type": "End", "position": { "x": 720, "y": 140 } }
+    ],
+    "edges": [
+      { "id": "e1", "sourceNodeId": "start", "targetNodeId": "deal" },
+      { "id": "e2", "sourceNodeId": "deal", "targetNodeId": "followup" },
+      { "id": "e3", "sourceNodeId": "followup", "targetNodeId": "end" }
+    ],
+    "variables": {}
+  }
+}
