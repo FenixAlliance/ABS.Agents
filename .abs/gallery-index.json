@@ -759,6 +759,15 @@
     },
     {
       "kind": "Workflow",
+      "key": "fenixalliance.flows.project-task-review",
+      "path": "paperclip/workflows/project-task-review/WORKFLOW.json",
+      "name": "Project Task Review",
+      "version": "1.0.0",
+      "description": "Reviews one project and its tasks: reads the project, lists its tasks, then fetches each task's detail in a governed ForEach loop. A read-only first-party template driven by a projectId run input; no mutation, no approval, no financial consequence.",
+      "contentHash": "41a32566e7bd69f0750ae6d9bf11e511ae5a836cdd5ec6626800722f2d2eb268"
+    },
+    {
+      "kind": "Workflow",
       "key": "fenixalliance.flows.wallet-invoice-review",
       "path": "paperclip/workflows/wallet-invoice-review/WORKFLOW.json",
       "name": "Wallet Invoice Review",

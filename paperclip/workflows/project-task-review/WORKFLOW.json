@@ -1,0 +1,79 @@
+{
+  "apiVersion": "abs.fenixalliance.com/v1alpha1",
+  "key": "fenixalliance.flows.project-task-review",
+  "name": "Project Task Review",
+  "version": "1.0.0",
+  "description": "Reviews one project and its tasks: reads the project, lists its tasks, then fetches each task's detail in a governed ForEach loop. A read-only first-party template driven by a projectId run input; no mutation, no approval, no financial consequence.",
+  "requires": {
+    "capabilities": [
+      "abs.projects.get_project",
+      "abs.projects.list_project_tasks",
+      "abs.projects.get_task"
+    ]
+  },
+  "definition": {
+    "nodes": [
+      { "id": "start", "type": "Start", "position": { "x": 0, "y": 160 } },
+      {
+        "id": "project",
+        "type": "ServiceQuery",
+        "position": { "x": 240, "y": 160 },
+        "config": {
+          "capabilityKey": "abs.projects.get_project",
+          "input": {
+            "TenantId": "{{workflow.tenantId}}",
+            "ActorUserId": "{{workflow.actorUserId}}",
+            "ProjectId": "{{input.projectId}}"
+          },
+          "outputVar": "project"
+        }
+      },
+      {
+        "id": "tasks",
+        "type": "ServiceQuery",
+        "position": { "x": 480, "y": 160 },
+        "config": {
+          "capabilityKey": "abs.projects.list_project_tasks",
+          "input": {
+            "TenantId": "{{workflow.tenantId}}",
+            "ActorUserId": "{{workflow.actorUserId}}",
+            "ProjectId": "{{steps.project.Id}}"
+          },
+          "outputVar": "tasks"
+        }
+      },
+      {
+        "id": "forEachTask",
+        "type": "ForEach",
+        "position": { "x": 720, "y": 160 },
+        "config": {
+          "collection": { "source": "token", "value": "{{steps.tasks}}" },
+          "maxIterations": 100
+        }
+      },
+      {
+        "id": "task",
+        "type": "ServiceQuery",
+        "position": { "x": 720, "y": 340 },
+        "config": {
+          "capabilityKey": "abs.projects.get_task",
+          "input": {
+            "TenantId": "{{workflow.tenantId}}",
+            "ActorUserId": "{{workflow.actorUserId}}",
+            "ProjectTaskId": "{{loop.item.Id}}"
+          },
+          "outputVar": "task"
+        }
+      },
+      { "id": "end", "type": "End", "position": { "x": 960, "y": 160 } }
+    ],
+    "edges": [
+      { "id": "e1", "sourceNodeId": "start", "targetNodeId": "project" },
+      { "id": "e2", "sourceNodeId": "project", "targetNodeId": "tasks" },
+      { "id": "e3", "sourceNodeId": "tasks", "targetNodeId": "forEachTask" },
+      { "id": "e4", "sourceNodeId": "forEachTask", "targetNodeId": "task", "sourceHandle": "body" },
+      { "id": "e5", "sourceNodeId": "forEachTask", "targetNodeId": "end", "sourceHandle": "done" }
+    ],
+    "variables": {}
+  }
+}
