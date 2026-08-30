@@ -768,6 +768,15 @@
     },
     {
       "kind": "Workflow",
+      "key": "fenixalliance.flows.order-review",
+      "path": "paperclip/workflows/order-review/WORKFLOW.json",
+      "name": "Order Review",
+      "version": "1.0.0",
+      "description": "Reviews one sales order across bounded Commerce surfaces: reads the tenant-owned order, lists its order lines, and for each line looks up the referenced product through the published-only public catalog. Read-only (no mutation, no approval), driven by an orderId run input. Every product lookup is derived from an authorized order line's ItemId, not a caller-supplied id; the catalog read is Published-only. The per-line product lookup is demonstrative of Commerce composition across bounded surfaces, not mandatory business behavior (the line already carries item summary fields).",
+      "contentHash": "3f89f0b16c882729b95b4ee3e3b4a48fd5901d28dfc6f68bc93531526b45c221"
+    },
+    {
+      "kind": "Workflow",
       "key": "fenixalliance.flows.project-task-review",
       "path": "paperclip/workflows/project-task-review/WORKFLOW.json",
       "name": "Project Task Review",
