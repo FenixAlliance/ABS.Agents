@@ -762,9 +762,9 @@
       "key": "fenixalliance.flows.deal-follow-up",
       "path": "paperclip/workflows/deal-follow-up/WORKFLOW.json",
       "name": "Deal Follow-up",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Reads a tenant-owned deal and records one bounded governed follow-up note on it: a single idempotent, tenant-guarded write (RFC 6902 replace). Driven by a dealUnitId run input; the mutation happens ONCE (no ForEach), carries no external effect, and is replay-safe (re-running yields the same deal state).",
-      "contentHash": "d400195d5c217b1bfa67e83c772776d3b46d7f00f7fb952f4b9d8b796a9e85e4"
+      "contentHash": "d3e8be567dcdc48f71a1ef0f61244fbc9a0dcec7180502502fd8078138b1cdbf"
     },
     {
       "kind": "Workflow",

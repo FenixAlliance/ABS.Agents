@@ -2,7 +2,7 @@
   "apiVersion": "abs.fenixalliance.com/v1alpha1",
   "key": "fenixalliance.flows.deal-follow-up",
   "name": "Deal Follow-up",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Reads a tenant-owned deal and records one bounded governed follow-up note on it: a single idempotent, tenant-guarded write (RFC 6902 replace). Driven by a dealUnitId run input; the mutation happens ONCE (no ForEach), carries no external effect, and is replay-safe (re-running yields the same deal state).",
   "requires": {
     "capabilities": [
