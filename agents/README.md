@@ -1,79 +1,49 @@
-# Paperclip Agent Instruction Files
+# Agents gallery
 
-This directory contains the extracted instruction files for all Paperclip agents in the Fenix Alliance organization.
+This folder holds the agent templates a workspace can install from the ABS gallery. Each template is one folder with one `AGENT.md` manifest. The templates are generic: they describe a job, not a company. An installed agent reads its company's context (mission, products, policies, people, currency, fiscal calendar) from the workspace's own records, and never assumes it.
 
-These files were extracted from the Paperclip instance at:
-`C:\Users\PC\.paperclip\instances\default\companies\87ab9199-552c-4082-877a-03cbdd70a27e\agents\`
+## Format
 
-## Purpose
+An `AGENT.md` starts with YAML frontmatter, followed by the agent's instructions in Markdown:
 
-Extracting these files into the repository allows:
-- Editing agent instructions in VS Code
-- Version control of agent configurations
-- Easy comparison and sharing of agent setups
-- Better collaboration on agent design
-
-## Agent Directory
-
-| Agent ID | Role | Reports To | Instruction Files |
-|----------|------|------------|-------------------|
-| `6e8b465c-1126-4add-b041-393340df1e4c` | **CEO** (Daniel Lozano Navas) | - | AGENTS.md, HEARTBEAT.md, RESUME.md, SOUL.md, TOOLS.md |
-| `991d45d9-a9df-46e6-988b-1a21df1a2129` | **CTO** (Chief Technology Officer) | CEO | AGENTS.md |
-| `869e07ec-39a5-4f46-8979-7d2ca9bf5b58` | **CMO** (Chief Marketing Officer) | CEO | AGENTS.md |
-| `c467b987-6264-40a3-8f0a-1f2323f9e29a` | **CFO** (Chief Financial Officer) | CEO | AGENTS.md |
-| `fbc8bb09-6165-4195-9806-7e5d9900cdcc` | **COO** (Chief Operating Officer) | CEO | AGENTS.md |
-| `69ccf493-0649-4ba1-9436-0b52e007859c` | **CPO** (Chief Product Officer) | CEO | AGENTS.md |
-| `a65b81f9-57d8-4412-b8d3-44bb9f45762b` | **VP of Engineering** | CTO | AGENTS.md |
-| `198cb758-9b3c-44df-901d-ea52704af900` | **DevOps Lead** | CTO | AGENTS.md |
-| `998e427c-98eb-4ba7-9601-6277c93fd3f9` | **Growth Manager** | CMO | AGENTS.md |
-| `75af1a98-e2cd-48e1-95f1-13e0f873f4a0` | **Technical Evangelist** | - | AGENTS.md, SOUL.md |
-| `172f1ca7-d11b-4910-a88b-d7355b11bd90` | **Chief of Learning** | CEO | AGENTS.md |
-| `69379b12-c157-47ae-9257-afa24c9654de` | **Support Manager** | COO | AGENTS.md |
-
-## Instruction File Types
-
-### AGENTS.md
-The primary instruction file defining the agent's role, responsibilities, decision-making framework, and operating model. Present for all agents.
-
-### HEARTBEAT.md
-Defines the agent's continuous operation loop, periodic checks, and autonomous behaviors. Currently only used by the CEO agent.
-
-### RESUME.md
-Contains context about ongoing work, recent decisions, and state that should persist across sessions. Currently only used by the CEO agent.
-
-### SOUL.md
-Defines the agent's personality, communication style, and behavioral patterns. Currently used by CEO and Technical Evangelist agents.
-
-### TOOLS.md
-Documents the tools and capabilities available to the agent and how to use them effectively. Currently only used by the CEO agent.
-
-## Organizational Hierarchy
-
-```
-CEO (Daniel Lozano Navas)
-├── CTO (Chief Technology Officer)
-│   ├── VP of Engineering
-│   └── DevOps Lead
-├── CMO (Chief Marketing Officer)
-│   └── Growth Manager
-├── CFO (Chief Financial Officer)
-├── COO (Chief Operating Officer)
-│   └── Support Manager
-├── CPO (Chief Product Officer)
-└── Chief of Learning
-
-Technical Evangelist (independent)
+```yaml
+---
+apiVersion: abs.fenixalliance.com/v1alpha1
+kind: Agent
+key: fenixalliance.executive.cfo
+version: 1.0.0
+name: Chief Financial Officer
+description: >-
+  One to three lines on what the agent does for a workspace.
+skills:
+  - key: paperclip/skills/absuite-accounting/SKILL.md
+    version: ">=1.0.0 <2.0.0"
+---
 ```
 
-## Synchronization
+- `key` is the agent's identity in the gallery, and it never changes once published. Installs, updates and uninstalls follow the key, not the folder.
+- `version` is semantic. Raise the patch for wording, the minor for new behaviour, and the major for anything an installed agent's owner must review.
+- `skills` lists the gallery skills the agent may use, each with a version range. A template may list only skills that exist in [`../skills`](../skills). The agent acts only through those skills and the capabilities they expose.
+- The body has at least `## Role` and `## Operating rules`. See [`fenixalliance.content.blog-author`](fenixalliance.content.blog-author/AGENT.md) for a complete example.
 
-To sync changes back to the Paperclip instance, copy the modified files from this directory back to:
-`C:\Users\PC\.paperclip\instances\default\companies\87ab9199-552c-4082-877a-03cbdd70a27e\agents\{agent-id}\instructions\`
+## Key naming
 
-**Note:** Changes to instruction files in this repository do NOT automatically update the running Paperclip agents. You must manually sync the files or implement an automated sync process.
+- **Position templates** use `fenixalliance.<area>.<position>`, for example `fenixalliance.executive.cfo`, `fenixalliance.engineering.devops-lead` or `fenixalliance.support.support-manager`. A position template describes a job as a whole: its accountabilities, judgment and quality bar, plus the skills that job needs.
+- **Role agents** (coming) use `fenixalliance.role.<role>`, for example `fenixalliance.role.support-manager` or `fenixalliance.role.accountant`. There is one per assignable system role, and installing one grants that role. A position template does not grant a role: what it may do is bounded by its skills and by the permissions the workspace gives its agent.
+- The folder name equals the key. Lower case, words joined by hyphens, no GUIDs.
 
-## Last Extracted
+## How install works
 
-**Date:** 2026-06-12
-**Source:** Paperclip instance at `C:\Users\PC\.paperclip\instances\default\companies\87ab9199-552c-4082-877a-03cbdd70a27e\agents\`
-**Total Agents:** 12
+1. ABS reads the gallery index (`../.abs/gallery-index.json`) from the configured source. The default source is this repository.
+2. A workspace administrator picks a template. ABS validates the manifest at a pinned commit, then installs it into the workspace with its pinned provenance, in one commit.
+3. Update re-reads the manifest at a new pinned commit and reconciles the installed agent in place. Uninstall deletes the installed agent and its provenance, and revokes the direct grants on the agent's execution principal.
+4. Everything the agent does runs through governed capabilities. Writes that need approval wait for a person; "awaiting approval" is a success, never a reason to retry.
+
+## Changing a template
+
+1. Edit the `AGENT.md`, and raise its `version`.
+2. Regenerate the index: `pwsh .abs/generate-index.ps1`, then `pwsh .abs/generate-index.ps1 -Verify`. Never hand-edit the index.
+3. Check that the index diff shows no key change you did not intend.
+4. Commit the manifest and the index together.
+
+This repository is public. Templates carry no company facts, no names of people, and no secrets.

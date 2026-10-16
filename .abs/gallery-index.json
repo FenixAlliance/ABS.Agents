@@ -12,111 +12,111 @@
     },
     {
       "kind": "Agent",
-      "key": "paperclip/agents/172f1ca7-d11b-4910-a88b-d7355b11bd90/AGENTS.md",
-      "path": "agents/172f1ca7-d11b-4910-a88b-d7355b11bd90/AGENTS.md",
-      "name": "172f1ca7-d11b-4910-a88b-d7355b11bd90",
-      "version": null,
-      "description": null,
-      "contentHash": "89beafe450cb255e90b3f319f413b8ae60cb3f1e499f453efa622dd05ec1b0fb"
+      "key": "fenixalliance.engineering.devops-lead",
+      "path": "agents/fenixalliance.engineering.devops-lead/AGENT.md",
+      "name": "DevOps Lead",
+      "version": "1.0.0",
+      "description": "An operations agent that keeps the tenant's ABS environment healthy, secure and observable: it reviews system and security posture, tracks incidents and follow-up work, and proposes changes, acting only through its assigned skills.",
+      "contentHash": "643b2b2fc13edcc4ad79e1a0415061f00420b2c54d0163bc285f71da69f6c808"
     },
     {
       "kind": "Agent",
-      "key": "paperclip/agents/198cb758-9b3c-44df-901d-ea52704af900/AGENTS.md",
-      "path": "agents/198cb758-9b3c-44df-901d-ea52704af900/AGENTS.md",
-      "name": "198cb758-9b3c-44df-901d-ea52704af900",
-      "version": null,
-      "description": null,
-      "contentHash": "b0c8a31ecc1ce0d1a5ae6379a276d8102b55aec061368b15ad7b5199ac48bc34"
+      "key": "fenixalliance.engineering.technical-evangelist",
+      "path": "agents/fenixalliance.engineering.technical-evangelist/AGENT.md",
+      "name": "Technical Evangelist",
+      "version": "1.0.0",
+      "description": "A developer-advocacy agent that drives adoption of a tenant's technical products with working demos, tested tutorials and honest community answers, acting only through its assigned skills.",
+      "contentHash": "caf445aa738c14b96b700a3b37777e297b7db1c40bf1eccb0a823b43e9270f19"
     },
     {
       "kind": "Agent",
-      "key": "paperclip/agents/69379b12-c157-47ae-9257-afa24c9654de/AGENTS.md",
-      "path": "agents/69379b12-c157-47ae-9257-afa24c9654de/AGENTS.md",
-      "name": "69379b12-c157-47ae-9257-afa24c9654de",
-      "version": null,
-      "description": null,
-      "contentHash": "acc08e80d9a4c71a9665e81704593ced94dd3d1335c984c90a4b269e786ef097"
+      "key": "fenixalliance.engineering.vp-engineering",
+      "path": "agents/fenixalliance.engineering.vp-engineering/AGENT.md",
+      "name": "VP of Engineering",
+      "version": "1.0.0",
+      "description": "An engineering leadership agent that keeps delivery, reliability and code quality on track for a tenant, reading projects and support signals and proposing work through its assigned skills.",
+      "contentHash": "d2b57d2da26455f279499088d891adef6888f9d20b571fc27ccf4246aa613488"
     },
     {
       "kind": "Agent",
-      "key": "paperclip/agents/69ccf493-0649-4ba1-9436-0b52e007859c/AGENTS.md",
-      "path": "agents/69ccf493-0649-4ba1-9436-0b52e007859c/AGENTS.md",
-      "name": "Chief Product Officer (CPO) – Fenix Alliance S.A.S.",
-      "version": null,
-      "description": null,
-      "contentHash": "dab148afaf41628358b247fcfea2ffacd6d02404ef3a85be58e05ca8d9e8fce3"
+      "key": "fenixalliance.executive.cfo",
+      "path": "agents/fenixalliance.executive.cfo/AGENT.md",
+      "name": "Chief Financial Officer",
+      "version": "1.0.0",
+      "description": "An executive finance agent that reads the tenant's books, cash, revenue and costs, and turns them into plans, reports and recommendations. It is read-mostly, acts only through its assigned skills, and submits any financial write through the approval flow.",
+      "contentHash": "db19fcc1d55bd1804bcebd3d340c897382fae74d8ab2e8b05946474718571232"
     },
     {
       "kind": "Agent",
-      "key": "paperclip/agents/6e8b465c-1126-4add-b041-393340df1e4c/AGENTS.md",
-      "path": "agents/6e8b465c-1126-4add-b041-393340df1e4c/AGENTS.md",
-      "name": "6e8b465c-1126-4add-b041-393340df1e4c",
-      "version": null,
-      "description": null,
-      "contentHash": "ab36dc5093024e68b5c5ea929b379c219a1127643428aacfdaab8659ab431de4"
+      "key": "fenixalliance.executive.cmo",
+      "path": "agents/fenixalliance.executive.cmo/AGENT.md",
+      "name": "Chief Marketing Officer",
+      "version": "1.0.0",
+      "description": "An executive marketing agent that turns a tenant's market into qualified leads and sales opportunities, reading and proposing through its assigned skills only.",
+      "contentHash": "9c07e99e0bbe3002cf55c028f915181a34725dd3961177bb77aaab10d9c308ae"
     },
     {
       "kind": "Agent",
-      "key": "paperclip/agents/75af1a98-e2cd-48e1-95f1-13e0f873f4a0/AGENTS.md",
-      "path": "agents/75af1a98-e2cd-48e1-95f1-13e0f873f4a0/AGENTS.md",
-      "name": "Technical Evangelist — Alliance Business Suite",
-      "version": null,
-      "description": null,
-      "contentHash": "8c2e67d188d102deecd698b48048785ca80aa18065b8d7b7f55a903cca72e9bb"
+      "key": "fenixalliance.executive.coo",
+      "path": "agents/fenixalliance.executive.coo/AGENT.md",
+      "name": "Chief Operating Officer",
+      "version": "1.0.0",
+      "description": "An executive operations agent that monitors the tenant's service delivery, support, onboarding, fulfillment and workforce, and turns them into operating plans, KPIs and process improvements. It is read-mostly and acts only through its assigned skills.",
+      "contentHash": "cd3cc2edffff7843beb2660af85394a501364469b71620038cbda5114d2f583e"
     },
     {
       "kind": "Agent",
-      "key": "paperclip/agents/869e07ec-39a5-4f46-8979-7d2ca9bf5b58/AGENTS.md",
-      "path": "agents/869e07ec-39a5-4f46-8979-7d2ca9bf5b58/AGENTS.md",
-      "name": "CMO — Fenix Alliance",
-      "version": null,
-      "description": null,
-      "contentHash": "823e5cd98df66c4d4c0561455dc351c40093452231bde64e886b831596b11ec9"
+      "key": "fenixalliance.executive.cpo",
+      "path": "agents/fenixalliance.executive.cpo/AGENT.md",
+      "name": "Chief Product Officer",
+      "version": "1.0.0",
+      "description": "An executive product agent that studies the tenant's catalog, pricing, subscriptions, customer feedback and delivery work, and turns them into product strategy, roadmap priorities and success metrics. It is read-mostly and acts only through its assigned skills.",
+      "contentHash": "e882647310ecd7957227419de915f3e0b38811f4a16fa9b77a141ac7fc2480f8"
     },
     {
       "kind": "Agent",
-      "key": "paperclip/agents/991d45d9-a9df-46e6-988b-1a21df1a2129/AGENTS.md",
-      "path": "agents/991d45d9-a9df-46e6-988b-1a21df1a2129/AGENTS.md",
-      "name": "CTO - Chief Technology Officer",
-      "version": null,
-      "description": null,
-      "contentHash": "10355dc3ce3706c2fe18cda6463a9110963296c591af9e08b22990e5f348a3d9"
+      "key": "fenixalliance.executive.cto",
+      "path": "agents/fenixalliance.executive.cto/AGENT.md",
+      "name": "Chief Technology Officer",
+      "version": "1.0.0",
+      "description": "An executive technology agent that reviews the tenant's platform configuration, security posture, identity setup and engineering work, and turns them into technical strategy, risk calls and recommendations. It is read-mostly and acts only through its assigned skills.",
+      "contentHash": "d64f32c7439fe82490d61c6769c407ff19129482ac8f4ab5847a31e46df5279d"
     },
     {
       "kind": "Agent",
-      "key": "paperclip/agents/998e427c-98eb-4ba7-9601-6277c93fd3f9/AGENTS.md",
-      "path": "agents/998e427c-98eb-4ba7-9601-6277c93fd3f9/AGENTS.md",
-      "name": "998e427c-98eb-4ba7-9601-6277c93fd3f9",
-      "version": null,
-      "description": null,
-      "contentHash": "117103a625734d00fd9f3b67e1ad522870cff3f00c5cd0a10dcee1bb0db1769e"
+      "key": "fenixalliance.learning.chief-of-learning",
+      "path": "agents/fenixalliance.learning.chief-of-learning/AGENT.md",
+      "name": "Chief Learning Officer",
+      "version": "1.0.0",
+      "description": "An education executive agent that builds and runs the tenant's learning programs: course catalog, instructor community, learner engagement and the reporting that ties learning to business outcomes, acting only through its assigned skills.",
+      "contentHash": "ee7e9eb22aa2818ffebed0be00c26a71afba8cf29cc8c79be36a3a193f02e93d"
     },
     {
       "kind": "Agent",
-      "key": "paperclip/agents/a65b81f9-57d8-4412-b8d3-44bb9f45762b/AGENTS.md",
-      "path": "agents/a65b81f9-57d8-4412-b8d3-44bb9f45762b/AGENTS.md",
-      "name": "a65b81f9-57d8-4412-b8d3-44bb9f45762b",
-      "version": null,
-      "description": null,
-      "contentHash": "34345b57f2c7e76f0b412d0c2b5415d4ea1908111fc1bb45376403aab6c6327f"
+      "key": "fenixalliance.marketing.growth-manager",
+      "path": "agents/fenixalliance.marketing.growth-manager/AGENT.md",
+      "name": "Growth Manager",
+      "version": "1.0.0",
+      "description": "A hands-on marketing agent that executes campaigns, content, SEO and community work for a tenant and reports results with data, acting only through its assigned skills.",
+      "contentHash": "14186d5bbfcd60ac2a49a2153364d423748f71345ac935b2e9538aaee0775b89"
     },
     {
       "kind": "Agent",
-      "key": "paperclip/agents/c467b987-6264-40a3-8f0a-1f2323f9e29a/AGENTS.md",
-      "path": "agents/c467b987-6264-40a3-8f0a-1f2323f9e29a/AGENTS.md",
-      "name": "c467b987-6264-40a3-8f0a-1f2323f9e29a",
-      "version": null,
-      "description": null,
-      "contentHash": "890f6bca6d09b70ae79351217b1d9c0e0f5ed30ed1528ff312ed5e83289877a4"
+      "key": "fenixalliance.people.chro",
+      "path": "agents/fenixalliance.people.chro/AGENT.md",
+      "name": "Chief Human Resources Officer",
+      "version": "1.0.0",
+      "description": "A people executive agent that curates the tenant's talent pool and job board, keeps employee and employer records accurate, and matches candidates to open roles, handling personal data with least privilege and acting only through its assigned skills.",
+      "contentHash": "db066148a0390d542769897702c15fca35007ccd839d7cf5e953046de5b570b1"
     },
     {
       "kind": "Agent",
-      "key": "paperclip/agents/fbc8bb09-6165-4195-9806-7e5d9900cdcc/AGENTS.md",
-      "path": "agents/fbc8bb09-6165-4195-9806-7e5d9900cdcc/AGENTS.md",
-      "name": "COO - Chief Operating Officer",
-      "version": null,
-      "description": null,
-      "contentHash": "714c291a6e52f90d831f585c420804cafabaa3a87e04c0cce6932a1f7e7631d5"
+      "key": "fenixalliance.support.support-manager",
+      "path": "agents/fenixalliance.support.support-manager/AGENT.md",
+      "name": "Support Manager",
+      "version": "1.0.0",
+      "description": "A support operations agent that triages and resolves customer tickets, guides new customers through onboarding, maintains the knowledge base and escalates with context, acting only through its assigned skills.",
+      "contentHash": "264e97da8b86cb0aef91636f02471da628c75c5b8a5b30f3c3d65c42349ed436"
     },
     {
       "kind": "Skill",
