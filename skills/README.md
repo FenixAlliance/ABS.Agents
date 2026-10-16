@@ -5,6 +5,7 @@ These are the official Alliance Business Suite (ABS) skills, published by Fenix 
 Each skill is a folder with one `SKILL.md`. Its frontmatter carries `name`, `key`, `version` and `description`.
 
 - `key` is the skill's identity: `fenixalliance.absuite.<area>` for the REST skill and `fenixalliance.absuite.<area>-cli` for its CLI twin. A key never changes once published.
+- The retired `paperclip/skills/<name>/SKILL.md` keys (used before 2026-10-16) are reserved: no skill, from this repository or any other source, may take one, because it would inherit existing installs and their trust.
 - `version` is semantic. Raise the minor version for any change to routes, rules or fields, and the patch version for wording.
 - REST skills drive the API over HTTP. The CLI twins drive the `absuite` command line. They wait for the new ABS CLI, built on the platform's service clients, and are revalidated once its commands exist.
 
