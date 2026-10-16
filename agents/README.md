@@ -35,7 +35,7 @@ skills:
 ## How install works
 
 1. ABS reads the gallery index (`../.abs/gallery-index.json`) from the configured source. The default source is this repository.
-2. A workspace administrator picks a template. ABS validates the manifest at a pinned commit, then installs it into the workspace with its pinned provenance, in one commit.
+2. A workspace administrator installs the skills the template lists first: an agent install fails until every one of its skills is installed in the workspace. Then the administrator picks the template. ABS validates the manifest at a pinned commit, then installs it into the workspace with its pinned provenance, in one commit.
 3. Update re-reads the manifest at a new pinned commit and reconciles the installed agent in place. Uninstall deletes the installed agent and its provenance, and revokes the direct grants on the agent's execution principal.
 4. Everything the agent does runs through governed capabilities. Writes that need approval wait for a person; "awaiting approval" is a success, never a reason to retry.
 

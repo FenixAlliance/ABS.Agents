@@ -17,7 +17,7 @@
       "name": "DevOps Lead",
       "version": "1.0.0",
       "description": "An operations agent that keeps the tenant's ABS environment healthy, secure and observable: it reviews system and security posture, tracks incidents and follow-up work, and proposes changes, acting only through its assigned skills.",
-      "contentHash": "643b2b2fc13edcc4ad79e1a0415061f00420b2c54d0163bc285f71da69f6c808"
+      "contentHash": "e0e12db591829b48f2da1cb445169a2ba8cfae3876c361fbadd4f8061c7413b2"
     },
     {
       "kind": "Agent",
@@ -26,7 +26,7 @@
       "name": "Technical Evangelist",
       "version": "1.0.0",
       "description": "A developer-advocacy agent that drives adoption of a tenant's technical products with working demos, tested tutorials and honest community answers, acting only through its assigned skills.",
-      "contentHash": "caf445aa738c14b96b700a3b37777e297b7db1c40bf1eccb0a823b43e9270f19"
+      "contentHash": "c5cfcc05bfffcaa61aa473b383fba9bdc0d3ed3522337cd3e18dc3bc54edbb42"
     },
     {
       "kind": "Agent",
@@ -35,7 +35,7 @@
       "name": "VP of Engineering",
       "version": "1.0.0",
       "description": "An engineering leadership agent that keeps delivery, reliability and code quality on track for a tenant, reading projects and support signals and proposing work through its assigned skills.",
-      "contentHash": "d2b57d2da26455f279499088d891adef6888f9d20b571fc27ccf4246aa613488"
+      "contentHash": "ac3829ab100c1fdc34b92830de5336204255e5c8d5ecc119e0bc352a7d243b08"
     },
     {
       "kind": "Agent",
@@ -44,7 +44,7 @@
       "name": "Chief Financial Officer",
       "version": "1.0.0",
       "description": "An executive finance agent that reads the tenant's books, cash, revenue and costs, and turns them into plans, reports and recommendations. It is read-mostly, acts only through its assigned skills, and submits any financial write through the approval flow.",
-      "contentHash": "db19fcc1d55bd1804bcebd3d340c897382fae74d8ab2e8b05946474718571232"
+      "contentHash": "27e1f5cc3ea3e4b61106eca26ee04db3d1708b00e597b35238da6dcfb8c6e208"
     },
     {
       "kind": "Agent",
@@ -53,7 +53,7 @@
       "name": "Chief Marketing Officer",
       "version": "1.0.0",
       "description": "An executive marketing agent that turns a tenant's market into qualified leads and sales opportunities, reading and proposing through its assigned skills only.",
-      "contentHash": "9c07e99e0bbe3002cf55c028f915181a34725dd3961177bb77aaab10d9c308ae"
+      "contentHash": "fef1cc37662789d25abca3d2fe9dd49800345fc488329c0a0f598ae6b390f267"
     },
     {
       "kind": "Agent",
@@ -62,7 +62,7 @@
       "name": "Chief Operating Officer",
       "version": "1.0.0",
       "description": "An executive operations agent that monitors the tenant's service delivery, support, onboarding, fulfillment and workforce, and turns them into operating plans, KPIs and process improvements. It is read-mostly and acts only through its assigned skills.",
-      "contentHash": "cd3cc2edffff7843beb2660af85394a501364469b71620038cbda5114d2f583e"
+      "contentHash": "d37b326bf443d920de614760e5d240123f6d81d736435edde66196bed4f020be"
     },
     {
       "kind": "Agent",
@@ -71,7 +71,7 @@
       "name": "Chief Product Officer",
       "version": "1.0.0",
       "description": "An executive product agent that studies the tenant's catalog, pricing, subscriptions, customer feedback and delivery work, and turns them into product strategy, roadmap priorities and success metrics. It is read-mostly and acts only through its assigned skills.",
-      "contentHash": "e882647310ecd7957227419de915f3e0b38811f4a16fa9b77a141ac7fc2480f8"
+      "contentHash": "35f8553ed3abde2f06bba1b43d4ffe47f1970eb67b129b41fd180e2b0a6232a0"
     },
     {
       "kind": "Agent",
@@ -80,7 +80,7 @@
       "name": "Chief Technology Officer",
       "version": "1.0.0",
       "description": "An executive technology agent that reviews the tenant's platform configuration, security posture, identity setup and engineering work, and turns them into technical strategy, risk calls and recommendations. It is read-mostly and acts only through its assigned skills.",
-      "contentHash": "d64f32c7439fe82490d61c6769c407ff19129482ac8f4ab5847a31e46df5279d"
+      "contentHash": "59e4ae61f24a22a03bfd8a74d6a1b64c188b8ed2eb402eff12d49d4ba488800c"
     },
     {
       "kind": "Agent",
@@ -89,7 +89,7 @@
       "name": "Chief Learning Officer",
       "version": "1.0.0",
       "description": "An education executive agent that builds and runs the tenant's learning programs: course catalog, instructor community, learner engagement and the reporting that ties learning to business outcomes, acting only through its assigned skills.",
-      "contentHash": "ee7e9eb22aa2818ffebed0be00c26a71afba8cf29cc8c79be36a3a193f02e93d"
+      "contentHash": "9fe4148746476f03d55b712eaabba2554790115bcd79045d1ad053c5cdc2ecc1"
     },
     {
       "kind": "Agent",
@@ -98,7 +98,7 @@
       "name": "Growth Manager",
       "version": "1.0.0",
       "description": "A hands-on marketing agent that executes campaigns, content, SEO and community work for a tenant and reports results with data, acting only through its assigned skills.",
-      "contentHash": "14186d5bbfcd60ac2a49a2153364d423748f71345ac935b2e9538aaee0775b89"
+      "contentHash": "e51d4d9fa0dec215de70a259df9493b0716e14a7358cf6be963aec814ae50e6d"
     },
     {
       "kind": "Agent",
@@ -107,7 +107,7 @@
       "name": "Chief Human Resources Officer",
       "version": "1.0.0",
       "description": "A people executive agent that curates the tenant's talent pool and job board, keeps employee and employer records accurate, and matches candidates to open roles, handling personal data with least privilege and acting only through its assigned skills.",
-      "contentHash": "db066148a0390d542769897702c15fca35007ccd839d7cf5e953046de5b570b1"
+      "contentHash": "2a6d2b05886d44bde22c9b08faf89ddd4432ff767a7f3174fa94c5c383ba4dee"
     },
     {
       "kind": "Agent",
@@ -116,7 +116,7 @@
       "name": "Support Manager",
       "version": "1.0.0",
       "description": "A support operations agent that triages and resolves customer tickets, guides new customers through onboarding, maintains the knowledge base and escalates with context, acting only through its assigned skills.",
-      "contentHash": "264e97da8b86cb0aef91636f02471da628c75c5b8a5b30f3c3d65c42349ed436"
+      "contentHash": "65e5cc06fcf7641b27f86b9c26cf872a984bceed6b59af25a1846acdd10b5e33"
     },
     {
       "kind": "Skill",
