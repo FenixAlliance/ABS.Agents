@@ -1,7 +1,7 @@
 ---
 name: absuite-globe
-key: paperclip/skills/absuite-globe/SKILL.md
-version: 1.0.0
+key: fenixalliance.absuite.globe
+version: 1.1.0
 description: >
   Look up global reference data (countries, states, cities, currencies, languages,
   timezones, calling codes, and top-level domains) via the Alliance Business Suite (ABS)

@@ -1,5 +1,7 @@
 ---
 name: absuite-content-cli
+key: fenixalliance.absuite.content-cli
+version: 1.0.0
 description: >
   Manage web content in the Alliance Business Suite (ABS) using the `absuite` CLI —
   web portals, web pages, web-page categories/tags, web content blocks, web templates,

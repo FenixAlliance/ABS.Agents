@@ -1,5 +1,7 @@
 ---
 name: absuite-identity-cli
+key: fenixalliance.absuite.identity-cli
+version: 1.0.0
 description: >
   Manage OAuth, OpenID Connect, and user identity in the Alliance Business Suite
   (ABS) using the `absuite` CLI (service token `identity`). Covers password

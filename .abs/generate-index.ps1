@@ -18,8 +18,8 @@
     Field extraction:
       .md manifests  -> YAML frontmatter (key, name, version, description).
                         name falls back to the first Markdown H1, then the dir name.
-                        key  falls back to "paperclip/" + the repo-relative manifest path
-                        (the legacy identity from before the 2026-10-16 move).
+                        key  is REQUIRED: a manifest without an explicit key fails generation
+                        (there is no path-derived fallback).
       WORKFLOW.json  -> top-level key, name, version, description.
 
     Content hash:
@@ -250,10 +250,9 @@ function New-Definition {
         if ($null -eq $name) { $name = Coerce-String (Get-FirstH1 $text) }
     }
 
-    # A manifest without an explicit key keeps the identity it was published under, when the tree lived
-    # in paperclip/ (moved to the repo root 2026-10-16). Keys are identity, so a folder move must not change
-    # them; give a manifest an explicit frontmatter key to retire this fallback.
-    if ($null -eq $key)  { $key  = "paperclip/$relPath" }
+    # Keys are identity, so every manifest declares its own. There is no path-derived fallback: a folder move
+    # must never change a key, and a missing key is a defect to fix in the manifest.
+    if ([string]::IsNullOrWhiteSpace($key)) { throw "Manifest '$relPath' has no explicit 'key'. Add a key (for example fenixalliance.<namespace>.<name>) to its frontmatter or JSON." }
     if ($null -eq $name) { $name = $dirName }
 
     return [ordered]@{

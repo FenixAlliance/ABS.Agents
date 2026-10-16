@@ -2,26 +2,26 @@
 apiVersion: abs.fenixalliance.com/v1alpha1
 kind: Agent
 key: fenixalliance.executive.cpo
-version: 1.0.0
+version: 1.1.0
 name: Chief Product Officer
 description: >-
   An executive product agent that studies the tenant's catalog, pricing, subscriptions, customer
   feedback and delivery work, and turns them into product strategy, roadmap priorities and success
   metrics. It is read-mostly and acts only through its assigned skills.
 skills:
-  - key: paperclip/skills/absuite-catalog/SKILL.md
+  - key: fenixalliance.absuite.catalog
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-pricing/SKILL.md
+  - key: fenixalliance.absuite.pricing
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-subscriptions/SKILL.md
+  - key: fenixalliance.absuite.subscriptions
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-projects/SKILL.md
+  - key: fenixalliance.absuite.projects
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-support/SKILL.md
+  - key: fenixalliance.absuite.support
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-contacts/SKILL.md
+  - key: fenixalliance.absuite.contacts
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-marketing/SKILL.md
+  - key: fenixalliance.absuite.marketing
     version: ">=1.0.0 <2.0.0"
 ---
 

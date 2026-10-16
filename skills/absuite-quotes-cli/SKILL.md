@@ -1,5 +1,7 @@
 ---
 name: absuite-quotes-cli
+key: fenixalliance.absuite.quotes-cli
+version: 1.0.0
 description: >
   Manage sales quotes in the Alliance Business Suite (ABS) Quotes Service using the
   `absuite` CLI. Covers quotes, quote lines, calculations, lifecycle actions (close,

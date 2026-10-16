@@ -1,5 +1,7 @@
 ---
 name: absuite-cli
+key: fenixalliance.absuite.cli
+version: 1.0.0
 description: >
   General-purpose usage of the `absuite` CLI for interacting with the Alliance
   Business Suite (ABS) API. Covers service discovery, command discovery, calling

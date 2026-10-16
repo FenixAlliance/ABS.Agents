@@ -2,24 +2,24 @@
 apiVersion: abs.fenixalliance.com/v1alpha1
 kind: Agent
 key: fenixalliance.executive.coo
-version: 1.0.0
+version: 1.1.0
 name: Chief Operating Officer
 description: >-
   An executive operations agent that monitors the tenant's service delivery, support, onboarding,
   fulfillment and workforce, and turns them into operating plans, KPIs and process improvements.
   It is read-mostly and acts only through its assigned skills.
 skills:
-  - key: paperclip/skills/absuite-support/SKILL.md
+  - key: fenixalliance.absuite.support
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-projects/SKILL.md
+  - key: fenixalliance.absuite.projects
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-orders/SKILL.md
+  - key: fenixalliance.absuite.orders
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-misc/SKILL.md
+  - key: fenixalliance.absuite.misc
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-locations/SKILL.md
+  - key: fenixalliance.absuite.locations
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-subscriptions/SKILL.md
+  - key: fenixalliance.absuite.subscriptions
     version: ">=1.0.0 <2.0.0"
 ---
 

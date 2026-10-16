@@ -1,5 +1,7 @@
 ---
 name: absuite-emails-cli
+key: fenixalliance.absuite.emails-cli
+version: 1.0.0
 description: >
   Manage email templates and dispatch transactional emails using the `absuite` CLI.
   Covers marketing email templates / groups / signatures / newsletters (the `marketing`

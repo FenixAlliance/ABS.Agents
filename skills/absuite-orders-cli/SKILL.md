@@ -1,5 +1,7 @@
 ---
 name: absuite-orders-cli
+key: fenixalliance.absuite.orders-cli
+version: 1.0.0
 description: >
   Create, read, update, delete, and calculate orders and order lines in the
   Alliance Business Suite (ABS) Orders Service using the `absuite` CLI. Covers

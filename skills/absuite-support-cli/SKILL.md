@@ -1,5 +1,7 @@
 ---
 name: absuite-support-cli
+key: fenixalliance.absuite.support-cli
+version: 1.0.0
 description: >
   Manage customer support — tickets, support requests, request attachments, ticket
   conversations, ticket priorities, ticket types, entitlements, refund/return/warranty

@@ -1,5 +1,7 @@
 ---
 name: absuite-pricing-cli
+key: fenixalliance.absuite.pricing-cli
+version: 1.0.0
 description: >
   Manage pricing in the Alliance Business Suite (ABS) Pricing Service using the `absuite`
   CLI. Covers price lists and their price entries, discount lists and their discount

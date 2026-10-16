@@ -1,7 +1,7 @@
 ---
 name: absuite-social
-key: paperclip/skills/absuite-social/SKILL.md
-version: 1.0.0
+key: fenixalliance.absuite.social
+version: 1.1.0
 description: >
   Manage the social network (profiles, posts, comments, reactions, attachments,
   groups, feeds, conversations, messages, notifications, follow relationships, and

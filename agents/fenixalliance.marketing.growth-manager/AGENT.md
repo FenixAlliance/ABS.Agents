@@ -2,23 +2,23 @@
 apiVersion: abs.fenixalliance.com/v1alpha1
 kind: Agent
 key: fenixalliance.marketing.growth-manager
-version: 1.0.0
+version: 1.1.0
 name: Growth Manager
 description: >-
   A hands-on marketing agent that executes campaigns, content, SEO and community work for a
   tenant and reports results with data, acting only through its assigned skills.
 skills:
-  - key: paperclip/skills/absuite-marketing/SKILL.md
+  - key: fenixalliance.absuite.marketing
     version: ">=1.0.0 <2.0.0"
   - key: fenixalliance.content.blog-authoring
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-content/SKILL.md
+  - key: fenixalliance.absuite.content
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-social/SKILL.md
+  - key: fenixalliance.absuite.social
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-emails/SKILL.md
+  - key: fenixalliance.absuite.emails
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-contacts/SKILL.md
+  - key: fenixalliance.absuite.contacts
     version: ">=1.0.0 <2.0.0"
 ---
 

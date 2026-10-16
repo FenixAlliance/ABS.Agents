@@ -1,5 +1,7 @@
 ---
 name: absuite-users-cli
+key: fenixalliance.absuite.users-cli
+version: 1.0.0
 description: >
   Read and manage the current user's account in the Alliance Business Suite (ABS)
   using the `absuite` CLI. Covers the `/Me` surface — profile, extended profile,

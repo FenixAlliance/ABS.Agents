@@ -1,5 +1,7 @@
 ---
 name: absuite-storage-cli
+key: fenixalliance.absuite.storage-cli
+version: 1.0.0
 description: >
   Manage file storage, uploads, downloads, and avatars in the Alliance Business Suite
   (ABS) using the `absuite` CLI (storage service). Covers file records, raw downloads,

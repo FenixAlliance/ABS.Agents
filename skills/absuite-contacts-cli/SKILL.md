@@ -1,5 +1,7 @@
 ---
 name: absuite-contacts-cli
+key: fenixalliance.absuite.contacts-cli
+version: 1.0.0
 description: >
   Manage contacts in the Alliance Business Suite (ABS) CRM Service using the `absuite`
   CLI. Covers contacts (individuals & organizations), extended views, relationship

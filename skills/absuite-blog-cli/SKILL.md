@@ -1,5 +1,7 @@
 ---
 name: absuite-blog-cli
+key: fenixalliance.absuite.blog-cli
+version: 1.0.0
 description: >
   Manage blog content in the Alliance Business Suite (ABS) Content Service using the
   `absuite` CLI. Covers blog posts, categories, tags, comments, and authors via

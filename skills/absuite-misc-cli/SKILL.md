@@ -1,5 +1,7 @@
 ---
 name: absuite-misc-cli
+key: fenixalliance.absuite.misc-cli
+version: 1.0.0
 description: >
   Manage inventory, logistics, shipments, and sales resources using the `absuite` CLI.
   Covers warehouses, ports, vessels, voyages, waybills, trucks, proofs of delivery,

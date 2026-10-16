@@ -1,7 +1,7 @@
 ---
 name: absuite-accounting
-key: paperclip/skills/absuite-accounting/SKILL.md
-version: 1.0.0
+key: fenixalliance.absuite.accounting
+version: 1.1.0
 description: >
   Manage the full accounting system in the Alliance Business Suite (ABS) via the REST API.
   Covers chart of accounts, account entries (debits/credits), account groups/types/relations,

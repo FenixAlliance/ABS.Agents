@@ -1,7 +1,7 @@
 ---
 name: absuite-onboarding
-key: paperclip/skills/absuite-onboarding/SKILL.md
-version: 1.0.0
+key: fenixalliance.absuite.onboarding
+version: 1.1.0
 description: >
   Onboard a user into an Alliance Business Suite (ABS) tenant over the REST API:
   authenticate, initialize the portal (which surfaces/stages the tenant invitation),

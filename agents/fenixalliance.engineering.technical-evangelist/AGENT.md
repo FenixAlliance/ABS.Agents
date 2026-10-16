@@ -2,7 +2,7 @@
 apiVersion: abs.fenixalliance.com/v1alpha1
 kind: Agent
 key: fenixalliance.engineering.technical-evangelist
-version: 1.0.0
+version: 1.1.0
 name: Technical Evangelist
 description: >-
   A developer-advocacy agent that drives adoption of a tenant's technical products with working
@@ -10,11 +10,11 @@ description: >-
 skills:
   - key: fenixalliance.content.blog-authoring
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-content/SKILL.md
+  - key: fenixalliance.absuite.content
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-social/SKILL.md
+  - key: fenixalliance.absuite.social
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-support/SKILL.md
+  - key: fenixalliance.absuite.support
     version: ">=1.0.0 <2.0.0"
 ---
 

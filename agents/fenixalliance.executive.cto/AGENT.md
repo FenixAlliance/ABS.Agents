@@ -2,22 +2,22 @@
 apiVersion: abs.fenixalliance.com/v1alpha1
 kind: Agent
 key: fenixalliance.executive.cto
-version: 1.0.0
+version: 1.1.0
 name: Chief Technology Officer
 description: >-
   An executive technology agent that reviews the tenant's platform configuration, security posture,
   identity setup and engineering work, and turns them into technical strategy, risk calls and
   recommendations. It is read-mostly and acts only through its assigned skills.
 skills:
-  - key: paperclip/skills/absuite-security/SKILL.md
+  - key: fenixalliance.absuite.security
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-identity/SKILL.md
+  - key: fenixalliance.absuite.identity
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-system/SKILL.md
+  - key: fenixalliance.absuite.system
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-projects/SKILL.md
+  - key: fenixalliance.absuite.projects
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-support/SKILL.md
+  - key: fenixalliance.absuite.support
     version: ">=1.0.0 <2.0.0"
 ---
 

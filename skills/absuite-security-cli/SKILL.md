@@ -1,5 +1,7 @@
 ---
 name: absuite-security-cli
+key: fenixalliance.absuite.security-cli
+version: 1.0.0
 description: >
   Manage security roles, permissions, business applications, OAuth applications,
   OAuth authorizations, certificates, security/tenant logs, and webhook requests using

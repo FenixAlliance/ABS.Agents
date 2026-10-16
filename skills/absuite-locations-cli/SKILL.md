@@ -1,5 +1,7 @@
 ---
 name: absuite-locations-cli
+key: fenixalliance.absuite.locations-cli
+version: 1.0.0
 description: >
   Manage business locations and addresses using the `absuite` CLI. Covers tenant-scoped
   Locations and wallet-scoped Locations via list/count/get/create/update/delete commands.

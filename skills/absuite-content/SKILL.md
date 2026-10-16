@@ -1,7 +1,7 @@
 ---
 name: absuite-content
-key: paperclip/skills/absuite-content/SKILL.md
-version: 1.0.0
+key: fenixalliance.absuite.content
+version: 1.1.0
 description: >
   Manage web content in the Alliance Business Suite (ABS) via the REST API: web
   portals, web pages, web-page categories/tags, web content blocks, web templates,

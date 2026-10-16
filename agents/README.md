@@ -16,7 +16,7 @@ name: Chief Financial Officer
 description: >-
   One to three lines on what the agent does for a workspace.
 skills:
-  - key: paperclip/skills/absuite-accounting/SKILL.md
+  - key: fenixalliance.absuite.accounting
     version: ">=1.0.0 <2.0.0"
 ---
 ```

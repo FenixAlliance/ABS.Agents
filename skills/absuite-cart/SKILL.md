@@ -1,7 +1,7 @@
 ---
 name: absuite-cart
-key: paperclip/skills/absuite-cart/SKILL.md
-version: 1.0.0
+key: fenixalliance.absuite.cart
+version: 1.1.0
 description: >
   Manage shopping carts, cart records/lines, wish lists, and compare tables in the
   Alliance Business Suite (ABS) Cart Service via the REST API. Covers reading ambient

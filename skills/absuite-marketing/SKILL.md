@@ -8,8 +8,8 @@ description: >
   retrieval, including atomic PATCH (JSON Patch) updates. All operations are tenant-scoped
   (except the tracking pixel read) and require a bearer token (see the absuite-login
   skill to authenticate).
-key: paperclip/skills/absuite-marketing/SKILL.md
-version: 1.0.0
+key: fenixalliance.absuite.marketing
+version: 1.1.0
 ---
 
 # Alliance Business Suite: Marketing Skill (REST)

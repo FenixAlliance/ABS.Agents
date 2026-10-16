@@ -1,7 +1,7 @@
 ---
 name: absuite-orders
-key: paperclip/skills/absuite-orders/SKILL.md
-version: 1.0.0
+key: fenixalliance.absuite.orders
+version: 1.1.0
 description: >
   Create, read, update, patch, delete, and calculate orders and order lines in the
   Alliance Business Suite (ABS) Orders Service via the REST API. Covers direct order

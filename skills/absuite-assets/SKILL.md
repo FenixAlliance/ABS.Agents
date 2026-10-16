@@ -1,7 +1,7 @@
 ---
 name: absuite-assets
-key: paperclip/skills/absuite-assets/SKILL.md
-version: 1.0.0
+key: fenixalliance.absuite.assets
+version: 1.1.0
 description: >
   Manage fixed and moveable assets in the Alliance Business Suite (ABS) via the REST API.
   Covers assets, asset categories, asset types, depreciation records, repairs, value

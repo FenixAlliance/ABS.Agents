@@ -1,7 +1,7 @@
 ---
 name: absuite-storage
-key: paperclip/skills/absuite-storage/SKILL.md
-version: 1.0.0
+key: fenixalliance.absuite.storage
+version: 1.1.0
 description: >
   Manage file storage, uploads, downloads, and avatars in the Alliance Business Suite
   (ABS) via the REST API (StorageService). Covers file records, counts, thumbnails, raw

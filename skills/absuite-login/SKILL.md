@@ -1,7 +1,7 @@
 ---
 name: absuite-login
-key: paperclip/skills/absuite-login/SKILL.md
-version: 1.0.0
+key: fenixalliance.absuite.login
+version: 1.1.0
 description: >
   Authenticate with the Alliance Business Suite (ABS) over the REST API and verify
   your identity. Use when you need to log in with user credentials, obtain a bearer

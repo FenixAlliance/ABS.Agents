@@ -1,7 +1,7 @@
 ---
 name: absuite-deals
-key: paperclip/skills/absuite-deals/SKILL.md
-version: 1.0.0
+key: fenixalliance.absuite.deals
+version: 1.1.0
 description: >
   Create, read, update, delete, calculate, close, and partially patch deal units (sales
   opportunities), deal unit lines, and deal unit flows (sales pipelines) with their

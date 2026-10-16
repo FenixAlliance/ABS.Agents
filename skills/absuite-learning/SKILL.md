@@ -8,8 +8,8 @@ description: >
   memberships, instructor/student profiles, the public course catalog, and per-user "Me" reads,
   including atomic PATCH (JSON Patch) updates. Tenant scoping is per-endpoint and most operations
   require a bearer token (see the absuite-login skill to authenticate).
-key: paperclip/skills/absuite-learning/SKILL.md
-version: 1.0.0
+key: fenixalliance.absuite.learning
+version: 1.1.0
 ---
 
 # Alliance Business Suite: Learning Skill (REST)

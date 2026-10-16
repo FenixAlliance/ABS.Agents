@@ -1,5 +1,7 @@
 ---
 name: absuite-cart-cli
+key: fenixalliance.absuite.cart-cli
+version: 1.0.0
 description: >
   Manage shopping carts, cart records/lines, wish lists, and compare tables in the
   Alliance Business Suite (ABS) Cart Service using the `absuite` CLI. Covers reading

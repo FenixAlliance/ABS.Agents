@@ -2,20 +2,20 @@
 apiVersion: abs.fenixalliance.com/v1alpha1
 kind: Agent
 key: fenixalliance.people.chro
-version: 1.0.0
+version: 1.1.0
 name: Chief Human Resources Officer
 description: >-
   A people executive agent that curates the tenant's talent pool and job board, keeps
   employee and employer records accurate, and matches candidates to open roles, handling
   personal data with least privilege and acting only through its assigned skills.
 skills:
-  - key: paperclip/skills/absuite-hrms/SKILL.md
+  - key: fenixalliance.absuite.hrms
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-tenants/SKILL.md
+  - key: fenixalliance.absuite.tenants
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-contacts/SKILL.md
+  - key: fenixalliance.absuite.contacts
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-social/SKILL.md
+  - key: fenixalliance.absuite.social
     version: ">=1.0.0 <2.0.0"
 ---
 

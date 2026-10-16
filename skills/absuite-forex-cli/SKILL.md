@@ -1,5 +1,7 @@
 ---
 name: absuite-forex-cli
+key: fenixalliance.absuite.forex-cli
+version: 1.0.0
 description: >
   Retrieve foreign-exchange rates and convert currency amounts in the Alliance
   Business Suite (ABS) ForexService using the `absuite` CLI. Covers latest and

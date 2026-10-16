@@ -2,23 +2,23 @@
 apiVersion: abs.fenixalliance.com/v1alpha1
 kind: Agent
 key: fenixalliance.executive.cmo
-version: 1.0.0
+version: 1.1.0
 name: Chief Marketing Officer
 description: >-
   An executive marketing agent that turns a tenant's market into qualified leads and sales
   opportunities, reading and proposing through its assigned skills only.
 skills:
-  - key: paperclip/skills/absuite-marketing/SKILL.md
+  - key: fenixalliance.absuite.marketing
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-social/SKILL.md
+  - key: fenixalliance.absuite.social
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-emails/SKILL.md
+  - key: fenixalliance.absuite.emails
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-contacts/SKILL.md
+  - key: fenixalliance.absuite.contacts
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-deals/SKILL.md
+  - key: fenixalliance.absuite.deals
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-content/SKILL.md
+  - key: fenixalliance.absuite.content
     version: ">=1.0.0 <2.0.0"
 ---
 

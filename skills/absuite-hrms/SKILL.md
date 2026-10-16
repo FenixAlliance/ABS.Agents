@@ -1,7 +1,7 @@
 ---
 name: absuite-hrms
-key: paperclip/skills/absuite-hrms/SKILL.md
-version: 1.0.0
+key: fenixalliance.absuite.hrms
+version: 1.1.0
 description: >
   Manage human resources in the Alliance Business Suite (ABS) via the REST API.
   Covers employees, employers, employee types, job titles, salaries, payrolls,
@@ -73,10 +73,10 @@ Authorization is enforced inside each use case, against the caller's enrollment 
 | Schedules | `schedules_read` | `schedules_create` | `schedules_update` | `schedules_delete` |
 | TimeIntervals | `time_intervals_read` | `time_intervals_create` | `time_intervals_update` | `time_intervals_delete` |
 | LeaveApplications | `leave_applications_read` | `leave_applications_create` | `leave_applications_update` | `leave_applications_delete` |
-| LeaveTypes | `leave_applications_read` (list / count only, see below) | not implemented | not implemented | not implemented |
-| TrainingPrograms | `training_programs_read` (list / count only, see below) | not implemented | not implemented | not implemented |
+| LeaveTypes | `leave_applications_read` (list / count only, see below) | 501 `hrms.not_implemented` | 501 | 501 |
+| TrainingPrograms | `training_programs_read` (list / count only, see below) | 501 `hrms.not_implemented` | 501 | 501 |
 | TrainingProgramCourses, TrainingProgramEvents | tenant membership only (no permission key) | `training_programs_create` | `training_programs_update` | `training_programs_delete` |
-| AppraisalWorkflows, AppraisalStages | `employee_appraisals_read` (list / count only, see below) | not implemented | not implemented | not implemented |
+| AppraisalWorkflows, AppraisalStages | `employee_appraisals_read` (list / count only, see below) | 501 `hrms.not_implemented` | 501 | 501 |
 | EmployeeAppraisalSessions | `employee_appraisals_read` | `employee_appraisals_create` | `employee_appraisals_update` | `employee_appraisals_delete` |
 | Position seats | `positions_read` | see [Position seats](#position-seats) | see [Position seats](#position-seats) | n/a |
 
@@ -765,7 +765,7 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/TimeIntervals/<interval-gui
 
 ## Leave Types
 
-> **Read-only at HEAD.** `LeaveTypesController` declares `GET /LeaveTypes/{leaveTypeId}`, `POST`, `PUT /{leaveTypeId}` and `DELETE /{leaveTypeId}`, but only the list and count use cases are implemented; the other routes have no handler registered and fail with a server error. Use the list instead of get-by-id. There is no PATCH route.
+> **Read-only at HEAD.** `LeaveTypesController` declares `GET /LeaveTypes/{leaveTypeId}`, `POST`, `PUT /{leaveTypeId}` and `DELETE /{leaveTypeId}`, but only the list and count use cases are implemented; the other routes answer `501 Not Implemented` with error code `hrms.not_implemented` ("This operation is not available yet."). Use the list instead of get-by-id. There is no PATCH route.
 
 ```bash
 # List  (requires leave_applications_read)
@@ -834,7 +834,7 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/LeaveApplications/<applicat
 
 ## Training Programs
 
-> **Read-only at HEAD.** `TrainingProgramsController` declares `GET /TrainingPrograms/{programId}`, `POST`, `PUT /{programId}` and `DELETE /{programId}`, but only the list and count use cases are implemented; the other routes have no handler registered and fail with a server error. There is no PATCH route. Courses and events of a program are fully writable (next two sections).
+> **Read-only at HEAD.** `TrainingProgramsController` declares `GET /TrainingPrograms/{programId}`, `POST`, `PUT /{programId}` and `DELETE /{programId}`, but only the list and count use cases are implemented; the other routes answer `501 Not Implemented` with error code `hrms.not_implemented` ("This operation is not available yet."). There is no PATCH route. Courses and events of a program are fully writable (next two sections).
 
 ```bash
 # List  (requires training_programs_read)
@@ -950,7 +950,7 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/HrmsService/TrainingProgramEvents/<even
 
 ## Appraisal Workflows
 
-> **Read-only at HEAD.** `AppraisalWorkflowsController` declares `GET /AppraisalWorkflows/{workflowId}`, `POST`, `PUT /{workflowId}` and `DELETE /{workflowId}`, but only the list and count use cases are implemented; the other routes have no handler registered and fail with a server error. There is no PATCH route.
+> **Read-only at HEAD.** `AppraisalWorkflowsController` declares `GET /AppraisalWorkflows/{workflowId}`, `POST`, `PUT /{workflowId}` and `DELETE /{workflowId}`, but only the list and count use cases are implemented; the other routes answer `501 Not Implemented` with error code `hrms.not_implemented` ("This operation is not available yet."). There is no PATCH route.
 
 ```bash
 # List  (requires employee_appraisals_read)
@@ -968,7 +968,7 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/HrmsService/AppraisalWorkflows/Count?tenan
 
 ## Appraisal Stages
 
-> **Read-only at HEAD.** `AppraisalStagesController` declares `GET /AppraisalStages/{stageId}`, `POST`, `PUT /{stageId}` and `DELETE /{stageId}`, but only the list and count use cases are implemented; the other routes have no handler registered and fail with a server error. There is no PATCH route.
+> **Read-only at HEAD.** `AppraisalStagesController` declares `GET /AppraisalStages/{stageId}`, `POST`, `PUT /{stageId}` and `DELETE /{stageId}`, but only the list and count use cases are implemented; the other routes answer `501 Not Implemented` with error code `hrms.not_implemented` ("This operation is not available yet."). There is no PATCH route.
 
 ```bash
 # List  (requires employee_appraisals_read)
@@ -1236,7 +1236,7 @@ curl -X PATCH "$ABSUITE_HOST_URL/api/v2/HrmsService/EmployeeAppraisalSessions/<s
 
 ## API Endpoints Quick Reference
 
-All paths are relative to `$ABSUITE_HOST_URL/api/v2/HrmsService/` and require `?tenantId=<tenant-guid>` on every verb. `(n/i)` marks a route that is declared but has no use case implemented at HEAD (it fails with a server error); `-` means no such route.
+All paths are relative to `$ABSUITE_HOST_URL/api/v2/HrmsService/` and require `?tenantId=<tenant-guid>` on every verb. `(n/i)` marks a route that is declared but not available yet (it answers `501` with error code `hrms.not_implemented`); `-` means no such route.
 
 | Resource | List | Count | Get by ID | Create | Update (PUT) | Patch (PATCH) | Delete |
 |---|---|---|---|---|---|---|---|

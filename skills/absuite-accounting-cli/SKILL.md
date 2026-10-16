@@ -1,5 +1,7 @@
 ---
 name: absuite-accounting-cli
+key: fenixalliance.absuite.accounting-cli
+version: 1.0.0
 description: >
   Manage the Alliance Business Suite (ABS) accounting system using the `absuite` CLI.
   Covers chart of accounts, account entries, journals/ledgers, tax classes/policies/rates,

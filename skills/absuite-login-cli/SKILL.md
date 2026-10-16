@@ -1,5 +1,7 @@
 ---
 name: absuite-login-cli
+key: fenixalliance.absuite.login-cli
+version: 1.0.0
 description: >
   Authenticate with the Alliance Business Suite (ABS) using the `absuite` CLI and
   verify your identity. Use when you need to log in with user credentials, configure

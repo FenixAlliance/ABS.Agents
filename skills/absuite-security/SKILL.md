@@ -7,8 +7,8 @@ description: >
   across roles, permissions, enrollments, and applications, including atomic PATCH
   (JSON Patch) updates. All operations are tenant-scoped and require a bearer token
   (see the absuite-login skill to authenticate).
-key: paperclip/skills/absuite-security/SKILL.md
-version: 1.0.0
+key: fenixalliance.absuite.security
+version: 1.1.0
 ---
 
 # Alliance Business Suite: Security (REST API)

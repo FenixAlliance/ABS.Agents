@@ -1,7 +1,7 @@
 ---
 name: absuite-rest
-key: paperclip/skills/absuite-rest/SKILL.md
-version: 1.0.0
+key: fenixalliance.absuite.rest
+version: 1.1.0
 description: >
   General-purpose usage of the Alliance Business Suite (ABS) REST API over HTTP
   (curl / any HTTP client). Covers authentication, the base URL pattern, the

@@ -1,7 +1,7 @@
 ---
 name: absuite-pricing
-key: paperclip/skills/absuite-pricing/SKILL.md
-version: 1.0.0
+key: fenixalliance.absuite.pricing
+version: 1.1.0
 description: >
   Create, read, update, patch, and delete pricing data in the Alliance Business Suite
   (ABS) Pricing Service via the REST API. Covers price lists and their price entries,

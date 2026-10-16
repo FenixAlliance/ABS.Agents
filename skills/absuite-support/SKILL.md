@@ -1,7 +1,7 @@
 ---
 name: absuite-support
-key: paperclip/skills/absuite-support/SKILL.md
-version: 1.0.0
+key: fenixalliance.absuite.support
+version: 1.1.0
 description: >
   Manage customer support (tickets, support requests, request attachments, ticket
   conversations, ticket priorities, ticket types, entitlements, refund/return/warranty

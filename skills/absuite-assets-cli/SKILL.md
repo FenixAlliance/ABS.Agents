@@ -1,5 +1,7 @@
 ---
 name: absuite-assets-cli
+key: fenixalliance.absuite.assets-cli
+version: 1.0.0
 description: >
   Manage fixed and moveable assets using the `absuite` CLI. Covers assets, asset
   categories, asset types, depreciation records, repairs, value amendments, and asset

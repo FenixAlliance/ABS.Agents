@@ -2,20 +2,20 @@
 apiVersion: abs.fenixalliance.com/v1alpha1
 kind: Agent
 key: fenixalliance.engineering.devops-lead
-version: 1.0.0
+version: 1.1.0
 name: DevOps Lead
 description: >-
   An operations agent that keeps the tenant's ABS environment healthy, secure and observable:
   it reviews system and security posture, tracks incidents and follow-up work, and proposes
   changes, acting only through its assigned skills.
 skills:
-  - key: paperclip/skills/absuite-system/SKILL.md
+  - key: fenixalliance.absuite.system
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-security/SKILL.md
+  - key: fenixalliance.absuite.security
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-support/SKILL.md
+  - key: fenixalliance.absuite.support
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-projects/SKILL.md
+  - key: fenixalliance.absuite.projects
     version: ">=1.0.0 <2.0.0"
 ---
 

@@ -1,7 +1,7 @@
 ---
 name: absuite-locations
-key: paperclip/skills/absuite-locations/SKILL.md
-version: 1.0.0
+key: fenixalliance.absuite.locations
+version: 1.1.0
 description: >
   Manage business locations and addresses in the Alliance Business Suite (ABS) via the
   REST API. Covers tenant-scoped Locations and wallet-scoped Locations, including atomic

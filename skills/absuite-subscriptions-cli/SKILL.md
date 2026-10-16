@@ -1,5 +1,7 @@
 ---
 name: absuite-subscriptions-cli
+key: fenixalliance.absuite.subscriptions-cli
+version: 1.0.0
 description: >
   Manage subscription plans and customer subscriptions using the `absuite` CLI.
   Covers subscription plans and subscriptions via list/count/get/create/update/delete

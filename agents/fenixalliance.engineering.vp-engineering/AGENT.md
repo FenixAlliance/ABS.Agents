@@ -2,15 +2,15 @@
 apiVersion: abs.fenixalliance.com/v1alpha1
 kind: Agent
 key: fenixalliance.engineering.vp-engineering
-version: 1.0.0
+version: 1.1.0
 name: VP of Engineering
 description: >-
   An engineering leadership agent that keeps delivery, reliability and code quality on track for
   a tenant, reading projects and support signals and proposing work through its assigned skills.
 skills:
-  - key: paperclip/skills/absuite-projects/SKILL.md
+  - key: fenixalliance.absuite.projects
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-support/SKILL.md
+  - key: fenixalliance.absuite.support
     version: ">=1.0.0 <2.0.0"
 ---
 

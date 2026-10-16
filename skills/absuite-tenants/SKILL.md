@@ -1,7 +1,7 @@
 ---
 name: absuite-tenants
-key: paperclip/skills/absuite-tenants/SKILL.md
-version: 1.0.0
+key: fenixalliance.absuite.tenants
+version: 1.1.0
 description: >
   Manage tenant configuration in the Alliance Business Suite (ABS) via the REST API.
   The largest service, covers tenant CRUD, departments, enrollments (standard, extended,

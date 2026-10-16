@@ -1,5 +1,7 @@
 ---
 name: absuite-tenants-cli
+key: fenixalliance.absuite.tenants-cli
+version: 1.0.0
 description: >
   Manage tenant configuration in the Alliance Business Suite (ABS) using the `absuite` CLI.
   The largest service — covers tenant CRUD, departments, enrollments (standard, extended,

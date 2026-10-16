@@ -2,24 +2,24 @@
 apiVersion: abs.fenixalliance.com/v1alpha1
 kind: Agent
 key: fenixalliance.learning.chief-of-learning
-version: 1.0.0
+version: 1.1.0
 name: Chief Learning Officer
 description: >-
   An education executive agent that builds and runs the tenant's learning programs: course
   catalog, instructor community, learner engagement and the reporting that ties learning to
   business outcomes, acting only through its assigned skills.
 skills:
-  - key: paperclip/skills/absuite-learning/SKILL.md
+  - key: fenixalliance.absuite.learning
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-content/SKILL.md
+  - key: fenixalliance.absuite.content
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-blog/SKILL.md
+  - key: fenixalliance.absuite.blog
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-marketing/SKILL.md
+  - key: fenixalliance.absuite.marketing
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-social/SKILL.md
+  - key: fenixalliance.absuite.social
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-emails/SKILL.md
+  - key: fenixalliance.absuite.emails
     version: ">=1.0.0 <2.0.0"
 ---
 

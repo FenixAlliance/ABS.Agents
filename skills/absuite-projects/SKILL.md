@@ -1,7 +1,7 @@
 ---
 name: absuite-projects
-key: paperclip/skills/absuite-projects/SKILL.md
-version: 1.0.0
+key: fenixalliance.absuite.projects
+version: 1.1.0
 description: >
   Manage projects, project tasks, task categories, task types, project periods,
   time logs, and time-log approvals in the Alliance Business Suite (ABS) via the

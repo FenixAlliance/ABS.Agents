@@ -1,7 +1,7 @@
 ---
 name: absuite-misc
-key: paperclip/skills/absuite-misc/SKILL.md
-version: 1.0.0
+key: fenixalliance.absuite.misc
+version: 1.1.0
 description: >
   Manage logistics, shipments, and sales resources via the Alliance Business Suite
   (ABS) REST API. Covers warehouses, ports, vessels, voyages, waybills

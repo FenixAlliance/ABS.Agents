@@ -2,22 +2,22 @@
 apiVersion: abs.fenixalliance.com/v1alpha1
 kind: Agent
 key: fenixalliance.support.support-manager
-version: 1.0.0
+version: 1.1.0
 name: Support Manager
 description: >-
   A support operations agent that triages and resolves customer tickets, guides new customers
   through onboarding, maintains the knowledge base and escalates with context, acting only
   through its assigned skills.
 skills:
-  - key: paperclip/skills/absuite-support/SKILL.md
+  - key: fenixalliance.absuite.support
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-contacts/SKILL.md
+  - key: fenixalliance.absuite.contacts
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-onboarding/SKILL.md
+  - key: fenixalliance.absuite.onboarding
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-emails/SKILL.md
+  - key: fenixalliance.absuite.emails
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-content/SKILL.md
+  - key: fenixalliance.absuite.content
     version: ">=1.0.0 <2.0.0"
 ---
 

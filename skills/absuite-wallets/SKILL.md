@@ -1,7 +1,7 @@
 ---
 name: absuite-wallets
-key: paperclip/skills/absuite-wallets/SKILL.md
-version: 1.0.0
+key: fenixalliance.absuite.wallets
+version: 1.1.0
 description: >
   Manage wallets and their sub-resources (bank accounts, payments, payment tokens,
   locations, withdraws/withdraw-requests) plus read access to orders, invoices,

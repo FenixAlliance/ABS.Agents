@@ -1,7 +1,7 @@
 ---
 name: absuite-identity
-key: paperclip/skills/absuite-identity/SKILL.md
-version: 1.0.0
+key: fenixalliance.absuite.identity
+version: 1.1.0
 description: >
   Manage OAuth, OpenID Connect, and user identity in the Alliance Business Suite
   (ABS) via the REST API. Covers password sign-in, OAuth tokens, WhoAmI, user

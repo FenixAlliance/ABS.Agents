@@ -1,5 +1,7 @@
 ---
 name: absuite-payments-cli
+key: fenixalliance.absuite.payments-cli
+version: 1.0.0
 description: >
   Manage payments in the Alliance Business Suite (ABS) Payments Service using the
   `absuite` CLI. Covers payments and their lifecycle (status transitions) plus the

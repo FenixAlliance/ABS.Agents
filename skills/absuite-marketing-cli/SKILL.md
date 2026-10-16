@@ -1,5 +1,7 @@
 ---
 name: absuite-marketing-cli
+key: fenixalliance.absuite.marketing-cli
+version: 1.0.0
 description: >
   Manage marketing records in the Alliance Business Suite (ABS) Marketing Service using
   the `absuite` CLI. Covers marketing campaigns, marketing areas, marketing lists,

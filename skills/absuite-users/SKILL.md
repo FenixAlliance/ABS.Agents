@@ -1,7 +1,7 @@
 ---
 name: absuite-users
-key: paperclip/skills/absuite-users/SKILL.md
-version: 1.0.0
+key: fenixalliance.absuite.users
+version: 1.1.0
 description: >
   Read and manage the current user's account in the Alliance Business Suite (ABS)
   via the REST API. Covers the `/api/v2/Me` surface, profile, extended profile,

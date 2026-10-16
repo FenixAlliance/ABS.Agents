@@ -1,5 +1,7 @@
 ---
 name: absuite-learning-cli
+key: fenixalliance.absuite.learning-cli
+version: 1.0.0
 description: >
   Manage learning and e-learning in the Alliance Business Suite (ABS) using the `absuite` CLI.
   Covers courses and their content tree (sections, units, unit components, content groups),

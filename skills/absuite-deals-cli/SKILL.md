@@ -1,5 +1,7 @@
 ---
 name: absuite-deals-cli
+key: fenixalliance.absuite.deals-cli
+version: 1.0.0
 description: >
   Manage deal units (sales opportunities), deal unit lines, deal unit flows (sales
   pipelines) with their stages, and sales literature using the `absuite` CLI's `deals`

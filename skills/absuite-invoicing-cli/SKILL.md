@@ -1,5 +1,7 @@
 ---
 name: absuite-invoicing-cli
+key: fenixalliance.absuite.invoicing-cli
+version: 1.0.0
 description: >
   Manage invoices in the Alliance Business Suite (ABS) Invoicing Service using the
   `absuite` CLI. Covers invoices, invoice lines, line taxes, adjustments

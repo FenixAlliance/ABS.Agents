@@ -1,7 +1,7 @@
 ---
 name: absuite-subscriptions
-key: paperclip/skills/absuite-subscriptions/SKILL.md
-version: 1.0.0
+key: fenixalliance.absuite.subscriptions
+version: 1.1.0
 description: >
   Manage subscription plans and customer subscriptions via the Alliance Business Suite
   (ABS) REST API. Covers subscription plans and subscriptions, including atomic PATCH

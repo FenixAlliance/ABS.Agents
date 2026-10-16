@@ -1,7 +1,7 @@
 ---
 name: absuite-contacts
-key: paperclip/skills/absuite-contacts/SKILL.md
-version: 1.0.0
+key: fenixalliance.absuite.contacts
+version: 1.1.0
 description: >
   Create, read, update, patch, delete, and manage contacts in the Alliance Business
   Suite (ABS) CRM Service via the REST API. Covers contacts (individuals &

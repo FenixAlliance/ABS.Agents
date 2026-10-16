@@ -1,7 +1,7 @@
 ---
 name: absuite-emails
-key: paperclip/skills/absuite-emails/SKILL.md
-version: 1.0.0
+key: fenixalliance.absuite.emails
+version: 1.1.0
 description: >
   Manage email templates and dispatch transactional emails via the Alliance Business Suite
   (ABS) REST API. Covers marketing email templates / groups / signatures / newsletters

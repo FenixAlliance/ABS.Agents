@@ -1,5 +1,7 @@
 ---
 name: absuite-catalog-cli
+key: fenixalliance.absuite.catalog-cli
+version: 1.0.0
 description: >
   Manage the product catalog in the Alliance Business Suite (ABS) using the
   `absuite` CLI. Covers stock items (products), categories, types, families,

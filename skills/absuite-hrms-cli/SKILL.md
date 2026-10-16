@@ -1,5 +1,7 @@
 ---
 name: absuite-hrms-cli
+key: fenixalliance.absuite.hrms-cli
+version: 1.0.0
 description: >
   Manage human resources in the Alliance Business Suite (ABS) using the `absuite`
   CLI. Covers employees, employers, employee types, job titles, salaries, payrolls,

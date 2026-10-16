@@ -1,5 +1,7 @@
 ---
 name: absuite-system-cli
+key: fenixalliance.absuite.system-cli
+version: 1.0.0
 description: >
   Manage Alliance Business Suite (ABS) system administration using the `absuite` CLI.
   Covers cross-tenant admin (tenants, users), system/tenant/user/contact options,

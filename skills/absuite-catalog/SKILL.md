@@ -1,7 +1,7 @@
 ---
 name: absuite-catalog
-key: paperclip/skills/absuite-catalog/SKILL.md
-version: 1.0.0
+key: fenixalliance.absuite.catalog
+version: 1.1.0
 description: >
   Manage the product catalog in the Alliance Business Suite (ABS) via the REST API.
   Covers stock items (products), categories, types, families, brands, tags, images,

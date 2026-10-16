@@ -1,5 +1,7 @@
 ---
 name: absuite-projects-cli
+key: fenixalliance.absuite.projects-cli
+version: 1.0.0
 description: >
   Manage projects, project periods, project tasks, task categories, and task types in
   the Alliance Business Suite (ABS) Projects Service using the `absuite` CLI. Covers

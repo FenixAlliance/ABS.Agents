@@ -1,7 +1,7 @@
 ---
 name: absuite-forex
-key: paperclip/skills/absuite-forex/SKILL.md
-version: 1.0.0
+key: fenixalliance.absuite.forex
+version: 1.1.0
 description: >
   Retrieve foreign-exchange rates and perform currency conversions via the
   Alliance Business Suite (ABS) REST API. Covers latest and historical rate

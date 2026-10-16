@@ -1,5 +1,7 @@
 ---
 name: absuite-social-cli
+key: fenixalliance.absuite.social-cli
+version: 1.0.0
 description: >
   Manage the social network (profiles, posts, comments, reactions, attachments,
   groups, feeds, conversations, messages, notifications, and follow relationships)

@@ -7,8 +7,8 @@ description: >
   emails, migrations and antiforgery, including atomic PATCH (JSON Patch) updates.
   Most operations require an instance-administrator bearer token (business_owner of
   the root tenant; see the absuite-login skill to authenticate).
-key: paperclip/skills/absuite-system/SKILL.md
-version: 1.0.0
+key: fenixalliance.absuite.system
+version: 1.1.0
 ---
 
 # Alliance Business Suite: System (REST)

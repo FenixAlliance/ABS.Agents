@@ -1,7 +1,7 @@
 ---
 name: absuite-quotes
-key: paperclip/skills/absuite-quotes/SKILL.md
-version: 1.0.0
+key: fenixalliance.absuite.quotes
+version: 1.1.0
 description: >
   Create, read, update, patch, delete, and manage sales quotes in the Alliance
   Business Suite (ABS) Quotes Service via the REST API. Covers quotes, quote lines,

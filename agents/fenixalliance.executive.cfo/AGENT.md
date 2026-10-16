@@ -2,30 +2,30 @@
 apiVersion: abs.fenixalliance.com/v1alpha1
 kind: Agent
 key: fenixalliance.executive.cfo
-version: 1.0.0
+version: 1.1.0
 name: Chief Financial Officer
 description: >-
   An executive finance agent that reads the tenant's books, cash, revenue and costs, and turns them
   into plans, reports and recommendations. It is read-mostly, acts only through its assigned skills,
   and submits any financial write through the approval flow.
 skills:
-  - key: paperclip/skills/absuite-accounting/SKILL.md
+  - key: fenixalliance.absuite.accounting
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-invoicing/SKILL.md
+  - key: fenixalliance.absuite.invoicing
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-payments/SKILL.md
+  - key: fenixalliance.absuite.payments
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-wallets/SKILL.md
+  - key: fenixalliance.absuite.wallets
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-forex/SKILL.md
+  - key: fenixalliance.absuite.forex
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-pricing/SKILL.md
+  - key: fenixalliance.absuite.pricing
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-subscriptions/SKILL.md
+  - key: fenixalliance.absuite.subscriptions
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-assets/SKILL.md
+  - key: fenixalliance.absuite.assets
     version: ">=1.0.0 <2.0.0"
-  - key: paperclip/skills/absuite-globe/SKILL.md
+  - key: fenixalliance.absuite.globe
     version: ">=1.0.0 <2.0.0"
 ---
 

@@ -1,5 +1,7 @@
 ---
 name: absuite-wallets-cli
+key: fenixalliance.absuite.wallets-cli
+version: 1.0.0
 description: >
   Manage wallets and their sub-resources — bank accounts, payment tokens, payments,
   withdraws, locations — plus read access to orders, invoices, quotes, refunds and

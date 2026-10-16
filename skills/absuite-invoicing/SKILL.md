@@ -1,7 +1,7 @@
 ---
 name: absuite-invoicing
-key: paperclip/skills/absuite-invoicing/SKILL.md
-version: 1.0.0
+key: fenixalliance.absuite.invoicing
+version: 1.1.0
 description: >
   Create, read, update, patch, delete, and manage invoices in the Alliance Business
   Suite (ABS) Invoicing Service via the REST API. Covers invoices, invoice lines,

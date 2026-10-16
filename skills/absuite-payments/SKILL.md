@@ -1,7 +1,7 @@
 ---
 name: absuite-payments
-key: paperclip/skills/absuite-payments/SKILL.md
-version: 1.0.0
+key: fenixalliance.absuite.payments
+version: 1.1.0
 description: >
   Create, read, update, patch, delete, and manage payments in the Alliance Business
   Suite (ABS) Payments Service via the REST API. Covers payment records (whose status

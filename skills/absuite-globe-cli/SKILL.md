@@ -1,5 +1,7 @@
 ---
 name: absuite-globe-cli
+key: fenixalliance.absuite.globe-cli
+version: 1.0.0
 description: >
   Look up global reference data — countries, states, cities, currencies, languages, and
   timezones — using the `absuite` CLI's `globe` service. This is PUBLIC, read-only reference

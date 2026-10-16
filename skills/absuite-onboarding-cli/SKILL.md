@@ -1,5 +1,7 @@
 ---
 name: absuite-onboarding-cli
+key: fenixalliance.absuite.onboarding-cli
+version: 1.0.0
 description: >
   Onboard a user into an Alliance Business Suite (ABS) tenant using the `absuite`
   CLI: authenticate, initialize the portal (which surfaces/stages the tenant

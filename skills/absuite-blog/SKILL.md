@@ -1,7 +1,7 @@
 ---
 name: absuite-blog
-key: paperclip/skills/absuite-blog/SKILL.md
-version: 1.0.0
+key: fenixalliance.absuite.blog
+version: 1.1.0
 description: >
   Manage blog content in the Alliance Business Suite (ABS) Content Service via the
   REST API (curl). Covers blog posts, categories, tags, comments, and authors,
