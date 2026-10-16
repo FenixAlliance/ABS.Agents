@@ -2,23 +2,24 @@
 <#
 .SYNOPSIS
     Generates the ABS Gallery discovery index (.abs/gallery-index.json) from the
-    paperclip manifest tree. Single source of truth: the manifests on disk.
+    agents/skills/workflows manifest tree. Single source of truth: the manifests on disk.
 
 .DESCRIPTION
-    Scans paperclip/agents, paperclip/skills and paperclip/workflows for the three
+    Scans agents, skills and workflows for the three
     manifest kinds, extracts kind/key/path/name/version/description, computes the
     SHA-256 content hash over the LF bytes github serves, and writes a deterministic
     .abs/gallery-index.json (stable ordinal ordering by kind then key).
 
     Manifest kinds:
-      Agent     paperclip/agents/<name>/AGENT.md  or  AGENTS.md
-      Skill     paperclip/skills/<name>/SKILL.md
-      Workflow  paperclip/workflows/<name>/WORKFLOW.json
+      Agent     agents/<name>/AGENT.md  or  AGENTS.md
+      Skill     skills/<name>/SKILL.md
+      Workflow  workflows/<name>/WORKFLOW.json
 
     Field extraction:
       .md manifests  -> YAML frontmatter (key, name, version, description).
                         name falls back to the first Markdown H1, then the dir name.
-                        key  falls back to the repo-relative manifest path.
+                        key  falls back to "paperclip/" + the repo-relative manifest path
+                        (the legacy identity from before the 2026-10-16 move).
       WORKFLOW.json  -> top-level key, name, version, description.
 
     Content hash:
@@ -53,13 +54,8 @@ $ErrorActionPreference = 'Stop'
 # ---------------------------------------------------------------------------
 $ScriptDir    = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoRoot     = Split-Path -Parent $ScriptDir
-$PaperclipDir = Join-Path $RepoRoot 'paperclip'
 $IndexPath    = Join-Path $ScriptDir 'gallery-index.json'
 $SchemaVersion = 1
-
-if (-not (Test-Path -LiteralPath $PaperclipDir)) {
-    throw "paperclip directory not found at: $PaperclipDir"
-}
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -254,7 +250,10 @@ function New-Definition {
         if ($null -eq $name) { $name = Coerce-String (Get-FirstH1 $text) }
     }
 
-    if ($null -eq $key)  { $key  = $relPath }
+    # A manifest without an explicit key keeps the identity it was published under, when the tree lived
+    # in paperclip/ (moved to the repo root 2026-10-16). Keys are identity, so a folder move must not change
+    # them; give a manifest an explicit frontmatter key to retire this fallback.
+    if ($null -eq $key)  { $key  = "paperclip/$relPath" }
     if ($null -eq $name) { $name = $dirName }
 
     return [ordered]@{
@@ -273,9 +272,9 @@ function New-Definition {
 # ---------------------------------------------------------------------------
 $defs = New-Object System.Collections.Generic.List[object]
 
-$agentsDir    = Join-Path $PaperclipDir 'agents'
-$skillsDir    = Join-Path $PaperclipDir 'skills'
-$workflowsDir = Join-Path $PaperclipDir 'workflows'
+$agentsDir    = Join-Path $RepoRoot 'agents'
+$skillsDir    = Join-Path $RepoRoot 'skills'
+$workflowsDir = Join-Path $RepoRoot 'workflows'
 
 if (Test-Path -LiteralPath $agentsDir) {
     Get-ChildItem -LiteralPath $agentsDir -Recurse -File |
