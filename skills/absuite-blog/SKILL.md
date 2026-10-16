@@ -1,18 +1,20 @@
 ---
 name: absuite-blog
+key: paperclip/skills/absuite-blog/SKILL.md
+version: 1.0.0
 description: >
   Manage blog content in the Alliance Business Suite (ABS) Content Service via the
   REST API (curl). Covers blog posts, categories, tags, comments, and authors,
-  including atomic PATCH (JSON Patch) updates. Tenant scoping is per-endpoint —
+  including atomic PATCH (JSON Patch) updates. Tenant scoping is per-endpoint:
   blog reads are public/optional-tenant; writes are tenant-scoped. Requires a bearer
   token (see the absuite-login skill to authenticate).
 ---
 
-# Alliance Business Suite — Blog (REST)
+# Alliance Business Suite: Blog (REST)
 
 Manage the **blog subset** of the ABS **Content Service** directly over HTTP. This skill
 covers blog posts, their categories, tags, comments, and authors. The Content Service also
-hosts portals, web pages, web content, themes, templates, and components — those are **not**
+hosts portals, web pages, web content, themes, templates, and components: those are **not**
 covered here; see the `absuite-content` skill for the rest of the service.
 
 > This is the pure-REST skill. For the same operations via the `absuite` CLI, see
@@ -23,9 +25,9 @@ covered here; see the `absuite-content` skill for the rest of the service.
 
 > Full detail in `absuite-rest`; these rules apply across this skill's endpoints.
 
-- **Lists & counts are OData-enabled.** `GET` collection endpoints accept `$filter`, `$top`, `$skip`, `$orderby`, `$select` — page through results, don't fetch-all-and-filter. Each dedicated `.../Count` endpoint returns an integer and is **also** filterable (`?$filter=...` -> a filtered count). OData is a REST/HTTP-layer feature (the CLI does not expose it).
-- **`PUT` replaces the ENTIRE resource** — it overwrites, not merges, so any omitted field is reset to default/null. **GET the resource first, change the full object, then PUT it back**; sending a partial body to `PUT` (or an incomplete `POST` create) causes silent data loss.
-- **`PATCH`, where this service exposes it, is atomic and partial** (JSON Patch / RFC 6902) — it changes only the fields you name, needs no prior GET, and won't clobber the rest. Prefer it for small edits; use `PUT` only for a deliberate full replacement.
+- **Lists & counts are OData-enabled.** `GET` collection endpoints accept `$filter`, `$top`, `$skip`, `$orderby`, `$select`: page through results, don't fetch-all-and-filter. Each dedicated `.../Count` endpoint returns an integer and is **also** filterable (`?$filter=...` -> a filtered count). OData is a REST/HTTP-layer feature (the CLI does not expose it).
+- **`PUT` replaces the ENTIRE resource**: it overwrites, not merges, so any omitted field is reset to default/null. **GET the resource first, change the full object, then PUT it back**; sending a partial body to `PUT` (or an incomplete `POST` create) causes silent data loss.
+- **`PATCH`, where this service exposes it, is atomic and partial** (JSON Patch / RFC 6902): it changes only the fields you name, needs no prior GET, and won't clobber the rest. Prefer it for small edits; use `PUT` only for a deliberate full replacement.
 
 ## Authentication
 
@@ -48,16 +50,22 @@ curl -X POST "$ABSUITE_HOST_URL/login" \
   `{ "isSuccess": bool, "errorMessage": str|null, "correlationId": str, "timestamp": str, "result": <data|array|int|null> }`.
   Always check `isSuccess`; read the payload from `result`.
 
-## Tenant scoping (read this — it varies per endpoint)
+## Tenant scoping (read this: it varies per endpoint)
 
 The platform binds the tenant from the `?tenantId=` query param **or** the `X-TenantId`
 header interchangeably. For the blog endpoints:
 
 - **Reads are public / optional-tenant.** `GET BlogPosts`, `GET BlogPosts/{id}`,
   `GET BlogPosts/Count`, the per-post sub-resource GETs (Categories / Comments / Tags / Replies),
-  and all `BlogPostAuthors` GETs do **not** require a tenant. Omitting `tenantId` returns the
-  global/public view; pass `?tenantId=<tenant-guid>` to scope to a tenant where the endpoint
-  accepts it (`GET BlogPosts`, `GET BlogPosts/Count`).
+  and all `BlogPostAuthors` GETs do **not** require a tenant. Without `tenantId` (or signed
+  out) they return only **published** posts, with public-safe fields; pass
+  `?tenantId=<tenant-guid>` to read your own workspace's posts, drafts included
+  (`GET BlogPosts`, `GET BlogPosts/Count`, `GET BlogPosts/{id}`).
+- **What a site shows: the `Public` reads.** `GET BlogPosts/Public?portalId=<portal-guid>`,
+  `GET BlogPosts/Public/Count?portalId=...` and `GET BlogPosts/Public/{blogPostId}?portalId=...`
+  are anonymous and return only the posts **on that portal** that are published, not in the
+  trash and past their release date. Portal sites (for example absuite.net) read only these.
+  Use them to check that a post is really visible.
 - **Category and Tag collection reads are tenant-required.** `GET/Count BlogPostCategories`
   and `GET/Count BlogPostTags` require `?tenantId=<tenant-guid>`.
 - **All writes are tenant-required.** Every POST / PUT / PATCH / DELETE below requires
@@ -69,18 +77,29 @@ The exact requirement for each endpoint is in the **Quick Reference** table at t
 
 ## Key Concepts
 
-- **Blog post** (`BlogPosts`) — the article aggregate. On **create** the post body content
+- **Blog post** (`BlogPosts`): the article aggregate. On **create** the post body content
   goes in `code` with `codeType` selecting the source language (Markdown is typical for blog
   authoring). `title` is the only required field on create.
 - **`codeType`** is an enum: **`Razor | CSharp | CSHtml | Liquid | Html5 | Markdown | Markup`**.
-- **Category** (`BlogPostCategories`) — taxonomy bucket. A post may reference a primary
+  Use `Markdown`, `Html5` or `Markup` for blog posts. The code types (`Razor`, `CSharp`,
+  `CSHtml`, and an **empty** `codeType`, which counts as code) are refused except in workspaces
+  the instance administrator enables, and there only for owners and administrators. The body
+  in `code` becomes the post's public HTML, cleaned by the article sanitizer.
+- **Portal (`webPortalId`).** A post appears on a site only when it is on that site's portal.
+  Always send `webPortalId` (list the workspace's portals with `GET Portals?tenantId=...`).
+  A **published** post with no portal is refused; a draft may stay without one. The portal
+  must belong to the same workspace.
+- **Slug.** Lowercase words joined by hyphens (`abs-2-4-release`). If you send none, one is
+  built from the title; a typed slug is normalized the same way and kept unique per portal.
+  A saved post keeps its slug when its title changes.
+- **Category** (`BlogPostCategories`): taxonomy bucket. A post may reference a primary
   category via `blogPostCategoryId`, and additional categories can be related/unrelated.
-- **Tag** (`BlogPostTags`) — lightweight label, related/unrelated to posts.
-- **Comment** (`BlogPosts/{id}/Comments`) — reader comments; `message` is required, and a
+- **Tag** (`BlogPostTags`): lightweight label, related/unrelated to posts.
+- **Comment** (`BlogPosts/{id}/Comments`): reader comments; `message` is required, and a
   comment can be a reply to another (`parentCommentId`).
-- **Author** (`BlogPostAuthors`) — read-only over this surface (list, get, posts-by-author,
+- **Author** (`BlogPostAuthors`): read-only over this surface (list, get, posts-by-author,
   count); authors are not created/edited through these endpoints.
-- The **create** DTO and the **update** DTO are different shapes — create is a small set of
+- The **create** DTO and the **update** DTO are different shapes: create is a small set of
   fields, update exposes the full editorial/SEO surface. Use the field names exactly as listed.
 
 ## Operations
@@ -100,7 +119,7 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/Count?tenantId=<t
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Get a blog post by ID (no tenant param)
+### Get a blog post by ID (optional tenant: pass it to read your own draft)
 
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<blog-post-guid>" \
@@ -124,6 +143,10 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts?tenantId=<tenant
     "featuredImageUrl": "https://example.com/images/hero.jpg",
     "slug": "getting-started-with-abs",
     "published": true,
+    "webPortalId": "<web-portal-guid>",
+    "excerpt": "A practical introduction for new developers.",
+    "seoTitle": "Getting Started with ABS",
+    "metaDescription": "Learn how to set up and use the ABS platform.",
     "blogPostCategoryId": "<category-guid>",
     "webTemplateId": "<web-template-guid>"
   }'
@@ -131,9 +154,13 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts?tenantId=<tenant
 
 `BlogPostCreateDto` fields: `id`, `timestamp`, `title` (**required**), `published`,
 `description`, `code`, `markup`, `featuredImageUrl`, `codeType` (enum above), `slug`,
-`blogPostCategoryId`, `webTemplateId`.
+`webPortalId` (**required when `published` is true**), `excerpt`, `seoTitle`,
+`metaDescription`, `blogPostCategoryId`, `webTemplateId`, `bannerSlots`.
 
-### Update a blog post — full replace (tenant required)
+Then confirm the post is visible: `GET BlogPosts/Public/Count?portalId=<web-portal-guid>`
+(anonymous) must count it.
+
+### Update a blog post: full replace (tenant required)
 
 Body = `BlogPostUpdateDto` (the full editorial + SEO surface). PUT replaces the whole DTO.
 
@@ -178,12 +205,14 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<blog-post-guid>?
 `precompiledViewSizeLong`, `precompiledLogicViewSize`, `template`, `default`, `enable`,
 `enableComments`, `displaySocialBox`, `published`, `inTrashCan`, `systemLocked`,
 `allowPingbacks`, `allowTrackbacks`, `cornerstoneContent`, `isEssentialContent`,
-`allowSearchEngineIndexing`, `blogPostCategoryId`, `webTemplateId`.
+`allowSearchEngineIndexing`, `blogPostCategoryId`, `webTemplateId`, `webPortalId`,
+`bannerSlots`. A `null` `webPortalId` on update keeps the post's portal; every other field is
+assigned as sent.
 
-### Patch a blog post — atomic partial update (tenant required)
+### Patch a blog post: atomic partial update (tenant required)
 
 `Content-Type: application/json`, body = a **JSON Patch (RFC 6902) array**. See the
-**PATCH** section below for the full operation set. Quick example — publish a draft and fix
+**PATCH** section below for the full operation set. Quick example: publish a draft and fix
 its title in one atomic request:
 
 ```bash
@@ -258,9 +287,9 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostCategories?tenantI
 `canonicalUrl`, `imageURL`, `image`, `webPortalId`.
 
 > NOTE: the API spells the SEO-indexing flag **`allowSerachEngines`** (misspelled in the
-> contract). Transcribe it verbatim — `allowSearchEngines` will be ignored.
+> contract). Transcribe it verbatim: `allowSearchEngines` will be ignored.
 
-#### Update a category — full replace (tenant required)
+#### Update a category: full replace (tenant required)
 
 Body = `BlogPostCategoryUpdateDto`: `slug`, `type`, `title`, `description`, `seoTitle`,
 `metaDescription`, `cornerstoneContent`, `allowSerachEngines`, `seoKeyPhrases`, `canonicalUrl`,
@@ -277,7 +306,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostCategories/<categor
   }'
 ```
 
-#### Patch a category — atomic partial update (tenant required)
+#### Patch a category: atomic partial update (tenant required)
 
 JSON Patch array.
 
@@ -355,7 +384,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostTags?tenantId=<ten
   -d '{ "title": "Tutorial", "slug": "tutorial", "type": "Tag" }'
 ```
 
-#### Update a tag — full replace (tenant required)
+#### Update a tag: full replace (tenant required)
 
 Body = `BlogPostTagUpdateDto`: `slug`, `type`, `title`, `description`, `seoTitle`,
 `metaDescription`, `cornerstoneContent`, `allowSerachEngines`, `seoKeyPhrases`, `canonicalUrl`,
@@ -368,7 +397,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPostTags/<tag-guid>?ten
   -d '{ "title": "Tutorials", "slug": "tutorials" }'
 ```
 
-#### Patch a tag — atomic partial update (tenant required)
+#### Patch a tag: atomic partial update (tenant required)
 
 JSON Patch array.
 
@@ -511,11 +540,11 @@ that is a **JSON array of operations**. Each operation is `{ "op", "path", "valu
 - `path` / `from` are JSON Pointers: leading `/`, **camelCase** field names matching the
   update DTO (e.g. `/title`, `/published`, `/seoTitle`, `/allowSerachEngines`).
 
-Prefer PATCH over PUT when you only need to change a couple of fields — it is safer under
+Prefer PATCH over PUT when you only need to change a couple of fields: it is safer under
 concurrent edits and avoids resending the full object.
 
 ```bash
-# Flip a post to draft, retitle it, and set a canonical URL — atomically
+# Flip a post to draft, retitle it, and set a canonical URL: atomically
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<blog-post-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
@@ -562,7 +591,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<blog-post-guid>
   -H "Content-Type: application/json" \
   -d '{ "title": "Release", "slug": "release" }'
 
-# 4. Patch SEO fields and publish — atomically
+# 4. Patch SEO fields and publish: atomically
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<blog-post-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
@@ -581,27 +610,30 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<blog-post-guid>"
 ## API Endpoints Quick Reference
 
 `tenant` column: **req** = `?tenantId=` required · **opt** = optional (omit for public/global)
-· **—** = no tenant param.
+· **none** = no tenant param.
 
 | Action | Method | Path | Tenant |
 |---|---|---|---|
 | List blog posts | GET | `/api/v2/ContentService/BlogPosts` | opt |
 | Count blog posts | GET | `/api/v2/ContentService/BlogPosts/Count` | opt |
-| Get blog post by ID | GET | `/api/v2/ContentService/BlogPosts/{blogPostId}` | — |
+| Get blog post by ID | GET | `/api/v2/ContentService/BlogPosts/{blogPostId}` | opt |
+| List a portal's public posts | GET | `/api/v2/ContentService/BlogPosts/Public?portalId=` | none |
+| Count a portal's public posts | GET | `/api/v2/ContentService/BlogPosts/Public/Count?portalId=` | none |
+| Get a portal's public post | GET | `/api/v2/ContentService/BlogPosts/Public/{blogPostId}?portalId=` | none |
 | Create blog post | POST | `/api/v2/ContentService/BlogPosts` | req |
 | Update blog post | PUT | `/api/v2/ContentService/BlogPosts/{blogPostId}` | req |
 | Patch blog post | PATCH | `/api/v2/ContentService/BlogPosts/{blogPostId}` | req |
 | Delete blog post | DELETE | `/api/v2/ContentService/BlogPosts/{blogPostId}` | req |
-| List post categories | GET | `/api/v2/ContentService/BlogPosts/{blogPostId}/Categories` | — |
+| List post categories | GET | `/api/v2/ContentService/BlogPosts/{blogPostId}/Categories` | none |
 | Create category on post | POST | `/api/v2/ContentService/BlogPosts/{blogPostId}/Categories` | req |
 | Relate category to post | POST | `/api/v2/ContentService/BlogPosts/{blogPostId}/Categories/{categoryId}` | req |
 | Unrelate category from post | DELETE | `/api/v2/ContentService/BlogPosts/{blogPostId}/Categories/{categoryId}` | req |
-| List post comments | GET | `/api/v2/ContentService/BlogPosts/{blogPostId}/Comments` | — |
+| List post comments | GET | `/api/v2/ContentService/BlogPosts/{blogPostId}/Comments` | none |
 | Create comment on post | POST | `/api/v2/ContentService/BlogPosts/{blogPostId}/Comments` | req |
 | Delete comment | DELETE | `/api/v2/ContentService/BlogPosts/{blogPostId}/Comments/{commentId}` | req |
-| List comment replies | GET | `/api/v2/ContentService/BlogPosts/{blogPostId}/Comments/{commentId}/Replies` | — |
+| List comment replies | GET | `/api/v2/ContentService/BlogPosts/{blogPostId}/Comments/{commentId}/Replies` | none |
 | Reply to comment | POST | `/api/v2/ContentService/BlogPosts/{blogPostId}/Comments/{commentId}/Reply` | req |
-| List post tags | GET | `/api/v2/ContentService/BlogPosts/{blogPostId}/Tags` | — |
+| List post tags | GET | `/api/v2/ContentService/BlogPosts/{blogPostId}/Tags` | none |
 | Create tag on post | POST | `/api/v2/ContentService/BlogPosts/{blogPostId}/Tags` | req |
 | Relate tag to post | POST | `/api/v2/ContentService/BlogPosts/{blogPostId}/Tags/{tagId}` | req |
 | Unrelate tag from post | DELETE | `/api/v2/ContentService/BlogPosts/{blogPostId}/Tags/{tagId}` | req |
@@ -620,9 +652,9 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<blog-post-guid>"
 | Patch tag | PATCH | `/api/v2/ContentService/BlogPostTags/{blogPostTagId}` | req |
 | Delete tag | DELETE | `/api/v2/ContentService/BlogPostTags/{blogPostTagId}` | req |
 | List blog authors | GET | `/api/v2/ContentService/BlogPostAuthors` | opt |
-| Get author by ID | GET | `/api/v2/ContentService/BlogPostAuthors/{authorId}` | — |
-| List posts by author | GET | `/api/v2/ContentService/BlogPostAuthors/{authorId}/BlogPosts` | — |
-| Count posts by author | GET | `/api/v2/ContentService/BlogPostAuthors/{authorId}/BlogPosts/Count` | — |
+| Get author by ID | GET | `/api/v2/ContentService/BlogPostAuthors/{authorId}` | none |
+| List posts by author | GET | `/api/v2/ContentService/BlogPostAuthors/{authorId}/BlogPosts` | none |
+| Count posts by author | GET | `/api/v2/ContentService/BlogPostAuthors/{authorId}/BlogPosts/Count` | none |
 
 > All endpoints also accept the optional `api-version` (query) / `x-api-version` (header)
 > parameters; omit them to use the default `v2` surface.

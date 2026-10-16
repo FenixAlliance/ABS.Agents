@@ -1,5 +1,7 @@
 ---
 name: absuite-identity
+key: paperclip/skills/absuite-identity/SKILL.md
+version: 1.0.0
 description: >
   Manage OAuth, OpenID Connect, and user identity in the Alliance Business Suite
   (ABS) via the REST API. Covers password sign-in, OAuth tokens, WhoAmI, user
@@ -9,7 +11,7 @@ description: >
   identity service exposes NO PATCH endpoints.
 ---
 
-# Alliance Business Suite — Identity (REST)
+# Alliance Business Suite: Identity (REST)
 
 The ABS identity surface (`identityService`, backed by the OAuth controller and
 related identity endpoints) handles the OAuth/OpenID-Connect plane: validating
@@ -20,7 +22,7 @@ underneath the basic login/WhoAmI convenience flow.
 
 > **Scope / overlap.** This skill documents the `identityService`/OAuth endpoints.
 > The simple email+password `/login` (basic auth → `accessToken`) and the
-> convenience WhoAmI flow are covered by the **`absuite-login`** skill — use that
+> convenience WhoAmI flow are covered by the **`absuite-login`** skill, use that
 > to obtain the bearer token you pass here. This skill focuses on the OAuth/OIDC
 > endpoints under `/api/v2/OAuth/*`, `/api/v2/Applications/*`,
 > `/api/v2/Auth/Checker/*`, `/api/v2/IdentityService/Resource/*`, and
@@ -33,13 +35,13 @@ underneath the basic login/WhoAmI convenience flow.
 
 > Full detail in `absuite-rest`; these rules apply across this skill's endpoints.
 
-- **Lists & counts are OData-enabled.** `GET` collection endpoints accept `$filter`, `$top`, `$skip`, `$orderby`, `$select` — page through results, don't fetch-all-and-filter. Each dedicated `.../Count` endpoint returns an integer and is **also** filterable (`?$filter=...` -> a filtered count). OData is a REST/HTTP-layer feature (the CLI does not expose it).
-- **`PUT` replaces the ENTIRE resource** — it overwrites, not merges, so any omitted field is reset to default/null. **GET the resource first, change the full object, then PUT it back**; sending a partial body to `PUT` (or an incomplete `POST` create) causes silent data loss.
-- **`PATCH`, where this service exposes it, is atomic and partial** (JSON Patch / RFC 6902) — it changes only the fields you name, needs no prior GET, and won't clobber the rest. Prefer it for small edits; use `PUT` only for a deliberate full replacement.
+- **Lists & counts are OData-enabled.** `GET` collection endpoints accept `$filter`, `$top`, `$skip`, `$orderby`, `$select`, page through results, don't fetch-all-and-filter. Each dedicated `.../Count` endpoint returns an integer and is **also** filterable (`?$filter=...` -> a filtered count). OData is a REST/HTTP-layer feature (the CLI does not expose it).
+- **`PUT` replaces the ENTIRE resource**: it overwrites, not merges, so any omitted field is reset to default/null. **GET the resource first, change the full object, then PUT it back**; sending a partial body to `PUT` (or an incomplete `POST` create) causes silent data loss.
+- **`PATCH`, where this service exposes it, is atomic and partial** (JSON Patch / RFC 6902), it changes only the fields you name, needs no prior GET, and won't clobber the rest. Prefer it for small edits; use `PUT` only for a deliberate full replacement.
 
 ## Authentication
 
-Obtain a bearer token (basic login — see `absuite-login` for the full flow):
+Obtain a bearer token (basic login, see `absuite-login` for the full flow):
 
 ```bash
 curl -X POST "$ABSUITE_HOST_URL/login" \
@@ -59,25 +61,25 @@ Extract `accessToken` from the response and send it on every protected call:
 
 ## Key Concepts
 
-- **WhoAmI / AuthResult** — `GET /api/v2/OAuth/WhoAmI` returns the authorization
+- **WhoAmI / AuthResult**: `GET /api/v2/OAuth/WhoAmI` returns the authorization
   result for the authenticated caller (identity + tenant context). `tenantId` is
   **optional** here: omit for the caller's default context, or pass it to resolve
   identity within a specific tenant.
-- **Sign-in vs. Token** — `OAuth/SignIn` (POST) validates email+password and
+- **Sign-in vs. Token**: `OAuth/SignIn` (POST) validates email+password and
   returns a token envelope; `OAuth/SignIn` (GET) checks/validates credentials
   without creating a session; `OAuth/Token` (POST) issues an OAuth token from a
   client-credentials / grant-type request.
-- **Permissions** — `GET /api/v2/OAuth/Permissions` returns the permission-identifier
+- **Permissions**: `GET /api/v2/OAuth/Permissions` returns the permission-identifier
   list for a user within a tenant. `tenantId` is **REQUIRED**; `userId` is optional
   (defaults to the caller).
-- **Application grants** — under `/api/v2/Applications/{appId}/*` you can read an
+- **Application grants**: under `/api/v2/Applications/{appId}/*` you can read an
   application's required permissions, and the roles/permissions granted to it
   within a tenant (or through a specific role/enrollment).
-- **OIDC discovery / JWKS** — `OAuth/{tenantId}/{applicationId}/.Well-Known/OpenId-Configuration`
+- **OIDC discovery / JWKS**: `OAuth/{tenantId}/{applicationId}/.Well-Known/OpenId-Configuration`
   returns the OpenID discovery document; `OAuth/{applicationId}/Keys` returns the
   JSON Web Key Set (JWKS). Here `tenantId` and `applicationId` are **path** segments.
 - **No tenant param on auth flows.** SignIn, Token, Checker/IsAuthenticated, Keys,
-  Resource/message, and `/connect/userinfo` take **no** `tenantId` — do not add one.
+  Resource/message, and `/connect/userinfo` take **no** `tenantId`, do not add one.
 - **No PATCH.** The identity service exposes **no PATCH endpoints**. Partial-update
   via JSON Patch is **not available** here. Use the dedicated POST/GET operations.
 
@@ -85,13 +87,13 @@ Extract `accessToken` from the response and send it on every protected call:
 
 | Endpoint | Tenant scoping |
 |---|---|
-| `GET /api/v2/OAuth/WhoAmI` | `tenantId` query — **optional** |
-| `GET /api/v2/OAuth/Permissions` | `tenantId` query — **required** |
-| `GET /api/v2/Applications/{appId}/GrantedPermissions` | `tenantId` query — **optional** |
-| `GET /api/v2/Applications/{appId}/GrantedRoles` | `tenantId` query — **optional** |
-| `GET /api/v2/Applications/{appId}/GrantedRoles/{securityRoleId}/GrantedPermissions` | `enrollmentId` query — **optional** (no tenantId) |
-| `GET /api/v2/OAuth/{tenantId}/{applicationId}/.Well-Known/OpenId-Configuration` | `tenantId` is a **path** segment — required |
-| All other identity endpoints | **No** tenant param — do not add one |
+| `GET /api/v2/OAuth/WhoAmI` | `tenantId` query, **optional** |
+| `GET /api/v2/OAuth/Permissions` | `tenantId` query, **required** |
+| `GET /api/v2/Applications/{appId}/GrantedPermissions` | `tenantId` query, **optional** |
+| `GET /api/v2/Applications/{appId}/GrantedRoles` | `tenantId` query, **optional** |
+| `GET /api/v2/Applications/{appId}/GrantedRoles/{securityRoleId}/GrantedPermissions` | `enrollmentId` query, **optional** (no tenantId) |
+| `GET /api/v2/OAuth/{tenantId}/{applicationId}/.Well-Known/OpenId-Configuration` | `tenantId` is a **path** segment, required |
+| All other identity endpoints | **No** tenant param, do not add one |
 
 Where a `tenantId` query param applies, the platform also accepts the
 `X-TenantId` request header interchangeably (e.g. `-H "X-TenantId: <tenant-guid>"`).
@@ -328,12 +330,12 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/Applications/<application-id>/GrantedRoles
 ## Critical Rules
 
 - **No PATCH on identity.** Do not attempt JSON-Patch against any identity/OAuth
-  endpoint — there is none.
+  endpoint, there is none.
 - **Tenant scoping is per-endpoint.** Only `OAuth/Permissions` *requires* `tenantId`
   (query); `WhoAmI`, `GrantedPermissions`, and `GrantedRoles` accept it
   *optionally*; OIDC discovery takes `tenantId` as a **path** segment. Everything
   else (SignIn, Token, Checker, Keys, Resource/message, userinfo,
-  `GrantedRoles/.../GrantedPermissions`) takes **no** `tenantId` — do not add one.
+  `GrantedRoles/.../GrantedPermissions`) takes **no** `tenantId`, do not add one.
 - **Passwords and secrets are sensitive.** Never log, echo, or store `password`,
   `client_secret`, or issued tokens in plain text.
 - **Use `absuite-login` for the basic flow.** For simple email+password auth and

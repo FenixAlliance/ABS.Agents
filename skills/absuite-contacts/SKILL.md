@@ -1,23 +1,26 @@
 ---
 name: absuite-contacts
+key: paperclip/skills/absuite-contacts/SKILL.md
+version: 1.0.0
 description: >
   Create, read, update, patch, delete, and manage contacts in the Alliance Business
   Suite (ABS) CRM Service via the REST API. Covers contacts (individuals &
   organizations), extended views, relationship graphs, avatars, wallets, carts,
   social profiles, contact options (key-value metadata), contact emails, contact
   groups, contact profiles, contact relations, contact relation types, contact
-  sources, and user/tenant sync — including atomic PATCH (JSON Patch) updates. All
+  sources, and user/tenant sync, including atomic PATCH (JSON Patch) updates. All
   operations are tenant-scoped and require a bearer token (see the absuite-login
   skill to authenticate).
 ---
 
-# Alliance Business Suite — Contacts Skill (REST)
+# Alliance Business Suite: Contacts Skill (REST)
 
 Manage contacts and related CRM resources through the ABS CRM Service REST API. Almost
 every CRM endpoint is tenant-scoped: pass `?tenantId=<tenant-guid>` (or the equivalent
-`X-TenantId: <tenant-guid>` header) on **every** request — GET, POST, PUT, PATCH, and
-DELETE alike. The only exceptions are noted inline (`POST .../Contacts` and the email
-`Preview`/`Send` actions, where `tenantId` is optional or not bound).
+`X-TenantId: <tenant-guid>` header) on **every** request: GET, POST, PUT, PATCH, and
+DELETE alike. The exceptions are noted inline: the email `Preview`/`Send` actions do not bind
+`tenantId` (they act in the platform root tenant), and `POST .../Contacts/Related` takes the
+target tenant as `tenantId` but needs no permission in it.
 
 > For the CLI equivalent see `absuite-contacts-cli`; for general REST conventions
 > (envelope, tenant scoping, JSON Patch) see `absuite-rest`.
@@ -26,9 +29,9 @@ DELETE alike. The only exceptions are noted inline (`POST .../Contacts` and the 
 
 > Full detail in `absuite-rest`; these rules apply across this skill's endpoints.
 
-- **Lists & counts are OData-enabled.** `GET` collection endpoints accept `$filter`, `$top`, `$skip`, `$orderby`, `$select` — page through results, don't fetch-all-and-filter. Each dedicated `.../Count` endpoint returns an integer and is **also** filterable (`?$filter=...` -> a filtered count). OData is a REST/HTTP-layer feature (the CLI does not expose it).
-- **`PUT` replaces the ENTIRE resource** — it overwrites, not merges, so any omitted field is reset to default/null. **GET the resource first, change the full object, then PUT it back**; sending a partial body to `PUT` (or an incomplete `POST` create) causes silent data loss.
-- **`PATCH`, where this service exposes it, is atomic and partial** (JSON Patch / RFC 6902) — it changes only the fields you name, needs no prior GET, and won't clobber the rest. Prefer it for small edits; use `PUT` only for a deliberate full replacement.
+- **Lists & counts are OData-enabled.** `GET` collection endpoints accept `$filter`, `$top`, `$skip`, `$orderby`, `$select`: page through results, don't fetch-all-and-filter. Each dedicated `.../Count` endpoint returns an integer and is **also** filterable (`?$filter=...` -> a filtered count). OData is a REST/HTTP-layer feature (the CLI does not expose it).
+- **`PUT` replaces the ENTIRE resource**: it overwrites, not merges, so any omitted field is reset to default/null. **GET the resource first, change the full object, then PUT it back**; sending a partial body to `PUT` (or an incomplete `POST` create) causes silent data loss.
+- **`PATCH`, where this service exposes it, is atomic and partial** (JSON Patch / RFC 6902): it changes only the fields you name, needs no prior GET, and won't clobber the rest. Prefer it for small edits; use `PUT` only for a deliberate full replacement.
 
 ## Authentication
 
@@ -50,7 +53,7 @@ export ABSUITE_ACCESS_TOKEN="<accessToken-from-response>"
 
 3. **Base path:** `$ABSUITE_HOST_URL/api/v2/CrmService/...`
 
-4. **Response envelope** — every response is wrapped:
+4. **Response envelope**: every response is wrapped:
 ```json
 {
   "isSuccess": true,
@@ -64,28 +67,28 @@ Always check `isSuccess`; read the payload from `result` (an object, an array, a
 
 ## Key Concepts
 
-- **Contact** — a person or organization in the CRM. The `type` field is the enum
+- **Contact**: a person or organization in the CRM. The `type` field is the enum
   **`Individual` | `Organization`** (a string value, not a numeric code).
-- **Extended Contact** — a contact record enriched with related data (profiles, wallet, etc.),
+- **Extended Contact**: a contact record enriched with related data (profiles, wallet, etc.),
   served from the `/Extended` endpoints.
-- **Contact Group** — a named grouping of contacts (`ContactGroups`).
-- **Contact Profile** — a profile record attached to a contact, holding a `type`, `about`,
+- **Contact Group**: a named grouping of contacts (`ContactGroups`).
+- **Contact Profile**: a profile record attached to a contact, holding a `type`, `about`,
   `avatarUrl`, and up to ten generic `data`/`dataLabel` slots (`data`, `data1`…`data9` with
   matching `…Label`). Available both as a standalone resource (`/ContactProfiles`) and nested
   under a contact (`/Contacts/{contactId}/Profiles`).
-- **Contact Relation** — a typed link between two contacts (`contactId` → `relatedContactId`)
+- **Contact Relation**: a typed link between two contacts (`contactId` → `relatedContactId`)
   classified by a **Contact Relation Type** (`contactRelationTypeId`).
-- **Contact Relation Type** — defines a relation label and its inverse (`name`, `backName`,
+- **Contact Relation Type**: defines a relation label and its inverse (`name`, `backName`,
   `description`).
-- **Contact Source** — a named acquisition/origin channel for contacts (`name`, `description`).
-- **Contact Option** — a key-value metadata pair attached to a contact (`key`, `value`, plus
+- **Contact Source**: a named acquisition/origin channel for contacts (`name`, `description`).
+- **Contact Option**: a key-value metadata pair attached to a contact (`key`, `value`, plus
   `portalId`, `frozen`, `autoload`, `transient`, `expiration`).
-- **Contact Email** — an email address attached to a contact (`address`, `label`, `isPrimary`),
+- **Contact Email**: an email address attached to a contact (`address`, `label`, `isPrimary`),
   individually verifiable.
-- **Relationship Graph** — contacts can be queried by relationship direction:
+- **Relationship Graph**: contacts can be queried by relationship direction:
   individual→individuals, individual→organizations, organization→individuals,
   organization→organizations.
-- **Sync** — pull the current user, another user, or a tenant into a tenant's contact list.
+- **Sync**: pull the current user, another user, or a tenant into a tenant's contact list.
 
 > Field names in request bodies are camelCase JSON keys exactly as transcribed from the spec
 > (e.g. `"firstName"`, `"currencyId"`, `"type"`). JSON Patch `path` pointers are camelCase
@@ -140,8 +143,8 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/CrmService/Contacts/<contact-guid>/Extende
 
 ### Create Contact
 
-> Note: on `POST .../Contacts`, `tenantId` is an **optional** query param (the contact is
-> created under the authenticated tenant). Pass it to scope explicitly.
+> Note: on `POST .../Contacts`, `tenantId` is **required** (query or `X-TenantId` header); the
+> contact is created in that tenant.
 
 ```bash
 curl -X POST "$ABSUITE_HOST_URL/api/v2/CrmService/Contacts?tenantId=<tenant-guid>" \
@@ -170,7 +173,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/CrmService/Contacts?tenantId=<tenant-guid
 `instagramUrl`, `githubUsername`, `instagramUsername`, `tikTokUsername`, `stackExchangeUrl`,
 `stackOverflowUrl`, `parentContactId`, `faxNumber`.
 
-### Update Contact (PUT — full replace)
+### Update Contact (PUT: full replace)
 
 ```bash
 curl -X PUT "$ABSUITE_HOST_URL/api/v2/CrmService/Contacts/<contact-guid>?tenantId=<tenant-guid>" \
@@ -195,7 +198,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/CrmService/Contacts/<contact-guid>?tenantI
 `stackExchangeUrl`, `stackOverflowUrl`, `faxNumber`. (Note: `ContactUpdateDto` carries
 `coverUrl` but not `webUrl`-as-`websiteUrl`; it does not carry `id`.)
 
-### Patch Contact (PATCH — JSON Patch RFC 6902)
+### Patch Contact (PATCH: JSON Patch RFC 6902)
 
 ```bash
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/CrmService/Contacts/<contact-guid>?tenantId=<tenant-guid>" \
@@ -221,6 +224,16 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/CrmService/Contacts/Individuals/Upsert?te
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
+### Add Yourself to a Tenant's Contact List
+
+Any signed-in user can create (or reuse) their own contact in a tenant's contact list; no
+permission in that tenant is needed. An unknown tenant answers NotFound.
+
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/CrmService/Contacts/Related?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
 ### Upsert a Tenant onto Another Tenant's Contact List
 
 ```bash
@@ -228,7 +241,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/CrmService/Contacts/Organizations/Upsert?
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-## Contacts by Type — Individuals
+## Contacts by Type: Individuals
 
 ### List / Count / Extended Individuals
 
@@ -262,7 +275,7 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/CrmService/Contacts/Individuals/<contact-g
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-## Contacts by Type — Organizations
+## Contacts by Type: Organizations
 
 ### List / Count / Extended Organizations
 
@@ -319,7 +332,7 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/CrmService/Contacts/<contact-guid>/SocialP
 curl -X GET "$ABSUITE_HOST_URL/api/v2/CrmService/Contacts/<contact-guid>/Avatar?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Update avatar (multipart upload; tenantId is optional on this endpoint)
+# Update avatar (multipart upload; pass tenantId, the upload runs as a tenant command)
 curl -X POST "$ABSUITE_HOST_URL/api/v2/CrmService/Contacts/<contact-guid>/Avatar?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -F "file=@/path/to/avatar.png"
@@ -368,7 +381,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/CrmService/Contacts/<contact-guid>/Emails/
 
 **`ContactEmailUpdateDto` fields:** `address`, `label`, `isPrimary` (bool).
 
-### Patch an Email Address (PATCH — JSON Patch)
+### Patch an Email Address (PATCH: JSON Patch)
 
 ```bash
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/CrmService/Contacts/<contact-guid>/Emails/<email-guid>?tenantId=<tenant-guid>" \
@@ -395,7 +408,9 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CrmService/Contacts/<contact-guid>/Emai
 
 ### Send / Preview Transactional Email
 
-> Note: these two actions take `contactId` (path) but do **not** bind `tenantId`.
+> Note: these two actions take `contactId` (path) but do **not** bind `tenantId`: they run in the
+> platform root tenant and need the `email_send` permission there, so only platform administrators
+> can call them.
 
 ```bash
 # Send
@@ -558,7 +573,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/CrmService/Contacts/<contact-guid>/Options
   }'
 ```
 
-### Patch Option by ID / by Key (PATCH — JSON Patch)
+### Patch Option by ID / by Key (PATCH: JSON Patch)
 
 ```bash
 # By option ID
@@ -634,7 +649,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/CrmService/ContactGroups/<group-guid>?tena
 
 **`ContactsGroupUpdateDto` fields** (`name` **required**): `name`, `description`.
 
-### Patch (PATCH — JSON Patch)
+### Patch (PATCH: JSON Patch)
 
 ```bash
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/CrmService/ContactGroups/<group-guid>?tenantId=<tenant-guid>" \
@@ -661,6 +676,12 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/CrmService/ContactProfiles?tenantId=<tenan
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 curl -X GET "$ABSUITE_HOST_URL/api/v2/CrmService/ContactProfiles/Count?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Counts of partner and patient profiles
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CrmService/ContactProfiles/Partners/Count?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CrmService/ContactProfiles/Patients/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
@@ -706,7 +727,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/CrmService/ContactProfiles/<profile-guid>?
 **`ContactProfileUpdateDto` fields:** `type`, `contactId`, `about`, `avatarUrl`, and the ten
 `data`/`dataLabel` slots (`data`…`data9`).
 
-### Patch (PATCH — JSON Patch)
+### Patch (PATCH: JSON Patch)
 
 ```bash
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/CrmService/ContactProfiles/<profile-guid>?tenantId=<tenant-guid>" \
@@ -776,7 +797,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/CrmService/ContactRelations/<relation-guid
 
 **`ContactRelationUpdateDto` fields:** `contactId`, `relatedContactId`, `contactRelationTypeId`.
 
-### Patch (PATCH — JSON Patch)
+### Patch (PATCH: JSON Patch)
 
 ```bash
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/CrmService/ContactRelations/<relation-guid>?tenantId=<tenant-guid>" \
@@ -843,7 +864,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/CrmService/ContactRelationTypes/<relation-
 
 **`ContactRelationTypeUpdateDto` fields** (`name` **required**): `name`, `backName`, `description`.
 
-### Patch (PATCH — JSON Patch)
+### Patch (PATCH: JSON Patch)
 
 ```bash
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/CrmService/ContactRelationTypes/<relation-type-guid>?tenantId=<tenant-guid>" \
@@ -908,7 +929,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/CrmService/ContactSources/<source-guid>?te
 
 **`ContactSourceUpdateDto` fields** (`name` **required**): `name`, `description`.
 
-### Patch (PATCH — JSON Patch)
+### Patch (PATCH: JSON Patch)
 
 ```bash
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/CrmService/ContactSources/<source-guid>?tenantId=<tenant-guid>" \
@@ -954,7 +975,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/CrmService/Sync/Tenant?tenantId=<tenant-g
 ## PATCH (JSON Patch RFC 6902)
 
 PATCH endpoints take a JSON **array** of operations (`Content-Type: application/json`). Use
-them for atomic partial edits — safer than PUT when only a couple of fields change.
+them for atomic partial edits, safer than PUT when only a couple of fields change.
 `op` ∈ `add | remove | replace | move | copy | test`; `path`/`from` are JSON-Pointer with a
 leading slash and camelCase field names (e.g. `/firstName`, `/value`, `/name`).
 
@@ -974,7 +995,7 @@ curl -X PATCH "$ABSUITE_HOST_URL/api/v2/CrmService/Contacts/<contact-guid>?tenan
 Contact Profiles (standalone), Contact Relations, Contact Relation Types, and Contact Sources.
 
 > The nested contact-profile sub-resource (`/Contacts/{contactId}/Profiles/{profileId}`) is
-> PUT/DELETE only — it has **no** PATCH. Use the standalone `/ContactProfiles/{id}` PATCH
+> PUT/DELETE only: it has **no** PATCH. Use the standalone `/ContactProfiles/{id}` PATCH
 > instead.
 
 ## End-to-End Workflow
@@ -1036,6 +1057,7 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/CrmService/Contacts/<contact-guid>/Extende
 | Delete contact | DELETE | `/api/v2/CrmService/Contacts/{contactId}` |
 | Upsert user as contact | POST | `/api/v2/CrmService/Contacts/Individuals/Upsert` |
 | Upsert tenant as contact | POST | `/api/v2/CrmService/Contacts/Organizations/Upsert` |
+| Add yourself to a tenant's contacts | POST | `/api/v2/CrmService/Contacts/Related` |
 | List individuals | GET | `/api/v2/CrmService/Contacts/Individuals` |
 | Count individuals | GET | `/api/v2/CrmService/Contacts/Individuals/Count` |
 | List extended individuals | GET | `/api/v2/CrmService/Contacts/Individuals/Extended` |
@@ -1086,6 +1108,8 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/CrmService/Contacts/<contact-guid>/Extende
 | Delete contact group | DELETE | `/api/v2/CrmService/ContactGroups/{id}` |
 | List contact profiles | GET | `/api/v2/CrmService/ContactProfiles` |
 | Count contact profiles | GET | `/api/v2/CrmService/ContactProfiles/Count` |
+| Count partner profiles | GET | `/api/v2/CrmService/ContactProfiles/Partners/Count` |
+| Count patient profiles | GET | `/api/v2/CrmService/ContactProfiles/Patients/Count` |
 | Create contact profile | POST | `/api/v2/CrmService/ContactProfiles` |
 | Get contact profile | GET | `/api/v2/CrmService/ContactProfiles/{id}` |
 | Update contact profile | PUT | `/api/v2/CrmService/ContactProfiles/{id}` |
@@ -1120,13 +1144,12 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/CrmService/Contacts/<contact-guid>/Extende
 ## Critical Rules
 
 - **Pass `?tenantId=<tenant-guid>` on every request** (GET, POST, PUT, PATCH, DELETE). The
-  only relaxations: `POST .../Contacts` and `POST .../Contacts/{contactId}/Avatar` treat
-  `tenantId` as optional, and the email `Send`/`Preview` actions do not bind it. The
-  `X-TenantId: <tenant-guid>` header is an accepted equivalent.
-- **`type` is `Individual` or `Organization`** — a string enum, never a numeric code.
+  only exception: the email `Send`/`Preview` actions do not bind it (platform root tenant,
+  platform administrators only). The `X-TenantId: <tenant-guid>` header is an accepted equivalent.
+- **`type` is `Individual` or `Organization`**: a string enum, never a numeric code.
 - **`type`, `firstName`, and `email` are required** to create or update a contact.
 - **Check `isSuccess`** in the envelope; read data from `result`.
 - **Prefer PATCH for partial edits** over PUT to avoid clobbering unsent fields.
-- **Never hard-code real GUIDs, emails, or credentials** — use placeholders and values from
+- **Never hard-code real GUIDs, emails, or credentials**: use placeholders and values from
   API responses.
 - For the CLI equivalent (no PATCH, no curl), see `absuite-contacts-cli`.

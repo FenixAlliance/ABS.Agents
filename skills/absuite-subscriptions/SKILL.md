@@ -1,5 +1,7 @@
 ---
 name: absuite-subscriptions
+key: paperclip/skills/absuite-subscriptions/SKILL.md
+version: 1.0.0
 description: >
   Manage subscription plans and customer subscriptions via the Alliance Business Suite
   (ABS) REST API. Covers subscription plans and subscriptions, including atomic PATCH
@@ -7,12 +9,12 @@ description: >
   (see the absuite-login skill to authenticate).
 ---
 
-# Alliance Business Suite — Subscriptions Skill (REST)
+# Alliance Business Suite: Subscriptions Skill (REST)
 
 This skill drives the **SubscriptionsService** REST API. It manages two resources:
 
-- **Subscription Plans** — the recurring offerings customers can subscribe to (a plan is an Item-shaped catalog record with subscription metadata such as trial/perpetual flags and expiration windows).
-- **Subscriptions** — individual customer subscriptions that bind a contact (individual or organization) to a plan.
+- **Subscription Plans**: the recurring offerings customers can subscribe to (a plan is an Item-shaped catalog record with subscription metadata such as trial/perpetual flags and expiration windows).
+- **Subscriptions**: individual customer subscriptions that bind a contact (individual or organization) to a plan.
 
 All operations are **tenant-scoped**: every endpoint in this service requires a `tenantId`. Pass it as the `?tenantId=<tenant-guid>` query parameter on **every** request (including POST/PUT/PATCH/DELETE). The `X-TenantId: <tenant-guid>` request header is an accepted equivalent.
 
@@ -22,9 +24,9 @@ All operations are **tenant-scoped**: every endpoint in this service requires a 
 
 > Full detail in `absuite-rest`; these rules apply across this skill's endpoints.
 
-- **Lists & counts are OData-enabled.** `GET` collection endpoints accept `$filter`, `$top`, `$skip`, `$orderby`, `$select` — page through results, don't fetch-all-and-filter. Each dedicated `.../Count` endpoint returns an integer and is **also** filterable (`?$filter=...` -> a filtered count). OData is a REST/HTTP-layer feature (the CLI does not expose it).
-- **`PUT` replaces the ENTIRE resource** — it overwrites, not merges, so any omitted field is reset to default/null. **GET the resource first, change the full object, then PUT it back**; sending a partial body to `PUT` (or an incomplete `POST` create) causes silent data loss.
-- **`PATCH`, where this service exposes it, is atomic and partial** (JSON Patch / RFC 6902) — it changes only the fields you name, needs no prior GET, and won't clobber the rest. Prefer it for small edits; use `PUT` only for a deliberate full replacement.
+- **Lists & counts are OData-enabled.** `GET` collection endpoints accept `$filter`, `$top`, `$skip`, `$orderby`, `$select`; page through results, don't fetch-all-and-filter. Each dedicated `.../Count` endpoint returns an integer and is **also** filterable (`?$filter=...` -> a filtered count). OData is a REST/HTTP-layer feature (the CLI does not expose it).
+- **`PUT` replaces the ENTIRE resource**: it overwrites, not merges, so any omitted field is reset to default/null. **GET the resource first, change the full object, then PUT it back**; sending a partial body to `PUT` (or an incomplete `POST` create) causes silent data loss.
+- **`PATCH`, where this service exposes it, is atomic and partial** (JSON Patch / RFC 6902): it changes only the fields you name, needs no prior GET, and won't clobber the rest. Prefer it for small edits; use `PUT` only for a deliberate full replacement.
 
 ## Authentication
 
@@ -46,7 +48,7 @@ Extract `accessToken` from the response.
 
 3. **Base path:** `$ABSUITE_HOST_URL/api/v2/SubscriptionsService/<Resource>`
 
-4. **Response envelope** — every response is wrapped:
+4. **Response envelope**: every response is wrapped:
 
 ```json
 {
@@ -63,10 +65,12 @@ Always check `isSuccess`; read data from `result`.
 ## Key Concepts
 
 - **Tenant scoping is mandatory.** Every SubscriptionsService endpoint declares `tenantId` as **required**. Omitting `?tenantId=` returns `400`.
-- **Two resources only:** `SubscriptionPlans` and `Subscriptions`. There are no search, cancel, renew, activate, or billing-cycle endpoints in this service — lifecycle changes are done via **PUT** (full update) or **PATCH** (partial update).
+- **Permissions** (checked in the tenant): reads and counts need `subscriptions_read`; create needs `subscriptions_create`; PUT and PATCH need `subscriptions_update`; delete needs `subscriptions_delete`. The same permissions cover plans and subscriptions.
+- **A subscription's plan must belong to the same tenant.** Creating a subscription with a plan id the tenant does not own (including the platform's own plans) returns `404`, the same as an unknown id. Buying the platform's plans is a checkout flow, not this endpoint.
+- **Two resources only:** `SubscriptionPlans` and `Subscriptions`. There are no search, cancel, renew, activate, or billing-cycle endpoints in this service; lifecycle changes are done via **PUT** (full update) or **PATCH** (partial update).
 - **Subscription path parameter is `subscriptionId`.** Subscription-plan path parameter is `planId` (note: not `subscriptionPlanId`).
-- **`subscriptionClass`** on a subscription is the enum `Trial | Standard` — it selects the subscription tier/expiration behaviour, **not** the contact type. Bind the customer via either `individualId` (a person contact) **or** `organizationId` (an organization contact).
-- **Subscription plans are catalog (Item-shaped) records.** The create/update body carries the full item field surface (sku, title, currencyId, regularPrice, etc.) plus subscription-specific fields: `recurrency`, `allowSubscriptionTrials`, `isPerpetualSubscription`, `trialSubscriptionRelativeExpirationInDays`, `standardSubscriptionRelativeExpirationInDays`, `subscriptionsCertificateId`. Most fields are optional — send only what you need.
+- **`subscriptionClass`** on a subscription is the enum `Trial | Standard`: it selects the subscription tier/expiration behaviour, **not** the contact type. Bind the customer via either `individualId` (a person contact) **or** `organizationId` (an organization contact).
+- **Subscription plans are catalog (Item-shaped) records.** The create/update body carries the full item field surface (sku, title, currencyId, regularPrice, etc.) plus subscription-specific fields: `recurrency`, `allowSubscriptionTrials`, `isPerpetualSubscription`, `trialSubscriptionRelativeExpirationInDays`, `standardSubscriptionRelativeExpirationInDays`, `subscriptionsCertificateId`. Most fields are optional; send only what you need.
 - **JSON request keys are camelCase** (e.g. `"name"`, `"currencyId"`, `"subscriptionPlanId"`, `"subscriptionClass"`), matching the OpenAPI schema.
 - **Optional version selectors:** `?api-version=<v>` query param or `x-api-version: <v>` header may be supplied on any endpoint; both are optional.
 
@@ -143,7 +147,7 @@ Selected `SubscriptionPlanCreateDto` fields (all optional; transcribe additional
 | `standardSubscriptionRelativeExpirationInDays` | integer | Standard term length in days |
 | `subscriptionsCertificateId` | string | Linked certificate |
 
-### Update a plan (PUT — full replace)
+### Update a plan (PUT, full replace)
 
 Body: `SubscriptionPlanUpdateDto` (same field surface as create, plus a few extra item fields).
 
@@ -161,7 +165,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/SubscriptionsService/SubscriptionPlans/<pl
   }'
 ```
 
-### Patch a plan (PATCH — partial, JSON Patch)
+### Patch a plan (PATCH, partial, JSON Patch)
 
 See the **PATCH** section below.
 
@@ -225,7 +229,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/SubscriptionsService/Subscriptions?tenant
 | `subscriptionPlanId` | string | Plan being subscribed to |
 | `subscriptionClass` | enum | `Trial` or `Standard` |
 
-### Update a subscription (PUT — full replace)
+### Update a subscription (PUT, full replace)
 
 Body: `SubscriptionUpdateDto` (same fields as create).
 
@@ -240,7 +244,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/SubscriptionsService/Subscriptions/<sub-gu
   }'
 ```
 
-### Patch a subscription (PATCH — partial, JSON Patch)
+### Patch a subscription (PATCH, partial, JSON Patch)
 
 See the **PATCH** section below.
 
@@ -255,7 +259,7 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SubscriptionsService/Subscriptions/<sub
 
 ## PATCH (JSON Patch, RFC 6902)
 
-Both `SubscriptionPlans/{planId}` and `Subscriptions/{subscriptionId}` support **PATCH** for atomic partial updates — change a couple of fields without resending the whole object. The request body is a **JSON array** of operations.
+Both `SubscriptionPlans/{planId}` and `Subscriptions/{subscriptionId}` support **PATCH** for atomic partial updates: change a couple of fields without resending the whole object. The request body is a **JSON array** of operations.
 
 - `Content-Type: application/json`
 - `op` ∈ `add | remove | replace | move | copy | test`
@@ -287,7 +291,7 @@ curl -X PATCH "$ABSUITE_HOST_URL/api/v2/SubscriptionsService/Subscriptions/<sub-
   ]'
 ```
 
-Use PATCH (rather than PUT) when only a few fields change — it is safer for concurrent edits because it does not overwrite untouched fields.
+Use PATCH (rather than PUT) when only a few fields change; it is safer for concurrent edits because it does not overwrite untouched fields.
 
 ---
 
@@ -357,8 +361,8 @@ All paths are under `$ABSUITE_HOST_URL`. Every endpoint requires `?tenantId=<ten
 
 ## Critical Rules
 
-- **Always pass `?tenantId=<tenant-guid>`** on every call (GET/POST/PUT/PATCH/DELETE) — omitting it returns `400`.
-- **Create plans before subscriptions** — a subscription must reference an existing `subscriptionPlanId`.
-- **`subscriptionClass` is `Trial` or `Standard`** — it is the tier, not the contact type. Bind the customer via `individualId` (person) **or** `organizationId` (company).
+- **Always pass `?tenantId=<tenant-guid>`** on every call (GET/POST/PUT/PATCH/DELETE); omitting it returns `400`.
+- **Create plans before subscriptions**: a subscription must reference an existing `subscriptionPlanId` owned by the same tenant.
+- **`subscriptionClass` is `Trial` or `Standard`**: it is the tier, not the contact type. Bind the customer via `individualId` (person) **or** `organizationId` (company).
 - **Use PATCH for partial edits**, PUT for full replacement.
-- **No cancel/renew/search/billing-cycle endpoints exist** in this service — model those state changes as PUT/PATCH updates.
+- **No cancel/renew/search/billing-cycle endpoints exist** in this service; model those state changes as PUT/PATCH updates.

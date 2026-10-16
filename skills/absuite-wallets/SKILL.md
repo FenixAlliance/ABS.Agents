@@ -1,15 +1,19 @@
 ---
 name: absuite-wallets
+key: paperclip/skills/absuite-wallets/SKILL.md
+version: 1.0.0
 description: >
-  Manage wallets and their sub-resources — bank accounts, payments, payment tokens,
-  locations, withdraws/withdraw-requests — plus read access to orders, invoices,
+  Manage wallets and their sub-resources (bank accounts, payments, payment tokens,
+  locations, withdraws/withdraw-requests) plus read access to orders, invoices,
   quotes, refunds and chargebacks, via the Alliance Business Suite (ABS) REST API.
-  Covers create / read / update (PUT) / delete and atomic PATCH (JSON Patch) updates.
-  Wallets are scoped by walletId (ownership-keyed), not by tenant, and every call
-  requires a bearer token (see the absuite-login skill to authenticate).
+  Covers create / read / update (PUT) / delete and PATCH (JSON Patch) where exposed.
+  Wallets are addressed by walletId and gated on the caller owning the wallet; only
+  bank accounts, tokens and locations take an optional tenantId. Agents cannot move
+  money or add payment instruments. Every call requires a bearer token (see the
+  absuite-login skill to authenticate).
 ---
 
-# Alliance Business Suite — Wallets (REST API)
+# Alliance Business Suite: Wallets (REST API)
 
 Drive the ABS **WalletsService** purely over HTTP with `curl`. A wallet is a financial
 container that aggregates bank accounts, payment tokens, payments (incoming/outgoing),
@@ -17,12 +21,31 @@ withdraws, locations, and read-only ledger views (orders, invoices, quotes, refu
 chargebacks). All endpoints hang off a single wallet identified by `{walletId}` in the
 path.
 
-> **Scoping (read this first).** WalletsService is **cross-identity**: a wallet can be
-> owned by a **user**, a **tenant**, or a **contact**. Every endpoint is keyed by
-> `walletId` in the URL path, which already resolves ownership. **Do NOT append
-> `?tenantId=` and do NOT send an `X-TenantId` header** — no wallet endpoint in the
-> manifest declares a `tenantId` parameter, so any tenant param is ignored. Authorization
-> is by the bearer token plus the wallet's ownership.
+> **Scoping (read this first).** A wallet is owned by a **user** (account-holder
+> wallet), a **tenant** (business wallet), or a **contact**. Every endpoint first proves
+> the caller **owns** the route wallet; a wallet the caller does not own answers
+> not-found, exactly like a missing one (lists and counts included). There are two
+> branches:
+>
+> - **User branch (no tenant).** No permission check; only the caller's **own user
+>   wallet** matches. Most routes have no tenant parameter at all (wallet details,
+>   payments, withdraws, withdraw requests, orders, invoices, quotes, refunds,
+>   chargebacks), so they always run here: a business or contact wallet is not
+>   reachable through them.
+> - **Tenant branch.** Only `BankAccounts`, `Tokens` and `Locations` accept an optional
+>   `?tenantId=<tenant-guid>` (or `X-TenantId` header). With it, the use case checks the
+>   permission in the quick reference for that tenant and the gate also matches that
+>   tenant's business and contact wallets. Without it, they run on the user branch.
+>
+> A tenant parameter sent to any other route is not bound and has no effect. Omitting
+> it never returns `400` here.
+
+> **Agents are refused.** A non-human principal (any `PrincipalKind` other than
+> `Human`, e.g. an agent) gets an authorization error ("An agent cannot move money or
+> add a payment method on its own; a person must approve it.") on: withdraw request
+> create, wallet payment create, payment token create/update/patch, and bank account
+> create/update/patch. A person must perform these. Reads, deletes and location writes
+> are not affected by this rule.
 
 > For the CLI equivalent of these operations, see `absuite-wallets-cli`. For general REST
 > conventions across all ABS services, see `absuite-rest`.
@@ -31,9 +54,9 @@ path.
 
 > Full detail in `absuite-rest`; these rules apply across this skill's endpoints.
 
-- **Lists & counts are OData-enabled.** `GET` collection endpoints accept `$filter`, `$top`, `$skip`, `$orderby`, `$select` — page through results, don't fetch-all-and-filter. Each dedicated `.../Count` endpoint returns an integer and is **also** filterable (`?$filter=...` -> a filtered count). OData is a REST/HTTP-layer feature (the CLI does not expose it).
-- **`PUT` replaces the ENTIRE resource** — it overwrites, not merges, so any omitted field is reset to default/null. **GET the resource first, change the full object, then PUT it back**; sending a partial body to `PUT` (or an incomplete `POST` create) causes silent data loss.
-- **`PATCH`, where this service exposes it, is atomic and partial** (JSON Patch / RFC 6902) — it changes only the fields you name, needs no prior GET, and won't clobber the rest. Prefer it for small edits; use `PUT` only for a deliberate full replacement.
+- **Lists & counts are OData-enabled.** `GET` collection endpoints accept `$filter`, `$top`, `$skip`, `$orderby`, `$select`: page through results, don't fetch-all-and-filter. Each dedicated `.../Count` endpoint returns an integer and is **also** filterable (`?$filter=...` -> a filtered count). OData is a REST/HTTP-layer feature (the CLI does not expose it).
+- **`PUT` replaces the resource**: for locations and bank accounts, omitted fields are reset, so **GET first, change the full object, then PUT it back**. Payment-token `PUT` is the exception: a `null`/omitted field keeps its stored value.
+- **`PATCH` exists only on BankAccounts and Tokens**, and they behave differently (see the PATCH section): a token patch is partial, a bank-account patch is **not**.
 
 ## Authentication
 
@@ -54,36 +77,39 @@ curl -X POST "$ABSUITE_HOST_URL/login" \
   `{ "isSuccess": bool, "errorMessage": str|null, "correlationId": str, "timestamp": str, "result": <data|array|int|null> }`.
   Always check `isSuccess`; read the payload from `result` (a `Count` endpoint returns an
   integer in `result`).
-- **Optional version params** (per manifest, every endpoint): `api-version` (query) and
-  `x-api-version` (header) are both optional — omit them unless you need to pin a version.
+- **Optional version params:** `api-version` (query) and `x-api-version` (header) are
+  both optional; omit them unless you need to pin a version.
 
 ## Key Concepts
 
-- **walletId** — the single scoping key. Path segment `{walletId}`. Obtain it from the
-  owning identity's API (e.g. a tenant's or user's wallet reference) before calling here.
-- **Sub-resources** — `BankAccounts`, `Tokens` (payment tokens), `Payments`, `Withdraws`,
-  `WithdrawRequests`, `Locations`. These support writes (POST/PUT/PATCH/DELETE) depending
-  on the resource (see the quick reference for exactly which verbs exist).
-- **Read-only ledger views** — `Orders` (+ `Orders/Extended`), `Invoices`, `Quotes`,
+- **walletId**: the path segment `{walletId}`. Obtain it from the owning identity's API
+  (e.g. a tenant's or user's wallet reference) before calling here.
+- **Sub-resources**: `BankAccounts`, `Tokens` (payment tokens), `Payments`, `Withdraws`,
+  `WithdrawRequests`, `Locations`. Which verbs exist depends on the resource (see the
+  quick reference).
+- **Read-only ledger views**: `Orders` (+ `Orders/Extended`), `Invoices`, `Quotes`,
   `Refunds`, `Chargebacks`. These are GET-only in this service.
-- **Direction splits** — `Invoices` and `Payments` each expose `Incoming` and `Outgoing`
+- **Direction splits**: `Invoices` and `Payments` each expose `Incoming` and `Outgoing`
   sub-collections (plus their `/Count`). `Incoming` = received, `Outgoing` = sent.
-- **Count endpoints** — almost every collection has a sibling `/Count` returning an
+- **Count endpoints**: almost every collection has a sibling `/Count` returning an
   integer in `result`.
-- **Payment enums** (from the spec — use these exact casings):
+- **Payment enums** (use these exact casings):
   - `onBehalfOf`: `Self` | `Tenant` | `Individual` | `Organization`
   - `paymentType`: `Paid` | `Received` | `Internal`
-  - `paymentStatus`: `Unset` | `Accepted` | `Rejected` | `OnHold` | `Failed` | `Reversed` | `Retained` | `Initialized` | `Expired` | `Abandoned` | `Cancelled` | `AcceptedRetained`
+  - `paymentStatus`: `Unset` | `Accepted` | `Rejected` | `OnHold` | `Failed` | `Reversed` | `Retained` | `Initialized` | `Expired` | `Abandoned` | `Cancelled` | `AcceptedRetained` (server-owned: a client-created payment always starts at `Unset`)
 
 ## Wallet Details
 
 ```bash
-# Get wallet details
+# Get wallet details (user branch: your own user wallet only)
 curl -X GET "$ABSUITE_HOST_URL/api/v2/WalletsService/Wallets/$WALLET_ID" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ## Bank Accounts
+
+Add `?tenantId=<tenant-guid>` to act on a tenant's business or contact wallet (tenant
+branch, `BankAccounts.*` permissions); omit it for your own user wallet.
 
 ```bash
 # List bank accounts
@@ -98,41 +124,40 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/WalletsService/Wallets/$WALLET_ID/BankAcco
 curl -X GET "$ABSUITE_HOST_URL/api/v2/WalletsService/Wallets/$WALLET_ID/BankAccounts/$BANK_ACCOUNT_ID" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Create a bank account (BankAccountCreateDto)
+# Create a bank account (BankAccountCreateDto). Human callers only.
 curl -X POST "$ABSUITE_HOST_URL/api/v2/WalletsService/Wallets/$WALLET_ID/BankAccounts" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "Primary Business Account",
-    "iban": "<iban>",
-    "swift": "<swift>",
-    "branchCode": "<branch-code>",
     "bankAccountNumber": "<account-number>",
     "bankId": "<bank-guid>",
-    "bankProfileId": "<bank-profile-guid>",
-    "walletId": "'"$WALLET_ID"'"
+    "iban": "<iban>",
+    "swift": "<swift>",
+    "branchCode": "<branch-code>"
   }'
 
-# Update a bank account (PUT, full BankAccountUpdateDto)
+# Update a bank account (PUT, BankAccountUpdateDto). Human callers only.
 curl -X PUT "$ABSUITE_HOST_URL/api/v2/WalletsService/Wallets/$WALLET_ID/BankAccounts/$BANK_ACCOUNT_ID" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "Updated Account Name",
-    "iban": "<iban>",
-    "swift": "<swift>",
-    "branchCode": "<branch-code>",
     "bankAccountNumber": "<account-number>",
     "bankId": "<bank-guid>",
-    "bankProfileId": "<bank-profile-guid>",
-    "walletId": "'"$WALLET_ID"'"
+    "iban": "<iban>",
+    "swift": "<swift>",
+    "branchCode": "<branch-code>"
   }'
 
-# Patch a bank account (PATCH, JSON Patch — see PATCH section)
+# Patch a bank account (PATCH, JSON Patch; NOT partial, see PATCH section)
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/WalletsService/Wallets/$WALLET_ID/BankAccounts/$BANK_ACCOUNT_ID" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '[ { "op": "replace", "path": "/name", "value": "Renamed Account" } ]'
+  -d '[
+    { "op": "replace", "path": "/bankAccountNumber", "value": "<account-number>" },
+    { "op": "replace", "path": "/iban", "value": "<iban>" },
+    { "op": "replace", "path": "/swift", "value": "<new-swift>" },
+    { "op": "replace", "path": "/branchCode", "value": "<branch-code>" }
+  ]'
 
 # Delete a bank account
 curl -X DELETE "$ABSUITE_HOST_URL/api/v2/WalletsService/Wallets/$WALLET_ID/BankAccounts/$BANK_ACCOUNT_ID" \
@@ -144,7 +169,19 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/WalletsService/Wallets/$WALLET_ID/BankA
 **BankAccountUpdateDto fields:** `name`, `iban`, `swift`, `branchCode`, `bankAccountNumber`,
 `bankId`, `bankProfileId`, `walletId`.
 
+What the server actually writes:
+- **Create** uses `id`, `bankAccountNumber` (required; it also becomes the account's
+  name), `bankId` (required), `iban`, `swift`, `branchCode`. The wallet is the route
+  wallet. `name`, `bankProfileId` and `walletId` in the body are ignored. Ownership is
+  stamped from the caller's session tenant and enrollment, which must be present.
+- **Update** assigns `iban`, `swift`, `branchCode`, `bankAccountNumber` unconditionally
+  (omitted = cleared) and `bankId` only when non-empty. `name`, `bankProfileId` and
+  `walletId` are ignored.
+
 ## Payment Tokens
+
+Add `?tenantId=<tenant-guid>` for a tenant's business or contact wallet (tenant branch,
+`PaymentTokens.*` permissions); omit it for your own user wallet.
 
 ```bash
 # List tokens
@@ -159,12 +196,12 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/WalletsService/Wallets/$WALLET_ID/Tokens/C
 curl -X GET "$ABSUITE_HOST_URL/api/v2/WalletsService/Wallets/$WALLET_ID/Tokens/$TOKEN_ID" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Create a token (PaymentTokenCreateDto — mask, cardExpirationMonth, cardExpirationYear are REQUIRED)
+# Create a token (PaymentTokenCreateDto; cardExpirationMonth and cardExpirationYear are
+# REQUIRED). Human callers only.
 curl -X POST "$ABSUITE_HOST_URL/api/v2/WalletsService/Wallets/$WALLET_ID/Tokens" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "mask": "************1234",
     "tokenType": "<token-type>",
     "cardFranchise": "<franchise>",
     "cardExpirationMonth": "12",
@@ -173,22 +210,19 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/WalletsService/Wallets/$WALLET_ID/Tokens"
     "paymentGatewayId": "<gateway-guid>"
   }'
 
-# Update a token (PUT, PaymentTokenUpdateDto)
+# Update a token (PUT, PaymentTokenUpdateDto; null/omitted fields keep their value).
+# Human callers only.
 curl -X PUT "$ABSUITE_HOST_URL/api/v2/WalletsService/Wallets/$WALLET_ID/Tokens/$TOKEN_ID" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "mask": "************1234",
-    "tokenType": "<token-type>",
-    "cardFranchise": "<franchise>",
     "cardExpirationMonth": "06",
     "cardExpirationYear": "2031",
     "status": "<status>",
-    "validUntil": "2031-06-30T00:00:00Z",
-    "paymentGatewayId": "<gateway-guid>"
+    "validUntil": "2031-06-30T00:00:00Z"
   }'
 
-# Patch a token (PATCH, JSON Patch — see PATCH section)
+# Patch a token (PATCH, JSON Patch, partial). Human callers only.
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/WalletsService/Wallets/$WALLET_ID/Tokens/$TOKEN_ID" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
@@ -202,16 +236,20 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/WalletsService/Wallets/$WALLET_ID/Token
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-**PaymentTokenCreateDto fields:** `id`, `timestamp`, `mask` **(REQ)**, `tokenType`,
+**PaymentTokenCreateDto fields:** `id`, `timestamp`, `mask`, `tokenType`,
 `cardFranchise`, `cardExpirationMonth` **(REQ)**, `cardExpirationYear` **(REQ)**,
-`validUntil`, `paymentGatewayId`.
+`validUntil` (defaults to five years from now), `paymentGatewayId`.
 **PaymentTokenUpdateDto fields:** `mask`, `tokenType`, `cardFranchise`,
 `cardExpirationMonth`, `cardExpirationYear`, `status`, `validUntil`, `paymentGatewayId`.
+`mask` is **never taken from the caller** (create or update): it stays in the DTO for
+compatibility and is ignored, so a card number can never be stored through it.
 
 ## Payments
 
 `Payments` supports list, count, create, and direction-split reads (Incoming / Outgoing,
-each with its own Count). There is no per-payment GET/PUT/PATCH/DELETE in this service.
+each with its own Count). There is no per-payment GET/PUT/PATCH/DELETE in this service
+(use `absuite-payments` for tenant payment records). These routes take no tenant, so
+they run on the user branch (your own user wallet).
 
 ```bash
 # List all payments
@@ -234,13 +272,12 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/WalletsService/Wallets/$WALLET_ID/Payments
 curl -X GET "$ABSUITE_HOST_URL/api/v2/WalletsService/Wallets/$WALLET_ID/Payments/Outgoing/Count" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Create a payment (PaymentCreateDto — enums per Key Concepts)
+# Pay FROM this wallet (PaymentCreateDto). Human callers only.
 curl -X POST "$ABSUITE_HOST_URL/api/v2/WalletsService/Wallets/$WALLET_ID/Payments" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "invoiceId": "<invoice-guid>",
-    "emisorWalletId": "<emisor-wallet-guid>",
     "receiverWalletId": "<receiver-wallet-guid>",
     "currencyId": "<currency-guid>",
     "forexRate": 1.0,
@@ -248,29 +285,38 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/WalletsService/Wallets/$WALLET_ID/Payment
     "totalTaxes": 0.00,
     "onBehalfOf": "Self",
     "paymentType": "Paid",
-    "paymentStatus": "Initialized",
-    "orderId": "<order-guid>",
     "paymentGatewayId": "<gateway-guid>",
-    "bankAccountId": "<bank-account-guid>",
     "paymentTokenId": "<token-guid>"
   }'
 ```
+
+Server-side rules on wallet payment create:
+- The payment is always made **from the route wallet**: the emisor is set to
+  `{walletId}`. Sending a different `emisorWalletId` or `emisorWalletAccountId` is
+  refused with a validation error.
+- `invoiceId` must be an invoice addressed to you as account holder, and `orderId` an
+  order you own; otherwise not-found.
+- `paymentStatus` is reset to `Unset` whatever you send.
 
 **PaymentCreateDto** is wide; the most commonly used fields are shown above. Full field set
 (all optional unless noted): `id`, `timestamp`, `invoiceId`, `emisorWalletId`,
 `receiverWalletId`, `currencyId`, `forexRate`, `totalCost`, `totalTaxes`, `closed`, `data`,
 `dataLabel`, `data1`, `data1Label`, `response`, `authorization`, `referenceCode`,
 `correlationCode`, `lastUpdated`, `onBehalfOf` (enum), `paymentType` (enum),
-`paymentStatus` (enum), `baseCost`, `signature`, `signatureMismatch`, `isExternal`,
-`markedForRevision`, `forexRatesSnapshot`, `officialId`, `officialIdExpeditionDate`,
-`fiscalIdentificationTypeId`, `billingAddress`, `phone`, `cellphone`, `department`, `city`,
-`countryId`, `locationId`, `entitlementId`, `antiFraudScore`, `callRecordURL`, `called`,
-`verified`, `payerPictureTimestamp`, `payerPicture`, `identificationPictureTimestamp`,
-`identificationPicture`, `identificationBackPicture`, `identificationBackPictureTimestamp`,
-`ipLookupId`, `orderId`, `accountingEntryId`, `paymentGatewayId`, `bankAccountId`, `bankId`,
-`paymentTokenId`, `emisorWalletAccountId`, `receiverWalletAccountId`.
+`paymentStatus` (enum, reset to `Unset`), `baseCost`, `signature`, `signatureMismatch`,
+`isExternal`, `markedForRevision`, `forexRatesSnapshot`, `officialId`,
+`officialIdExpeditionDate`, `fiscalIdentificationTypeId`, `billingAddress`, `phone`,
+`cellphone`, `department`, `city`, `countryId`, `locationId`, `entitlementId`,
+`antiFraudScore`, `callRecordURL`, `called`, `verified`, `payerPictureTimestamp`,
+`payerPicture`, `identificationPictureTimestamp`, `identificationPicture`,
+`identificationBackPicture`, `identificationBackPictureTimestamp`, `ipLookupId`, `orderId`,
+`accountingEntryId`, `paymentGatewayId`, `bankAccountId`, `bankId`, `paymentTokenId`,
+`emisorWalletAccountId`, `receiverWalletAccountId`. Payment reads return `data1`
+redacted.
 
 ## Withdraws & Withdraw Requests
+
+These routes take no tenant (user branch).
 
 ```bash
 # List withdraws + count
@@ -279,7 +325,8 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/WalletsService/Wallets/$WALLET_ID/Withdraw
 curl -X GET "$ABSUITE_HOST_URL/api/v2/WalletsService/Wallets/$WALLET_ID/Withdraws/Count" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Create a withdraw request (WalletWithdrawRequestCreateDto) — POSTed to /Withdraws
+# Create a withdraw request (WalletWithdrawRequestCreateDto), POSTed to /Withdraws.
+# Human callers only.
 curl -X POST "$ABSUITE_HOST_URL/api/v2/WalletsService/Wallets/$WALLET_ID/Withdraws" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
@@ -296,12 +343,16 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/WalletsService/Wallets/$WALLET_ID/Withdraw
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-**WalletWithdrawRequestCreateDto fields:** `id`, `timestamp`, `requestedWithdrawAmount`,
-`currencyId`, `bankAccountId`.
-Note: creating a withdraw is a `POST` to `.../Withdraws` (not `.../WithdrawRequests`);
-`WithdrawRequests` is read-only (list + count).
+**WalletWithdrawRequestCreateDto fields:** `id` (optional, generated when omitted),
+`timestamp`, `requestedWithdrawAmount`, `currencyId`, `bankAccountId`.
+Note: creating a withdraw request is a `POST` to `.../Withdraws` (not
+`.../WithdrawRequests`); `WithdrawRequests` is read-only (list + count). A new request
+starts `Pending`; the wallet must be one you own (otherwise not-found).
 
 ## Locations
+
+Add `?tenantId=<tenant-guid>` for a tenant's business or contact wallet (tenant branch,
+`Locations.*` permissions); omit it for your own user wallet.
 
 ```bash
 # List locations + count
@@ -333,7 +384,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/WalletsService/Wallets/$WALLET_ID/Locatio
     "isDefaultSenderAddress": false
   }'
 
-# Update a location (PUT, LocationUpdateDto)
+# Update a location (PUT, full LocationUpdateDto; title and address1 are required)
 curl -X PUT "$ABSUITE_HOST_URL/api/v2/WalletsService/Wallets/$WALLET_ID/Locations/$LOCATION_ID" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
@@ -357,13 +408,15 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/WalletsService/Wallets/$WALLET_ID/Locat
 `address1`, `address2`, `address3`, `unit`, `cityId`, `stateId`, `postalCode`, `countryId`,
 `longitude`, `latitude`, `isRoutable`, `isGlobalPrimary`, `isCountryPrimary`,
 `canGenerateLabels`, `isDefaultSenderAddress`, `isDefaultReturnAddress`,
-`isDefaultSuppingLocation`.
-**LocationUpdateDto fields:** same as create **minus** `id` and `timestamp`.
-Note: `Locations` does **not** expose a PATCH endpoint — use PUT for updates.
+`isDefaultSuppingLocation` (sic).
+**LocationUpdateDto fields:** same as create **minus** `id` and `timestamp`. Every field
+is assigned on update, so an omitted one is cleared.
+Note: `Locations` does **not** expose a PATCH endpoint; use PUT for updates.
 
 ## Read-Only Ledger Views
 
-These collections are GET-only. Each has a sibling `/Count`.
+These collections are GET-only, take no tenant (user branch: your own user wallet), and
+each has a sibling `/Count`.
 
 ```bash
 # Orders
@@ -410,27 +463,21 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/WalletsService/Wallets/$WALLET_ID/Chargeba
 
 ## PATCH (JSON Patch, RFC 6902)
 
-Only **two** sub-resources support PATCH in WalletsService:
+Only **two** sub-resources support PATCH in WalletsService, and both are human-only:
 
-- `PATCH /api/v2/WalletsService/Wallets/{walletId}/BankAccounts/{bankAccountId}`
-- `PATCH /api/v2/WalletsService/Wallets/{walletId}/Tokens/{tokenId}`
+- `PATCH /api/v2/WalletsService/Wallets/{walletId}/Tokens/{tokenId}`: **partial**. The
+  patch fills an empty update DTO and every field left `null` keeps its stored value.
+- `PATCH /api/v2/WalletsService/Wallets/{walletId}/BankAccounts/{bankAccountId}`:
+  **not partial**. The patch fills an empty update DTO that is then applied like a PUT,
+  so `iban`, `swift`, `branchCode` and `bankAccountNumber` not named in the patch are
+  **cleared**. Always send all four (as in the Bank Accounts example), or use PUT.
 
 The request body is a JSON **array** of operations (`Content-Type: application/json`).
-Each op has `op` ∈ `add|remove|replace|move|copy|test`, a JSON-Pointer `path` (leading `/`,
-camelCase field), and (for add/replace) a `value`. Use PATCH for atomic partial updates so
-you don't have to resend the whole DTO.
+Each op has `op` (one of `add|remove|replace|move|copy|test`), a JSON-Pointer `path`
+(leading `/`, camelCase field), and (for add/replace) a `value`.
 
 ```bash
-# Patch a bank account — rename and change the SWIFT in one atomic call
-curl -X PATCH "$ABSUITE_HOST_URL/api/v2/WalletsService/Wallets/$WALLET_ID/BankAccounts/$BANK_ACCOUNT_ID" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '[
-    { "op": "replace", "path": "/name", "value": "Treasury Operating Account" },
-    { "op": "replace", "path": "/swift", "value": "<new-swift>" }
-  ]'
-
-# Patch a payment token — bump the expiry without resending mask/franchise
+# Patch a payment token: bump the expiry without resending the rest
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/WalletsService/Wallets/$WALLET_ID/Tokens/$TOKEN_ID" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
@@ -445,8 +492,8 @@ ledger views have no PATCH.
 
 ## End-to-End Workflow
 
-Set up a wallet's payment instruments and record an incoming payment, then tidy up with a
-PATCH:
+As a person, on your own user wallet: add payment instruments, pay an invoice addressed
+to you from the wallet, then confirm it:
 
 ```bash
 WALLET_ID="<wallet-guid>"
@@ -454,90 +501,103 @@ WALLET_ID="<wallet-guid>"
 # 1) Create a bank account for the wallet
 curl -X POST "$ABSUITE_HOST_URL/api/v2/WalletsService/Wallets/$WALLET_ID/BankAccounts" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
-  -d '{ "name": "Treasury", "bankAccountNumber": "<account-number>", "bankId": "<bank-guid>", "walletId": "'"$WALLET_ID"'" }'
+  -d '{ "bankAccountNumber": "<account-number>", "bankId": "<bank-guid>", "iban": "<iban>", "swift": "<swift>", "branchCode": "<branch-code>" }'
 
-# 2) Store a payment token (mask + expiry are required)
+# 2) Store a payment token (expiry month and year are required)
 curl -X POST "$ABSUITE_HOST_URL/api/v2/WalletsService/Wallets/$WALLET_ID/Tokens" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
-  -d '{ "mask": "************4242", "cardExpirationMonth": "12", "cardExpirationYear": "2030", "paymentGatewayId": "<gateway-guid>" }'
+  -d '{ "cardExpirationMonth": "12", "cardExpirationYear": "2030", "paymentGatewayId": "<gateway-guid>" }'
 
-# 3) Record an incoming payment against an invoice
+# 3) Pay an invoice FROM this wallet (status starts at Unset; settlement moves it)
 curl -X POST "$ABSUITE_HOST_URL/api/v2/WalletsService/Wallets/$WALLET_ID/Payments" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
-  -d '{ "invoiceId": "<invoice-guid>", "receiverWalletId": "'"$WALLET_ID"'", "currencyId": "<currency-guid>", "totalCost": 1500.00, "onBehalfOf": "Self", "paymentType": "Received", "paymentStatus": "Accepted" }'
+  -d '{ "invoiceId": "<invoice-guid>", "receiverWalletId": "<receiver-wallet-guid>", "currencyId": "<currency-guid>", "totalCost": 1500.00, "onBehalfOf": "Self", "paymentType": "Paid", "paymentTokenId": "<token-guid>" }'
 
-# 4) Verify it landed in incoming
-curl -X GET "$ABSUITE_HOST_URL/api/v2/WalletsService/Wallets/$WALLET_ID/Payments/Incoming/Count" \
+# 4) Verify it landed in outgoing
+curl -X GET "$ABSUITE_HOST_URL/api/v2/WalletsService/Wallets/$WALLET_ID/Payments/Outgoing/Count" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-
-# 5) Atomically rename the bank account (PATCH)
-curl -X PATCH "$ABSUITE_HOST_URL/api/v2/WalletsService/Wallets/$WALLET_ID/BankAccounts/$BANK_ACCOUNT_ID" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
-  -d '[ { "op": "replace", "path": "/name", "value": "Treasury Operating Account" } ]'
 ```
 
 ## API Endpoints Quick Reference
 
-| Action | Method | Path |
-|---|---|---|
-| Get wallet details | GET | `/api/v2/WalletsService/Wallets/{walletId}` |
-| List bank accounts | GET | `/api/v2/WalletsService/Wallets/{walletId}/BankAccounts` |
-| Count bank accounts | GET | `/api/v2/WalletsService/Wallets/{walletId}/BankAccounts/Count` |
-| Get bank account | GET | `/api/v2/WalletsService/Wallets/{walletId}/BankAccounts/{bankAccountId}` |
-| Create bank account | POST | `/api/v2/WalletsService/Wallets/{walletId}/BankAccounts` |
-| Update bank account | PUT | `/api/v2/WalletsService/Wallets/{walletId}/BankAccounts/{bankAccountId}` |
-| **Patch bank account** | **PATCH** | `/api/v2/WalletsService/Wallets/{walletId}/BankAccounts/{bankAccountId}` |
-| Delete bank account | DELETE | `/api/v2/WalletsService/Wallets/{walletId}/BankAccounts/{bankAccountId}` |
-| List tokens | GET | `/api/v2/WalletsService/Wallets/{walletId}/Tokens` |
-| Count tokens | GET | `/api/v2/WalletsService/Wallets/{walletId}/Tokens/Count` |
-| Get token | GET | `/api/v2/WalletsService/Wallets/{walletId}/Tokens/{tokenId}` |
-| Create token | POST | `/api/v2/WalletsService/Wallets/{walletId}/Tokens` |
-| Update token | PUT | `/api/v2/WalletsService/Wallets/{walletId}/Tokens/{tokenId}` |
-| **Patch token** | **PATCH** | `/api/v2/WalletsService/Wallets/{walletId}/Tokens/{tokenId}` |
-| Delete token | DELETE | `/api/v2/WalletsService/Wallets/{walletId}/Tokens/{tokenId}` |
-| List payments | GET | `/api/v2/WalletsService/Wallets/{walletId}/Payments` |
-| Count payments | GET | `/api/v2/WalletsService/Wallets/{walletId}/Payments/Count` |
-| Create payment | POST | `/api/v2/WalletsService/Wallets/{walletId}/Payments` |
-| Incoming payments | GET | `/api/v2/WalletsService/Wallets/{walletId}/Payments/Incoming` |
-| Count incoming payments | GET | `/api/v2/WalletsService/Wallets/{walletId}/Payments/Incoming/Count` |
-| Outgoing payments | GET | `/api/v2/WalletsService/Wallets/{walletId}/Payments/Outgoing` |
-| Count outgoing payments | GET | `/api/v2/WalletsService/Wallets/{walletId}/Payments/Outgoing/Count` |
-| List withdraws | GET | `/api/v2/WalletsService/Wallets/{walletId}/Withdraws` |
-| Count withdraws | GET | `/api/v2/WalletsService/Wallets/{walletId}/Withdraws/Count` |
-| Create withdraw (request) | POST | `/api/v2/WalletsService/Wallets/{walletId}/Withdraws` |
-| List withdraw requests | GET | `/api/v2/WalletsService/Wallets/{walletId}/WithdrawRequests` |
-| Count withdraw requests | GET | `/api/v2/WalletsService/Wallets/{walletId}/WithdrawRequests/Count` |
-| List locations | GET | `/api/v2/WalletsService/Wallets/{walletId}/Locations` |
-| Count locations | GET | `/api/v2/WalletsService/Wallets/{walletId}/Locations/Count` |
-| Get location | GET | `/api/v2/WalletsService/Wallets/{walletId}/Locations/{locationId}` |
-| Create location | POST | `/api/v2/WalletsService/Wallets/{walletId}/Locations` |
-| Update location | PUT | `/api/v2/WalletsService/Wallets/{walletId}/Locations/{locationId}` |
-| Delete location | DELETE | `/api/v2/WalletsService/Wallets/{walletId}/Locations/{locationId}` |
-| List orders | GET | `/api/v2/WalletsService/Wallets/{walletId}/Orders` |
-| Count orders | GET | `/api/v2/WalletsService/Wallets/{walletId}/Orders/Count` |
-| Extended orders | GET | `/api/v2/WalletsService/Wallets/{walletId}/Orders/Extended` |
-| List invoices | GET | `/api/v2/WalletsService/Wallets/{walletId}/Invoices` |
-| Count invoices | GET | `/api/v2/WalletsService/Wallets/{walletId}/Invoices/Count` |
-| Incoming invoices | GET | `/api/v2/WalletsService/Wallets/{walletId}/Invoices/Incoming` |
-| Count incoming invoices | GET | `/api/v2/WalletsService/Wallets/{walletId}/Invoices/Incoming/Count` |
-| Outgoing invoices | GET | `/api/v2/WalletsService/Wallets/{walletId}/Invoices/Outgoing` |
-| Count outgoing invoices | GET | `/api/v2/WalletsService/Wallets/{walletId}/Invoices/Outgoing/Count` |
-| List quotes | GET | `/api/v2/WalletsService/Wallets/{walletId}/Quotes` |
-| Count quotes | GET | `/api/v2/WalletsService/Wallets/{walletId}/Quotes/Count` |
-| List refunds | GET | `/api/v2/WalletsService/Wallets/{walletId}/Refunds` |
-| Count refunds | GET | `/api/v2/WalletsService/Wallets/{walletId}/Refunds/Count` |
-| List chargebacks | GET | `/api/v2/WalletsService/Wallets/{walletId}/Chargebacks` |
-| Count chargebacks | GET | `/api/v2/WalletsService/Wallets/{walletId}/Chargebacks/Count` |
+Scope column: **User** = no tenant parameter, user branch only (your own user wallet, no
+permission check). **User / Tenant** = optional `tenantId`; the permission applies on the
+tenant branch only. **Human** marks the actions an agent is refused.
+
+| Action | Method | Path | Scope | Permission (tenant branch) |
+|---|---|---|---|---|
+| Get wallet details | GET | `/api/v2/WalletsService/Wallets/{walletId}` | User | |
+| List bank accounts | GET | `/api/v2/WalletsService/Wallets/{walletId}/BankAccounts` | User / Tenant | `BankAccounts.Read` |
+| Count bank accounts | GET | `/api/v2/WalletsService/Wallets/{walletId}/BankAccounts/Count` | User / Tenant | `BankAccounts.Read` |
+| Get bank account | GET | `/api/v2/WalletsService/Wallets/{walletId}/BankAccounts/{bankAccountId}` | User / Tenant | `BankAccounts.Read` |
+| Create bank account (Human) | POST | `/api/v2/WalletsService/Wallets/{walletId}/BankAccounts` | User / Tenant | `BankAccounts.Create` |
+| Update bank account (Human) | PUT | `/api/v2/WalletsService/Wallets/{walletId}/BankAccounts/{bankAccountId}` | User / Tenant | `BankAccounts.Update` |
+| Patch bank account (Human) | PATCH | `/api/v2/WalletsService/Wallets/{walletId}/BankAccounts/{bankAccountId}` | User / Tenant | `BankAccounts.Update` |
+| Delete bank account | DELETE | `/api/v2/WalletsService/Wallets/{walletId}/BankAccounts/{bankAccountId}` | User / Tenant | `BankAccounts.Delete` |
+| List tokens | GET | `/api/v2/WalletsService/Wallets/{walletId}/Tokens` | User / Tenant | `PaymentTokens.Read` |
+| Count tokens | GET | `/api/v2/WalletsService/Wallets/{walletId}/Tokens/Count` | User / Tenant | `PaymentTokens.Read` |
+| Get token | GET | `/api/v2/WalletsService/Wallets/{walletId}/Tokens/{tokenId}` | User / Tenant | `PaymentTokens.Read` |
+| Create token (Human) | POST | `/api/v2/WalletsService/Wallets/{walletId}/Tokens` | User / Tenant | `PaymentTokens.Create` |
+| Update token (Human) | PUT | `/api/v2/WalletsService/Wallets/{walletId}/Tokens/{tokenId}` | User / Tenant | `PaymentTokens.Update` |
+| Patch token (Human) | PATCH | `/api/v2/WalletsService/Wallets/{walletId}/Tokens/{tokenId}` | User / Tenant | `PaymentTokens.Update` |
+| Delete token | DELETE | `/api/v2/WalletsService/Wallets/{walletId}/Tokens/{tokenId}` | User / Tenant | `PaymentTokens.Delete` |
+| List payments | GET | `/api/v2/WalletsService/Wallets/{walletId}/Payments` | User | |
+| Count payments | GET | `/api/v2/WalletsService/Wallets/{walletId}/Payments/Count` | User | |
+| Create payment (Human) | POST | `/api/v2/WalletsService/Wallets/{walletId}/Payments` | User | |
+| Incoming payments | GET | `/api/v2/WalletsService/Wallets/{walletId}/Payments/Incoming` | User | |
+| Count incoming payments | GET | `/api/v2/WalletsService/Wallets/{walletId}/Payments/Incoming/Count` | User | |
+| Outgoing payments | GET | `/api/v2/WalletsService/Wallets/{walletId}/Payments/Outgoing` | User | |
+| Count outgoing payments | GET | `/api/v2/WalletsService/Wallets/{walletId}/Payments/Outgoing/Count` | User | |
+| List withdraws | GET | `/api/v2/WalletsService/Wallets/{walletId}/Withdraws` | User | |
+| Count withdraws | GET | `/api/v2/WalletsService/Wallets/{walletId}/Withdraws/Count` | User | |
+| Create withdraw request (Human) | POST | `/api/v2/WalletsService/Wallets/{walletId}/Withdraws` | User | |
+| List withdraw requests | GET | `/api/v2/WalletsService/Wallets/{walletId}/WithdrawRequests` | User | |
+| Count withdraw requests | GET | `/api/v2/WalletsService/Wallets/{walletId}/WithdrawRequests/Count` | User | |
+| List locations | GET | `/api/v2/WalletsService/Wallets/{walletId}/Locations` | User / Tenant | `Locations.Read` |
+| Count locations | GET | `/api/v2/WalletsService/Wallets/{walletId}/Locations/Count` | User / Tenant | `Locations.Read` |
+| Get location | GET | `/api/v2/WalletsService/Wallets/{walletId}/Locations/{locationId}` | User / Tenant | `Locations.Read` |
+| Create location | POST | `/api/v2/WalletsService/Wallets/{walletId}/Locations` | User / Tenant | `Locations.Create` |
+| Update location | PUT | `/api/v2/WalletsService/Wallets/{walletId}/Locations/{locationId}` | User / Tenant | `Locations.Update` |
+| Delete location | DELETE | `/api/v2/WalletsService/Wallets/{walletId}/Locations/{locationId}` | User / Tenant | `Locations.Delete` |
+| List orders | GET | `/api/v2/WalletsService/Wallets/{walletId}/Orders` | User | |
+| Count orders | GET | `/api/v2/WalletsService/Wallets/{walletId}/Orders/Count` | User | |
+| Extended orders | GET | `/api/v2/WalletsService/Wallets/{walletId}/Orders/Extended` | User | |
+| List invoices | GET | `/api/v2/WalletsService/Wallets/{walletId}/Invoices` | User | |
+| Count invoices | GET | `/api/v2/WalletsService/Wallets/{walletId}/Invoices/Count` | User | |
+| Incoming invoices | GET | `/api/v2/WalletsService/Wallets/{walletId}/Invoices/Incoming` | User | |
+| Count incoming invoices | GET | `/api/v2/WalletsService/Wallets/{walletId}/Invoices/Incoming/Count` | User | |
+| Outgoing invoices | GET | `/api/v2/WalletsService/Wallets/{walletId}/Invoices/Outgoing` | User | |
+| Count outgoing invoices | GET | `/api/v2/WalletsService/Wallets/{walletId}/Invoices/Outgoing/Count` | User | |
+| List quotes | GET | `/api/v2/WalletsService/Wallets/{walletId}/Quotes` | User | |
+| Count quotes | GET | `/api/v2/WalletsService/Wallets/{walletId}/Quotes/Count` | User | |
+| List refunds | GET | `/api/v2/WalletsService/Wallets/{walletId}/Refunds` | User | |
+| Count refunds | GET | `/api/v2/WalletsService/Wallets/{walletId}/Refunds/Count` | User | |
+| List chargebacks | GET | `/api/v2/WalletsService/Wallets/{walletId}/Chargebacks` | User | |
+| Count chargebacks | GET | `/api/v2/WalletsService/Wallets/{walletId}/Chargebacks/Count` | User | |
+| My Ether balance | GET | `/api/v2/WalletsService/Me/Ethereum/Balance` | User | |
+
+`Me/Ethereum/Balance` takes no wallet id: it reads the caller's own wallet and returns
+`address`, `balanceInEther`, `testNet` (never key material).
 
 ## Critical Rules
 
-- **Authenticate first** — every call carries `Authorization: Bearer $ABSUITE_ACCESS_TOKEN`.
-- **Scope by `walletId` only** — no `?tenantId=` and no `X-TenantId` header on any wallet
-  endpoint; ownership is resolved from the wallet itself (cross-identity: user / tenant /
-  contact).
-- **WalletId is required** for every operation — obtain it from the owning identity before
-  calling here.
-- **Invoices and payments split by direction** — `Incoming` = received, `Outgoing` = sent.
-- **PATCH exists only on BankAccounts and Tokens** — Locations use PUT; Payments and the
-  read-only views have no PATCH.
-- **Creating a withdraw is `POST .../Withdraws`** — `WithdrawRequests` is read-only.
+- **Authenticate first**: every call carries `Authorization: Bearer $ABSUITE_ACCESS_TOKEN`.
+- **You must own the route wallet.** A wallet you do not own answers not-found (never
+  an empty list), the same as a missing id.
+- **Know the branch.** Only `BankAccounts`, `Tokens` and `Locations` accept an optional
+  `tenantId` (query or `X-TenantId`), which switches them to the tenant branch with a
+  permission check. Every other route ignores a tenant and only reaches your own user
+  wallet.
+- **Agents cannot move money or add payment instruments.** Withdraw request create,
+  wallet payment create, token create/update/patch and bank account create/update/patch
+  return an authorization error for any non-human principal. A person must do them.
+- **Wallet payments are always FROM the route wallet**; a different emisor is refused,
+  and the payment status always starts at `Unset`.
+- **Invoices and payments split by direction**: `Incoming` = received, `Outgoing` = sent.
+- **PATCH exists only on BankAccounts and Tokens.** A bank-account PATCH clears the
+  four account fields it does not name; a token PATCH is partial. Locations use PUT;
+  Payments and the read-only views have no PATCH.
+- **A token's `mask` is never stored from the request**, and a bank account's `name`,
+  `bankProfileId` and `walletId` are ignored.
+- **Creating a withdraw request is `POST .../Withdraws`**; `WithdrawRequests` is
+  read-only.

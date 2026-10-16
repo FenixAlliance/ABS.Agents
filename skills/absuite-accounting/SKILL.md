@@ -1,5 +1,7 @@
 ---
 name: absuite-accounting
+key: paperclip/skills/absuite-accounting/SKILL.md
+version: 1.0.0
 description: >
   Manage the full accounting system in the Alliance Business Suite (ABS) via the REST API.
   Covers chart of accounts, account entries (debits/credits), account groups/types/relations,
@@ -11,7 +13,7 @@ description: >
   require a bearer token (see the absuite-login skill to authenticate).
 ---
 
-# Alliance Business Suite — Accounting Skill (REST)
+# Alliance Business Suite: Accounting Skill (REST)
 
 Manage accounting through the ABS REST API under the `AccountingService`. This is the largest
 ABS service (~200 endpoints across 24 controllers). Every endpoint is tenant-scoped: pass
@@ -24,9 +26,9 @@ request including writes (POST/PUT/PATCH/DELETE). Omitting it on a write returns
 
 > Full detail in `absuite-rest`; these rules apply across this skill's endpoints.
 
-- **Lists & counts are OData-enabled.** `GET` collection endpoints accept `$filter`, `$top`, `$skip`, `$orderby`, `$select` — page through results, don't fetch-all-and-filter. Each dedicated `.../Count` endpoint returns an integer and is **also** filterable (`?$filter=...` -> a filtered count). OData is a REST/HTTP-layer feature (the CLI does not expose it).
-- **`PUT` replaces the ENTIRE resource** — it overwrites, not merges, so any omitted field is reset to default/null. **GET the resource first, change the full object, then PUT it back**; sending a partial body to `PUT` (or an incomplete `POST` create) causes silent data loss.
-- **`PATCH`, where this service exposes it, is atomic and partial** (JSON Patch / RFC 6902) — it changes only the fields you name, needs no prior GET, and won't clobber the rest. Prefer it for small edits; use `PUT` only for a deliberate full replacement.
+- **Lists & counts are OData-enabled.** `GET` collection endpoints accept `$filter`, `$top`, `$skip`, `$orderby`, `$select`: page through results, don't fetch-all-and-filter. Each dedicated `.../Count` endpoint returns an integer and is **also** filterable (`?$filter=...` -> a filtered count). OData is a REST/HTTP-layer feature (the CLI does not expose it).
+- **`PUT` replaces the ENTIRE resource**: it overwrites, not merges, so any omitted field is reset to default/null. **GET the resource first, change the full object, then PUT it back**; sending a partial body to `PUT` (or an incomplete `POST` create) causes silent data loss.
+- **`PATCH`, where this service exposes it, is atomic and partial** (JSON Patch / RFC 6902): it changes only the fields you name, needs no prior GET, and won't clobber the rest. Prefer it for small edits; use `PUT` only for a deliberate full replacement.
 
 ## Authentication
 
@@ -45,14 +47,14 @@ request including writes (POST/PUT/PATCH/DELETE). Omitting it on a write returns
 
 3. **Base path:** `$ABSUITE_HOST_URL/api/v2/AccountingService/<Resource>`
 
-4. **Response envelope** — every response is wrapped:
+4. **Response envelope**: every response is wrapped:
    ```json
    { "isSuccess": true, "errorMessage": null, "correlationId": "...", "timestamp": "...", "result": <data|array|int|null> }
    ```
    Always check `isSuccess`; read the payload from `result`.
 
-5. **Tenant scoping** — every `AccountingService` endpoint declares `tenantId(query,req)` **except**
-   `GET /Accounts/ChartsOfAccounts` (no tenant param — global catalog of available charts). Pass
+5. **Tenant scoping**: every `AccountingService` endpoint declares `tenantId(query,req)` **except**
+   `GET /Accounts/ChartsOfAccounts` (no tenant param, global catalog of available charts). Pass
    `?tenantId=<tenant-guid>` everywhere else. The query param and the `X-TenantId` header are
    interchangeable; examples below use the query param.
 
@@ -61,25 +63,25 @@ request including writes (POST/PUT/PATCH/DELETE). Omitting it on a write returns
 
 ## Key Concepts
 
-- **Account** — a node in the chart of accounts. `accountCategory` ∈ `Assets | Equity | Revenue | Expense | Liabilities`. Hierarchical via `parentAccountId`. `group: true` marks summary accounts; `frozen: true` blocks posting.
-- **Account Group / Account Type / Account Relation** — classification, typing, and inter-account links.
-- **Account Entry** — a debit or credit posting. `accountingEntryType` ∈ `None | Debit | Credit`. Carries `debitAccountId` / `creditAccountId`, `amount`, `currencyId`, and optional `journalEntryId`.
-- **Journal / Journal Entry** — a journal groups double-entry records (`debit` + `credit` against `debitAccountId` / `creditAccountId`); typed by **Journal Type**; filed in a **Ledger**.
-- **Ledger / Ledger Type** — ledger groups journals; ledger type carries `ledgerClass` ∈ `Assets | Equity | Gains | Losses | Revenue | Expenses | Liabilities`.
-- **Financial Book** — a named collection of financial records.
-- **Tax Class** — `type` ∈ `Tax | Withholding`, scoped to a fiscal authority.
-- **Tax Policy** — a tax rule with `percentage` and/or fixed `value`; flags `isEnabled`, `isDefault`, `withholding`, `zero`, `reduced`, `isFree`, `allowInternational`. Has nested **Applied Tax Policy Records** and **Item Tax Policy Records**.
-- **Tax Rate** — `rate` / `value` with priority, compounding, thresholds, tied to a tax policy/class/authority.
-- **Fiscal Authority** — a tax/regulatory body; parent of **Fiscal Years**, **Fiscal Periods**, **Fiscal Regimes**, **Fiscal Responsibilities** (+ records), **Identification Types**, and **Enumeration Ranges**.
-- **Invoice Enumeration Range** — an authorized numbering range; `documentType` ∈ `Standard | DebitNote | CreditNote`.
-- **Billing Profile** — tax/address identity for invoicing; `taxPayerType` ∈ `Individual | Business`.
-- **Bank** — parent of **Bank Accounts** (IBAN/SWIFT), **Bank Guarantees** (`bankGuaranteeType` ∈ `Receiving | Providing`), and **Bank Transactions**.
-- **Budget** — a plan tied to a fiscal year; parent of **Budget Account Entries**.
-- **Cost Centre** — `costCentreType` ∈ `Service | Production`; with **Cost Centre Budgets** and **Cost Centre Groups**.
-- **Commission / Payment Commission** — sales/payment commission records.
-- **Receipt** — `receiptType` ∈ `PaymentReceipt | PurchaseReceipt`; `costCalculationMethod` ∈ `Automatic | Custom`; `taxCalculationMethod` ∈ `Included | Excluded`.
-- **Loan** — with **Loan Types** and **Loan Applications**.
-- **Share** — **Share Classes**, **Share Issuances**, **Share Transfers**, **Share Transfer Reasons**.
+- **Account**: a node in the chart of accounts. `accountCategory` ∈ `Assets | Equity | Revenue | Expense | Liabilities`. Hierarchical via `parentAccountId`. `group: true` marks summary accounts; `frozen: true` blocks posting.
+- **Account Group / Account Type / Account Relation**: classification, typing, and inter-account links.
+- **Account Entry**: one posting line on a journal entry: one `accountId`, a `direction` (`Debit | Credit`), a positive `transactionAmount`, and the `journalEntryId` of its (draft) header.
+- **Journal / Journal Entry**: a journal groups journal entries; typed by **Journal Type**; filed in a **Ledger**. A journal entry is a header (fiscal period, transaction currency, description) with two or more posting lines whose debits equal their credits. It is created as a Draft, sealed by Post, and corrected only by Reverse.
+- **Ledger / Ledger Type**: ledger groups journals; ledger type carries `ledgerClass` ∈ `Assets | Equity | Gains | Losses | Revenue | Expenses | Liabilities`.
+- **Financial Book**: a named collection of financial records.
+- **Tax Class**: `type` ∈ `Tax | Withholding`, scoped to a fiscal authority.
+- **Tax Policy**: a tax rule with `percentage` and/or fixed `value`; flags `isEnabled`, `isDefault`, `withholding`, `zero`, `reduced`, `isFree`, `allowInternational`. Has nested **Applied Tax Policy Records** and **Item Tax Policy Records**.
+- **Tax Rate**: `rate` / `value` with priority, compounding, thresholds, tied to a tax policy/class/authority.
+- **Fiscal Authority**: a tax/regulatory body; parent of **Fiscal Years**, **Fiscal Periods**, **Fiscal Regimes**, **Fiscal Responsibilities** (+ records), **Identification Types**, and **Enumeration Ranges**.
+- **Invoice Enumeration Range**: an authorized numbering range; `documentType` ∈ `Standard | DebitNote | CreditNote`.
+- **Billing Profile**: tax/address identity for invoicing; `taxPayerType` ∈ `Individual | Business`.
+- **Bank**: parent of **Bank Accounts** (IBAN/SWIFT), **Bank Guarantees** (`bankGuaranteeType` ∈ `Receiving | Providing`), and **Bank Transactions**.
+- **Budget**: a plan tied to a fiscal year; parent of **Budget Account Entries**.
+- **Cost Centre**: `costCentreType` ∈ `Service | Production`; with **Cost Centre Budgets** and **Cost Centre Groups**.
+- **Commission / Payment Commission**: sales/payment commission records.
+- **Receipt**: `receiptType` ∈ `PaymentReceipt | PurchaseReceipt`; `costCalculationMethod` ∈ `Automatic | Custom`; `taxCalculationMethod` ∈ `Included | Excluded`.
+- **Loan**: with **Loan Types** and **Loan Applications**.
+- **Share**: **Share Classes**, **Share Issuances**, **Share Transfers**, **Share Transfer Reasons**.
 - **Grant**, **Expense Claim** / **Expense Type**, **Accounting Period**, **Transaction** / **Transaction Category**.
 
 ---
@@ -137,7 +139,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>?
   -H "Content-Type: application/json" \
   -d '{"Name": "Trade Receivables", "CurrencyId": "<currency-guid>", "Frozen": false}'
 
-# Patch account (JSON Patch — see PATCH section)
+# Patch account (JSON Patch, see PATCH section)
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
@@ -175,7 +177,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/Root/Balance?t
 ### Charts of accounts
 
 ```bash
-# List available charts of accounts (NO tenantId — global catalog)
+# List available charts of accounts (NO tenantId, global catalog)
 curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/ChartsOfAccounts" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
@@ -188,8 +190,10 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/ChartsOfAccoun
 
 ## Account Entries (Debits & Credits)
 
-Entries are nested under an account. The same `AccountingEntryCreateDto` body serves the generic
-`/Entries`, `/Debits`, and `/Credits` create endpoints.
+Entries are nested under an account. An entry is ONE posting line: one account, one direction, one
+positive amount, attached to a DRAFT journal entry (`journalEntryId`). Lines on a posted journal entry
+are read-only; correct a posted entry by reversing it (see Journals). The same
+`AccountingEntryCreateDto` body serves the generic `/Entries`, `/Debits`, and `/Credits` create endpoints.
 
 ```bash
 # List entries / debits / credits for an account
@@ -212,43 +216,41 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>/
 curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>/Credits/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Create an entry (AccountingEntryCreateDto). Required: Description, CurrencyId.
+# Create an entry (AccountingEntryCreateDto). Required: JournalEntryId, AccountId, Direction, TransactionAmount, Description.
 curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>/Entries?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "Description": "Client payment received",
-    "Date": "2026-04-19T00:00:00Z",
-    "Amount": 5000.00,
-    "CurrencyId": "<currency-guid>",
-    "DebitAccountId": "<bank-account-guid>",
-    "CreditAccountId": "<receivables-account-guid>",
-    "AccountingEntryType": "Debit",
-    "JournalEntryId": "<journal-entry-guid>"
+    "JournalEntryId": "<draft-journal-entry-guid>",
+    "AccountId": "<account-guid>",
+    "Direction": "Debit",
+    "TransactionAmount": 5000.00,
+    "TransactionCurrencyId": "<currency-id>",
+    "Description": "Client payment received"
   }'
 
 # Create explicit debit / credit (same DTO)
 curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>/Debits?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
-  -d '{"Description": "Office supplies", "Date": "2026-04-19T00:00:00Z", "Amount": 250.00, "CurrencyId": "<currency-guid>"}'
+  -d '{"JournalEntryId": "<draft-journal-entry-guid>", "AccountId": "<account-guid>", "Direction": "Debit", "TransactionAmount": 250.00, "Description": "Office supplies"}'
 curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>/Credits?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
-  -d '{"Description": "Vendor refund", "Date": "2026-04-19T00:00:00Z", "Amount": 100.00, "CurrencyId": "<currency-guid>"}'
+  -d '{"JournalEntryId": "<draft-journal-entry-guid>", "AccountId": "<account-guid>", "Direction": "Credit", "TransactionAmount": 100.00, "Description": "Vendor refund"}'
 
 # Get / update / patch / delete a single entry
 curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>/Entries/<entry-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>/Entries/<entry-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
-  -d '{"Description": "Adjusted", "Amount": 4900.00, "CurrencyId": "<currency-guid>", "AccountingEntryType": "Debit"}'
+  -d '{"JournalEntryId": "<draft-journal-entry-guid>", "AccountId": "<account-guid>", "Direction": "Debit", "TransactionAmount": 4900.00, "TransactionCurrencyId": "<currency-id>", "Description": "Adjusted"}'
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>/Entries/<entry-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
-  -d '[{"op": "replace", "path": "/amount", "value": 4900.00}]'
+  -d '[{"op": "replace", "path": "/transactionAmount", "value": 4900.00}]'
 curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>/Entries/<entry-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-**AccountingEntryCreateDto fields:** `description` (REQ), `date`, `amount` (number), `currencyId` (REQ), `debitAccountId`, `creditAccountId`, `journalEntryId`, `accountingEntryType` (`None|Debit|Credit`). **UpdateDto** drops the required flags and adds nothing else.
+**AccountingEntryCreateDto fields:** `journalEntryId` (REQ, a draft journal entry), `accountId` (REQ), `direction` (REQ, `Debit|Credit`), `transactionAmount` (REQ, positive number), `transactionCurrencyId` (optional, the entry's transaction currency), `description` (REQ, 1 to 300 chars). **UpdateDto** carries the same fields without the required flags.
 
 ## Account Types
 
@@ -293,18 +295,18 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/Relations/Count
 # Create / update / patch / delete (accountId query param required throughout)
 curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/Relations?tenantId=<tenant-guid>&accountId=<account-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
-  -d '{"AccountId": "<related-account-guid>", "Type": "<relation-type>"}'
+  -d '{"AccountId": "<related-account-guid>"}'
 curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/Relations/<relation-guid>?tenantId=<tenant-guid>&accountId=<account-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
-  -d '{"AccountId": "<related-account-guid>", "Type": "<relation-type>"}'
+  -d '{"AccountId": "<related-account-guid>"}'
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/Relations/<relation-guid>?tenantId=<tenant-guid>&accountId=<account-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
-  -d '[{"op": "replace", "path": "/type", "value": "<relation-type>"}]'
+  -d '[{"op": "replace", "path": "/accountId", "value": "<related-account-guid>"}]'
 curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/Relations/<relation-guid>?tenantId=<tenant-guid>&accountId=<account-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-**AccountRelationCreateDto / UpdateDto fields:** `accountId`, `type`.
+**AccountRelationCreateDto / UpdateDto fields:** `accountId` (the related account). The relation's kind is not settable through the API.
 
 ## Account Groups
 
@@ -332,7 +334,7 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/AccountGroups/<group-
 
 ## Accounting Periods
 
-`/AccountingPeriods` — list / count / get / create / update / **patch** / delete.
+`/AccountingPeriods`: list / count / get / create / update / **patch** / delete.
 
 ```bash
 curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/AccountingPeriods?tenantId=<tenant-guid>" \
@@ -396,40 +398,50 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Journals/<journal-guid>/
 curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Journals/<journal-guid>/Entries/Aggregate/Debits?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Create journal entry (JournalEntryCreateDto). Required: Description, Date, JournalId, CurrencyId, DebitAccountId, CreditAccountId.
+# Create a DRAFT journal entry (JournalEntryCreateDto) with its posting lines.
+# Required: JournalId, FiscalPeriodId (an open period), TransactionCurrencyId, Description.
+# Each line is an AccountingEntryCreateDto: one account, Debit or Credit, a positive amount.
 curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Journals/<journal-guid>/Entries?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
   -d '{
-    "Description": "Record client payment",
-    "Date": "2026-04-19T00:00:00Z",
-    "Debit": 5000.00,
-    "Credit": 5000.00,
     "JournalId": "<journal-guid>",
-    "CurrencyId": "<currency-guid>",
-    "DebitAccountId": "<cash-account-guid>",
-    "CreditAccountId": "<receivables-account-guid>",
-    "InvoiceCode": "<invoice-code>",
-    "Opening": false,
-    "Group": false,
-    "ParentJournalEntryId": "<parent-entry-guid>"
+    "FiscalPeriodId": "<open-fiscal-period-guid>",
+    "TransactionCurrencyId": "<currency-id>",
+    "Description": "Record client payment",
+    "IsOpeningBalance": false,
+    "AccountingEntries": [
+      { "AccountId": "<cash-account-guid>", "Direction": "Debit", "TransactionAmount": 5000.00, "Description": "Cash received" },
+      { "AccountId": "<receivables-account-guid>", "Direction": "Credit", "TransactionAmount": 5000.00, "Description": "Receivable settled" }
+    ]
   }'
 
-# Update / patch / delete entry
+# Update (draft only) / patch / delete entry
 curl -X PUT "$ABSUITE_HOST_URL/api/v2/AccountingService/Journals/<journal-guid>/Entries/<entry-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
-  -d '{"Description": "Revised", "Date": "2026-04-19T00:00:00Z", "JournalId": "<journal-guid>", "CurrencyId": "<currency-guid>", "DebitAccountId": "<cash-account-guid>", "CreditAccountId": "<receivables-account-guid>"}'
+  -d '{"FiscalPeriodId": "<open-fiscal-period-guid>", "TransactionCurrencyId": "<currency-id>", "Description": "Revised"}'
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/AccountingService/Journals/<journal-guid>/Entries/<entry-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
-  -d '[{"op": "replace", "path": "/debit", "value": 4900.00}]'
+  -d '[{"op": "replace", "path": "/description", "value": "Revised"}]'
 curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AccountingService/Journals/<journal-guid>/Entries/<entry-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Post a draft entry (needs journals_post). Its debits must equal its credits and its period must be open.
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Journals/<journal-guid>/Entries/<entry-guid>/Post?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+
+# Reverse a posted entry (needs journals_reverse): posts a balanced compensating entry into an open period you choose.
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Journals/<journal-guid>/Entries/<entry-guid>/Reverse?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{"ReversalPeriodId": "<open-fiscal-period-guid>"}'
 ```
 
-**JournalEntryCreateDto fields:** `group` (bool), `opening` (bool), `description` (REQ), `date` (REQ), `debit` (number), `credit` (number), `journalId` (REQ), `currencyId` (REQ), `debitAccountId` (REQ), `creditAccountId` (REQ), `parentJournalEntryId`, `invoiceCode`.
+**JournalEntryCreateDto fields:** `journalId` (REQ), `fiscalPeriodId` (REQ, an open period), `transactionCurrencyId` (REQ), `description` (REQ, 1 to 300 chars), `isOpeningBalance` (bool), `sourceDocumentType`, `sourceDocumentId`, `idempotencyKey`, `accountingEntries` (array of AccountingEntryCreateDto lines). **JournalEntryUpdateDto:** `fiscalPeriodId` (REQ), `transactionCurrencyId` (REQ), `description` (REQ), `sourceDocumentType`, `sourceDocumentId`, `isOpeningBalance`.
+
+**Lifecycle:** a new entry is a Draft and can be edited. Posting seals it: a posted entry is immutable and is corrected only by Reverse, never by PUT, PATCH or DELETE. **ReverseJournalEntryRequest:** `reversalPeriodId` (REQ, an open fiscal period).
 
 ### Journal Types
 
-`/JournalTypes` — list / count / get / create / update / **patch** / delete. **CreateDto:** `name`. **UpdateDto:** `name`.
+`/JournalTypes`: list / count / get / create / update / **patch** / delete. **CreateDto:** `name`. **UpdateDto:** `name`.
 
 ```bash
 curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/JournalTypes?tenantId=<tenant-guid>" \
@@ -463,7 +475,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/LedgerTypes?tenantId=<t
 
 ## Financial Books
 
-`/FinancialBooks` — list / count / get / create / update / **patch** / delete. **CreateDto:** `name` (REQ), `description`. **UpdateDto:** `name`, `description`.
+`/FinancialBooks`: list / count / get / create / update / **patch** / delete. **CreateDto:** `name` (REQ), `description`. **UpdateDto:** `name`, `description`.
 
 ```bash
 curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/FinancialBooks?tenantId=<tenant-guid>" \
@@ -475,7 +487,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/FinancialBooks?tenantId
 
 ## Tax Classes
 
-`/TaxClasses` — list / count / get / create / update / **patch** / delete. Path id param is `{id}`.
+`/TaxClasses`: list / count / get / create / update / **patch** / delete. Path id param is `{id}`.
 
 ```bash
 curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/TaxClasses?tenantId=<tenant-guid>" \
@@ -490,7 +502,7 @@ curl -X PATCH "$ABSUITE_HOST_URL/api/v2/AccountingService/TaxClasses/<class-guid
 
 ## Tax Policies
 
-`/TaxPolicies` — list / count / get / create / update / **patch** / delete; plus `ByAuthority/{authorityId}`. Path id param is `{id}`.
+`/TaxPolicies`: list / count / get / create / update / **patch** / delete; plus `ByAuthority/{authorityId}`. Path id param is `{id}`.
 
 ```bash
 # List / by-authority
@@ -564,7 +576,7 @@ curl -X PATCH "$ABSUITE_HOST_URL/api/v2/AccountingService/TaxPolicies/<policy-gu
 
 ## Tax Rates
 
-`/TaxRates` — list / count / get / create / update / **patch** / delete. Path id param is `{id}`.
+`/TaxRates`: list / count / get / create / update / **patch** / delete. Path id param is `{id}`.
 
 ```bash
 curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/TaxRates?tenantId=<tenant-guid>" \
@@ -589,7 +601,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/TaxRates?tenantId=<tena
 
 ## Billable Line Taxes (nested under a billable line)
 
-`/BillableLines/{billableLineId}/Taxes` — list / count / create / update / **patch** / delete (no list-item GET).
+`/BillableLines/{billableLineId}/Taxes`: list / count / create / update / **patch** / delete (no list-item GET).
 
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/BillableLines/<billable-line-guid>/Taxes?tenantId=<tenant-guid>" \
@@ -610,7 +622,7 @@ curl -X PATCH "$ABSUITE_HOST_URL/api/v2/AccountingService/BillableLines/<billabl
 
 ### Fiscal Authorities
 
-`/Fiscals/Authorities` — list / count / get / create / update / **patch** / delete.
+`/Fiscals/Authorities`: list / count / get / create / update / **patch** / delete.
 
 ```bash
 curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Fiscals/Authorities?tenantId=<tenant-guid>" \
@@ -781,7 +793,7 @@ curl -X PATCH "$ABSUITE_HOST_URL/api/v2/AccountingService/InvoiceEnumerationRang
 
 ## Billing Profiles
 
-`/BillingProfiles` — list / count / get / create / update / **patch** / delete.
+`/BillingProfiles`: list / count / get / create / update / **patch** / delete.
 
 ```bash
 curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/BillingProfiles?tenantId=<tenant-guid>" \
@@ -812,7 +824,7 @@ curl -X PATCH "$ABSUITE_HOST_URL/api/v2/AccountingService/BillingProfiles/<profi
 
 ### Bank Profiles (read-only)
 
-`/BankProfiles` — list and count only.
+`/BankProfiles`: list and count only.
 
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/BankProfiles?tenantId=<tenant-guid>" \
@@ -827,7 +839,7 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/BankProfiles/Count?tenan
 
 ### Banks
 
-`/Banking` — list / count / get / create / update / **patch** / delete. **CreateDto:** `name`, `image`, `countryId`.
+`/Banking`: list / count / get / create / update / **patch** / delete. **CreateDto:** `name`, `image`, `countryId`.
 
 ```bash
 curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Banking?tenantId=<tenant-guid>" \
@@ -840,7 +852,7 @@ curl -X PATCH "$ABSUITE_HOST_URL/api/v2/AccountingService/Banking/<bank-guid>?te
 
 ### Bank Accounts (nested under a bank)
 
-`/Banking/{bankId}/Accounts` — list / count / get / create / update / **patch** / delete. The sub-resource id path param is `{accountId}`.
+`/Banking/{bankId}/Accounts`: list / count / get / create / update / **patch** / delete. The sub-resource id path param is `{accountId}`.
 
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Banking/<bank-guid>/Accounts?tenantId=<tenant-guid>" \
@@ -857,7 +869,7 @@ curl -X PATCH "$ABSUITE_HOST_URL/api/v2/AccountingService/Banking/<bank-guid>/Ac
 
 ### Bank Guarantees (nested under a bank)
 
-`/Banking/{bankId}/Guarantees` — list / count / get / create / update / **patch** / delete. Sub-resource id path param is `{guaranteeId}`.
+`/Banking/{bankId}/Guarantees`: list / count / get / create / update / **patch** / delete. Sub-resource id path param is `{guaranteeId}`.
 
 ```bash
 curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Banking/<bank-guid>/Guarantees?tenantId=<tenant-guid>" \
@@ -869,7 +881,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Banking/<bank-guid>/Gua
 
 ### Bank Transactions (nested under a bank)
 
-`/Banking/{bankId}/Transactions` — list / count / get / create / update / **patch** / delete. Sub-resource id path param is `{transactionId}`.
+`/Banking/{bankId}/Transactions`: list / count / get / create / update / **patch** / delete. Sub-resource id path param is `{transactionId}`.
 
 ```bash
 curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Banking/<bank-guid>/Transactions?tenantId=<tenant-guid>" \
@@ -883,7 +895,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Banking/<bank-guid>/Tra
 
 ## Budgets & Budget Account Entries
 
-`/Budgets` — list / count / get / create / update / **patch** / delete; entries nested under `/Budgets/{budgetId}/AccountEntries`.
+`/Budgets`: list / count / get / create / update / **patch** / delete; entries nested under `/Budgets/{budgetId}/AccountEntries`.
 
 ```bash
 curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Budgets?tenantId=<tenant-guid>" \
@@ -893,25 +905,25 @@ curl -X PATCH "$ABSUITE_HOST_URL/api/v2/AccountingService/Budgets/<budget-guid>?
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
   -d '[{"op": "replace", "path": "/name", "value": "FY2026 Budget (rev)"}]'
 
-# Budget account entries (CreateDto required: Description, CurrencyId)
+# Budget account entries (CreateDto required: Description, CurrencyId, DebitAccountId, CreditAccountId, BudgetId)
 curl -X GET "$ABSUITE_HOST_URL/api/v2/AccountingService/Budgets/<budget-guid>/AccountEntries?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Budgets/<budget-guid>/AccountEntries?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
-  -d '{"Description": "Marketing allocation", "Date": "2026-01-01T00:00:00Z", "Amount": 10000.0, "CurrencyId": "<currency-guid>", "AccountingEntryType": "Debit", "BudgetId": "<budget-guid>"}'
+  -d '{"Description": "Marketing allocation", "PlannedAmount": 10000.0, "CurrencyId": "<currency-id>", "DebitAccountId": "<expense-account-guid>", "CreditAccountId": "<cash-account-guid>", "BudgetId": "<budget-guid>"}'
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/AccountingService/Budgets/<budget-guid>/AccountEntries/<entry-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
-  -d '[{"op": "replace", "path": "/amount", "value": 12000.0}]'
+  -d '[{"op": "replace", "path": "/plannedAmount", "value": 12000.0}]'
 ```
 
 **BudgetCreateDto / UpdateDto:** `name`, `fiscalYearId`.
-**BudgetAccountEntryCreateDto:** `description` (REQ), `date`, `amount` (number), `currencyId` (REQ), `debitAccountId`, `creditAccountId`, `journalEntryId`, `accountingEntryType` (`None|Debit|Credit`), `budgetId`.
+**BudgetAccountEntryCreateDto / UpdateDto:** `description` (REQ), `plannedAmount` (number), `currencyId` (REQ, always send it), `debitAccountId` (REQ), `creditAccountId` (REQ), `budgetId` (REQ).
 
 ---
 
 ## Cost Centres
 
-`/CostCentres` — list / count / get / create / update / **patch** / delete; plus **Cost Centre Budgets** and **Cost Centre Groups** sub-collections.
+`/CostCentres`: list / count / get / create / update / **patch** / delete; plus **Cost Centre Budgets** and **Cost Centre Groups** sub-collections.
 
 ```bash
 # Cost centre (CreateDto: name, disabled, description, costCentreType, costCentresGroupId, parentCostCentreId)
@@ -939,7 +951,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/CostCentres/CostCentreG
 
 ## Commissions
 
-`/Commissions/Commissions` and `/Commissions/PaymentCommissions` — each list / count / get / create / update / **patch** / delete.
+`/Commissions/Commissions` and `/Commissions/PaymentCommissions`: each list / count / get / create / update / **patch** / delete.
 
 ```bash
 # Commission (CreateDto fields below)
@@ -962,7 +974,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Commissions/PaymentComm
 
 ## Receipts
 
-`/Receipts` — list / count / get / create / update / **patch** / delete. (No `api-version`/`x-api-version` params on this controller — only `tenantId`.)
+`/Receipts`: list / count / get / create / update / **patch** / delete. (No `api-version`/`x-api-version` params on this controller, only `tenantId`.)
 
 ```bash
 curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Receipts?tenantId=<tenant-guid>" \
@@ -990,7 +1002,7 @@ curl -X PATCH "$ABSUITE_HOST_URL/api/v2/AccountingService/Receipts/<receipt-guid
 
 ## Grants
 
-`/Grants` — list / count / get / create / update / **patch** / delete. The Grant create/update DTOs carry no documented business fields beyond `id`/`timestamp`.
+`/Grants`: list / count / get / create / update / **patch** / delete. The Grant create/update DTOs carry no documented business fields beyond `id`/`timestamp`.
 
 ```bash
 curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Grants?tenantId=<tenant-guid>" \
@@ -1005,7 +1017,7 @@ curl -X PATCH "$ABSUITE_HOST_URL/api/v2/AccountingService/Grants/<grant-guid>?te
 
 ## Loans
 
-`/Loans` — list / count / get / create / update / **patch** / delete; plus **Loan Applications** (`/Loans/Applications`) and **Loan Types** (`/Loans/Types`).
+`/Loans`: list / count / get / create / update / **patch** / delete; plus **Loan Applications** (`/Loans/Applications`) and **Loan Types** (`/Loans/Types`).
 
 ```bash
 # Loan (CreateDto fields below)
@@ -1068,7 +1080,7 @@ Path id params: classes `{shareClassId}`, issuances `{issuanceId}`, transfers `{
 
 ## Transactions & Transaction Categories
 
-`/Transactions` — list / count / get / create / update / **patch** / delete; categories under `/Transactions/Categories`.
+`/Transactions`: list / count / get / create / update / **patch** / delete; categories under `/Transactions/Categories`.
 
 ```bash
 curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Transactions?tenantId=<tenant-guid>" \
@@ -1090,7 +1102,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Transactions/Categories
 
 ## Expense Claims & Expense Types
 
-`/ExpenseClaims` and `/ExpenseTypes` — each list / count / get / create / update / **patch** / delete.
+`/ExpenseClaims` and `/ExpenseTypes`: each list / count / get / create / update / **patch** / delete.
 
 ```bash
 curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/ExpenseTypes?tenantId=<tenant-guid>" \
@@ -1108,7 +1120,7 @@ curl -X PATCH "$ABSUITE_HOST_URL/api/v2/AccountingService/ExpenseClaims/<claim-g
 
 ---
 
-## PATCH (JSON Patch — RFC 6902)
+## PATCH (JSON Patch, RFC 6902)
 
 Every PATCH endpoint takes a JSON **array** of operations with `Content-Type: application/json`.
 The `tenantId` query param (and any path/query ids) are still required on the URL.
@@ -1126,7 +1138,7 @@ curl -X PATCH "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid
 
 - `op` ∈ `add | remove | replace | move | copy | test`.
 - `path` / `from` are JSON-Pointers (leading `/`, **camelCase** field names matching the entity, e.g. `/accountCategory`, `/isDefault`).
-- Use PATCH for atomic partial updates (change a couple of fields without re-sending the whole object — safer than PUT under concurrency).
+- Use PATCH for atomic partial updates (change a couple of fields without re-sending the whole object, safer than PUT under concurrency).
 
 **Aggregates/sub-resources that support PATCH:** Accounts, Account Entries, Account Types, Account Relations, Account Groups, Accounting Periods, Journals, Journal Entries, Journal Types, Ledgers, Ledger Types, Financial Books, Tax Classes, Tax Policies, Applied Tax Policy Records, Item Tax Policy Records, Tax Rates, Billable Line Taxes, Fiscal Authorities, Fiscal Authority Years (`.../FiscalYears/{id}`), Fiscal Years (standalone), Fiscal Periods, Fiscal Regimes, Fiscal Responsibilities, Fiscal Responsibility Records, Enumeration Ranges (both controllers), Billing Profiles, Banks, Bank Accounts, Bank Guarantees, Bank Transactions, Budgets, Budget Account Entries, Cost Centres, Cost Centre Budgets, Cost Centre Groups, Commissions, Payment Commissions, Receipts, Grants, Loans, Loan Applications, Loan Types, Shares (Classes/Issuances/Transfers/TransferReasons), Transactions, Transaction Categories, Expense Claims, Expense Types.
 
@@ -1153,9 +1165,10 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/JournalTypes?tenantId=$
 curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Journals?tenantId=$TENANT" "${H[@]}" \
   -d '{"Name": "April 2026", "JournalTypeId": "<journal-type-guid>", "LedgerId": "<ledger-guid>"}'
 
-# 3. Post a balanced journal entry
+# 3. Create a balanced draft journal entry, then post it
 curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Journals/<journal-guid>/Entries?tenantId=$TENANT" "${H[@]}" \
-  -d '{"Description": "Client payment", "Date": "2026-04-19T00:00:00Z", "Debit": 5000, "Credit": 5000, "JournalId": "<journal-guid>", "CurrencyId": "<currency-guid>", "DebitAccountId": "<cash-acct>", "CreditAccountId": "<ar-acct>"}'
+  -d '{"JournalId": "<journal-guid>", "FiscalPeriodId": "<open-fiscal-period-guid>", "TransactionCurrencyId": "<currency-id>", "Description": "Client payment", "AccountingEntries": [{"AccountId": "<cash-acct>", "Direction": "Debit", "TransactionAmount": 5000, "Description": "Cash"}, {"AccountId": "<ar-acct>", "Direction": "Credit", "TransactionAmount": 5000, "Description": "Receivable"}]}'
+curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Journals/<journal-guid>/Entries/<entry-guid>/Post?tenantId=$TENANT" "${H[@]}"
 
 # 4. Balance the affected accounts, then patch a flag atomically
 curl -X POST "$ABSUITE_HOST_URL/api/v2/AccountingService/Accounts/<account-guid>/Balance?tenantId=$TENANT" "${H[@]}"
@@ -1269,6 +1282,8 @@ All paths are prefixed with `$ABSUITE_HOST_URL/api/v2/AccountingService`. Every 
 | Update entry | PUT | `/Journals/{journalId}/Entries/{entryId}` |
 | Patch entry | PATCH | `/Journals/{journalId}/Entries/{entryId}` |
 | Delete entry | DELETE | `/Journals/{journalId}/Entries/{entryId}` |
+| Post a draft entry | POST | `/Journals/{journalId}/Entries/{entryId}/Post` |
+| Reverse a posted entry | POST | `/Journals/{journalId}/Entries/{entryId}/Reverse` |
 | List journal types | GET | `/JournalTypes` |
 | Create journal type | POST | `/JournalTypes` |
 | Count journal types | GET | `/JournalTypes/Count` |

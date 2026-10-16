@@ -1,33 +1,36 @@
 ---
 name: absuite-support
+key: paperclip/skills/absuite-support/SKILL.md
+version: 1.0.0
 description: >
-  Manage customer support — tickets, support requests, request attachments, ticket
+  Manage customer support (tickets, support requests, request attachments, ticket
   conversations, ticket priorities, ticket types, entitlements, refund/return/warranty
-  requests and policies, knowledge articles, inquiry requests, and maintenance visits —
+  requests and policies, knowledge articles, inquiry requests, and maintenance visits)
   via the Alliance Business Suite (ABS) REST API, including atomic PATCH (JSON Patch)
   updates. All operations are tenant-scoped and require a bearer token (see the
   absuite-login skill to authenticate). For the CLI equivalent, see `absuite-support-cli`.
 ---
 
-# Alliance Business Suite — Support (REST API)
+# Alliance Business Suite: Support (REST API)
 
 Drive the ABS `SupportService` directly over HTTP with `curl`. This skill covers the full
 support surface: support tickets and their conversations, support requests and their
 attachments, ticket priorities, ticket types, support entitlements, refund/return/warranty
-requests and policies, knowledge articles, inquiry requests, and maintenance visits — plus
+requests and policies, knowledge articles, inquiry requests, and maintenance visits, plus
 **atomic PATCH (RFC 6902 JSON Patch)** for partial updates.
 
-Every `SupportService` endpoint is tenant-scoped: `tenantId` is **required** as a query
-parameter on **every** verb (GET/POST/PUT/PATCH/DELETE). For general REST conventions and
+Every `SupportService` endpoint is tenant-scoped: `tenantId` is **required** on **every**
+verb (GET/POST/PUT/PATCH/DELETE), as the `tenantId` query parameter or the `X-TenantId`
+header. For general REST conventions and
 raw-HTTP guidance shared across modules, see `absuite-rest`.
 
 ## API usage essentials
 
 > Full detail in `absuite-rest`; these rules apply across this skill's endpoints.
 
-- **Lists & counts are OData-enabled.** `GET` collection endpoints accept `$filter`, `$top`, `$skip`, `$orderby`, `$select` — page through results, don't fetch-all-and-filter. Each dedicated `.../Count` endpoint returns an integer and is **also** filterable (`?$filter=...` -> a filtered count). OData is a REST/HTTP-layer feature (the CLI does not expose it).
-- **`PUT` replaces the ENTIRE resource** — it overwrites, not merges, so any omitted field is reset to default/null. **GET the resource first, change the full object, then PUT it back**; sending a partial body to `PUT` (or an incomplete `POST` create) causes silent data loss.
-- **`PATCH`, where this service exposes it, is atomic and partial** (JSON Patch / RFC 6902) — it changes only the fields you name, needs no prior GET, and won't clobber the rest. Prefer it for small edits; use `PUT` only for a deliberate full replacement.
+- **Lists & counts are OData-enabled.** `GET` collection endpoints accept `$filter`, `$top`, `$skip`, `$orderby`, `$select`; page through results, don't fetch-all-and-filter. Each dedicated `.../Count` endpoint returns an integer and is **also** filterable (`?$filter=...` -> a filtered count). OData is a REST/HTTP-layer feature (the CLI does not expose it).
+- **`PUT` replaces the ENTIRE resource**: it overwrites, not merges, so any omitted field is reset to default/null. **GET the resource first, change the full object, then PUT it back**; sending a partial body to `PUT` (or an incomplete `POST` create) causes silent data loss.
+- **`PATCH`, where this service exposes it, is atomic and partial** (JSON Patch / RFC 6902): it changes only the fields you name, needs no prior GET, and won't clobber the rest. Prefer it for small edits; use `PUT` only for a deliberate full replacement.
 
 ## Authentication
 
@@ -47,10 +50,15 @@ Extract `accessToken` from the JSON response.
 3. **Base path:** all resources live under `$ABSUITE_HOST_URL/api/v2/SupportService/`.
 
 4. **Tenant scoping:** pass `?tenantId=<tenant-guid>` on **every** call (the `X-TenantId:
-   <tenant-guid>` request header is the accepted equivalent). Omitting it on writes returns
-   a 400.
+   <tenant-guid>` request header is the accepted equivalent; the query value wins when both
+   are sent). Every route marks the tenant as required, so omitting it on any verb (read or
+   write) returns a 400.
 
-5. **Response envelope** — every response is wrapped:
+5. **Permissions:** each use case checks the caller's permissions in the workspace (tenant).
+   Each resource section below lists the permission it needs. Where a read declares no
+   permission, any member of the workspace can call it.
+
+6. **Response envelope**: every response is wrapped:
 ```json
 {
   "isSuccess": true,
@@ -64,29 +72,29 @@ Always check `isSuccess`; read the payload from `result`.
 
 ## Key Concepts
 
-- **Support Ticket** — a tracked customer support case. `supportTicketStatus` is an enum:
+- **Support Ticket**: a tracked customer support case. `supportTicketStatus` is an enum:
   `New | OpenAndWaitingForAgent | OpenAndWaitingForCustomer | Closed`. A ticket links to a
   contact (`contactId`), a ticket type (`supportTicketTypeId`), an entitlement
   (`supportEntitlementId`), and a priority (`supportPriorityId`).
-- **Ticket Conversation** — a threaded discussion attached to a ticket. Conversations carry
+- **Ticket Conversation**: a threaded discussion attached to a ticket. Conversations carry
   messages (read-only, paged).
-- **Support Ticket Priority / Type** — tenant-defined classification lookups referenced by
+- **Support Ticket Priority / Type**: tenant-defined classification lookups referenced by
   tickets.
-- **Support Request** — a higher-level customer request that can spawn tickets and carry
+- **Support Request**: a higher-level customer request that can spawn tickets and carry
   attachments. Links to a contact and an entitlement.
-- **Support Request Attachment** — a file/folder record attached to a support request.
-- **Support Entitlement** — the support plan / SLA a customer is entitled to (quantities,
+- **Support Request Attachment**: a file/folder record attached to a support request.
+- **Support Entitlement**: the support plan / SLA a customer is entitled to (quantities,
   renewal, billing, trial, usage-threshold, and many free-form `data*`/`data*Label` slots).
-- **Refund / Return / Warranty Request** — customer-initiated requests, each tied to a
+- **Refund / Return / Warranty Request**: customer-initiated requests, each tied to a
   contact, an entitlement, and the relevant policy. Carry `approved` / `approvedTimestamp`.
-- **Refund / Return / Warranty Policy** — the rules governing each request type (duration in
+- **Refund / Return / Warranty Policy**: the rules governing each request type (duration in
   hours/days/weeks/months/years, `value`/`percentage`, currency, geography, `isDefault`,
   `isEnabled`, etc.). Return and warranty policies add `shippingCourierId` /
   `isExtendedWarranty` respectively.
-- **Knowledge Article** — self-service knowledge-base content (title, slug, content, SEO,
+- **Knowledge Article**: self-service knowledge-base content (title, slug, content, SEO,
   `published`/`enable`).
-- **Inquiry Request** — a general inbound inquiry/lead (name, email, organization, message).
-- **Maintenance Visit** — a scheduled maintenance record.
+- **Inquiry Request**: a general inbound inquiry/lead (name, email, organization, message).
+- **Maintenance Visit**: a scheduled maintenance record.
 
 > **Field names below are the JSON body field names from the OpenAPI spec.** Request bodies
 > in this skill use those exact names. ABS accepts both PascalCase and camelCase keys; the
@@ -123,7 +131,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTickets?tenantId=<t
     "supportPriorityId": "<priority-guid>"
   }'
 
-# Update (PUT — full replace)
+# Update (PUT, full replace)
 curl -X PUT "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTickets/<ticket-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
@@ -137,7 +145,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTickets/<ticket-guid
     "supportPriorityId": "<priority-guid>"
   }'
 
-# Patch (PATCH — partial update, JSON Patch; see PATCH section)
+# Patch (PATCH: partial update, JSON Patch; see PATCH section)
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTickets/<ticket-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
@@ -153,6 +161,9 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTickets/<ticket-g
 `supportTicketStatus` (enum `New | OpenAndWaitingForAgent | OpenAndWaitingForCustomer | Closed`),
 `contactId`, `supportTicketTypeId`, `supportEntitlementId`, `supportPriorityId`.
 (`id`/`timestamp` are create-only.)
+
+**Permissions:** reads need `tickets_read`; create/update/patch/delete need
+`tickets_create` / `tickets_update` / `tickets_delete`.
 
 ### Ticket Conversations
 
@@ -186,6 +197,12 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTickets/<ticket-g
 
 **Conversation create body fields** (`SupportTicketConversationCreateDto`):
 `id`, `timestamp`, `topic`, `closed`, `closedTimestamp`, `socialProfileId`.
+
+Messages paging: `pageNumber` (default 1, minimum 1) and `pageSize` (default 20, range 1 to 1000).
+
+**Permissions:** creating a conversation needs `tickets_create`; deleting one needs
+`tickets_delete`. Listing conversations, getting one, and listing its messages declare no
+permission: any member of the workspace can read them.
 
 ### Ticket Priorities
 
@@ -233,6 +250,9 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTicketPriorities/
 `id`, `timestamp`, `title`, `description`, `supportEntitlementId`.
 (`id`/`timestamp` are create-only.)
 
+**Permissions:** writes need `tickets_create` / `tickets_update` / `tickets_delete`. Reads
+(list, count, get) declare no permission: any member of the workspace can read them.
+
 ### Ticket Types
 
 ```bash
@@ -273,6 +293,9 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTicketTypes/<type
 
 **Create/Update body fields** (`SupportTicketTypeCreateDto` / `SupportTicketTypeUpdateDto`):
 `id`, `timestamp`, `title`, `description`.
+
+**Permissions:** writes need `tickets_create` / `tickets_update` / `tickets_delete`. Reads
+(list, count, get) declare no permission: any member of the workspace can read them.
 
 ---
 
@@ -335,7 +358,11 @@ curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequests/<request-guid>/Tic
 `supportEntitlementId`, `contactId`.
 **Update body fields** (`SupportRequestUpdateDto`):
 `title`, `description`, `approved`, `approvedTimestamp`, `supportEntitlementId`.
-(Note: `contactId` is create-only — it is not part of the update DTO.)
+(Note: `contactId` is create-only; it is not part of the update DTO.)
+
+**Permissions:** list/count/get need `tickets_read`; create/update/patch/delete need
+`tickets_create` / `tickets_update` / `tickets_delete`. Listing a request's tickets
+(`/Tickets`) declares no permission: any member of the workspace can read it.
 
 ### Attachments scoped to a request
 
@@ -352,7 +379,7 @@ curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequests/<request-guid>/Att
 curl "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequests/<request-guid>/Attachments/<attachment-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Add (relate) an attachment to a request — body is a SupportRequestAttachmentCreateDto
+# Add (relate) an attachment to a request (body is a SupportRequestAttachmentCreateDto)
 curl -X POST "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequests/<request-guid>/Attachments?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
@@ -409,12 +436,20 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/SupportRequestAttachment
 
 **Create body fields** (`SupportRequestAttachmentCreateDto`):
 `id`, `timestamp`, `notes`, `title`, `author`, `isFolder`, `fileName`, `abstract`,
-`keyWords`, `validResponse`, `parentFileUploadId`, `filePath`, `metadata`, `supportRequestId`.
+`keyWords`, `validResponse`, `parentFileUploadId`, `filePath`, `publicAccessType`
+(enum `Off | Container | Blob | Unknown`, default `Off`), `metadata`, `supportRequestId`.
 **Update body fields** (`SupportRequestAttachmentUpdateDto`):
 `notes`, `metadata`, `title`, `author`, `isFolder`, `fileName`, `abstract`, `keyWords`,
 `validResponse`, `parentFileUploadID`, `filePath`, `contentType`, `fileLength`.
-(Spec note: update uses `parentFileUploadID` while create uses `parentFileUploadId`;
-update adds `contentType`/`fileLength` and has no `supportRequestId`.)
+(Note: the update DTO's C# property is `ParentFileUploadID` while create uses
+`ParentFileUploadId`, so the camelCase JSON names differ (`parentFileUploadID` vs
+`parentFileUploadId`); keys are matched case-insensitively. Update adds
+`contentType`/`fileLength` and has no `supportRequestId` or `publicAccessType`.)
+
+**Permissions:** creating an attachment (either route) needs `tickets_create`; update/patch
+need `tickets_update`; delete needs `tickets_delete`. All attachment reads (top-level and
+per-request list, count, get) declare no permission: any member of the workspace can read
+them.
 
 ---
 
@@ -476,6 +511,9 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/SupportEntitlements/<ent
 `individualId`, `organizationId`, `receiverTenantId`, `paymentTokenId`, `walletAccountId`,
 `securityCertificateId`. (Create-only extras: `id`, `timestamp`, `startDateTime`.)
 
+**Permissions:** reads need `entitlements_read`; writes need `entitlements_create` /
+`entitlements_update` / `entitlements_delete`.
+
 ---
 
 ## Refund Requests
@@ -530,6 +568,9 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/RefundRequests/<refund-r
 `title`, `description`, `approved`, `approvedTimestamp`, `supportEntitlementId`,
 `refundPolicyId`, `paymentId`. (`contactId` is create-only.)
 
+**Permissions:** reads need `refund_requests_read`; writes need `refund_requests_create` /
+`refund_requests_update` / `refund_requests_delete`.
+
 ## Refund Policies
 
 ```bash
@@ -577,6 +618,10 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/RefundPolicies/<refund-p
 `allowInternational`, `hours`, `days`, `weeks`, `months`, `years`, `value`, `percentage`,
 `currencyId`, `countryId`, `countryStateId`, `customState`, `customCity`, `cityId`.
 (Create-only extras: `id`, `timestamp`.)
+
+**Permissions:** writes need `refund_policies_create` / `refund_policies_update` /
+`refund_policies_delete`. Reads (list, count, get) declare no permission: any member of the
+workspace can read them.
 
 ---
 
@@ -626,6 +671,9 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/ReturnRequests/<return-r
 `title`, `description`, `approved`, `approvedTimestamp`, `supportEntitlementId`,
 `returnPolicyId`. (`contactId` is create-only.)
 
+**Permissions:** reads need `return_requests_read`; writes need `return_requests_create` /
+`return_requests_update` / `return_requests_delete`.
+
 ## Return Policies
 
 ```bash
@@ -670,6 +718,10 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/ReturnPolicies/<return-p
 `isEnabled`, `isDefault`, `allowInternational`, `hours`, `days`, `weeks`, `months`, `years`,
 `value`, `percentage`, `currencyId`, `countryId`, `countryStateId`, `customState`,
 `customCity`, `cityId`. (Create-only extras: `id`, `timestamp`.)
+
+**Permissions:** writes need `return_policies_create` / `return_policies_update` /
+`return_policies_delete`. Reads (list, count, get) declare no permission: any member of the
+workspace can read them.
 
 ---
 
@@ -719,6 +771,9 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/WarrantyRequests/<warran
 `title`, `description`, `approved`, `approvedTimestamp`, `supportEntitlementId`,
 `warrantyPolicyId`. (`contactId` is create-only.)
 
+**Permissions:** reads need `warranty_requests_read`; writes need `warranty_requests_create` /
+`warranty_requests_update` / `warranty_requests_delete`.
+
 ## Warranty Policies
 
 ```bash
@@ -763,6 +818,10 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/WarrantyPolicies/<warran
 `isEnabled`, `isDefault`, `allowInternational`, `hours`, `days`, `weeks`, `months`, `years`,
 `value`, `percentage`, `currencyId`, `countryId`, `countryStateId`, `customState`,
 `customCity`, `cityId`. (Create-only extras: `id`, `timestamp`.)
+
+**Permissions:** writes need `warranty_policies_create` / `warranty_policies_update` /
+`warranty_policies_delete`. Reads (list, count, get) declare no permission: any member of
+the workspace can read them.
 
 ---
 
@@ -810,6 +869,10 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/KnowledgeArticles/<artic
 `title` (**required** on create), `slug`, `excerpt`, `description`, `content`,
 `highlightImage`, `seoTitle`, `seoKeyWords`, `metaDescription`, `published`, `enable`.
 (Create-only extras: `id`, `timestamp`.)
+
+**Permissions:** writes need `knowledge_articles_create` / `knowledge_articles_update` /
+`knowledge_articles_delete`. Reads (list, count, get) declare no permission: any member of
+the workspace can read them.
 
 ---
 
@@ -863,6 +926,10 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/InquiryRequests/<inquiry
 `type`, `name`, `lastName`, `email`, `organizationName`, `jobRole`, `organizationDomain`,
 `countryId`, `phone`, `message`, `socialProfileId`.
 
+**Permissions:** writes need `inquiry_requests_create` / `inquiry_requests_update` /
+`inquiry_requests_delete`. Reads (list, count, get) declare no permission: any member of the
+workspace can read them.
+
 ---
 
 ## Maintenance Visits
@@ -887,27 +954,31 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/SupportService/MaintenanceVisits/<visit-gu
   -H "Content-Type: application/json" \
   -d '{}'
 
-# Patch (PATCH)
+# Patch (PATCH): the route exists, but MaintenanceVisitUpdateDto declares no fields,
+# so there is no path a patch operation can target (see the note below).
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/SupportService/MaintenanceVisits/<visit-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '[{ "op": "replace", "path": "/timestamp", "value": "2026-07-01T10:00:00Z" }]'
+  -d '[]'
 
 # Delete
 curl -X DELETE "$ABSUITE_HOST_URL/api/v2/SupportService/MaintenanceVisits/<visit-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-> **Spec note:** the OpenAPI spec exposes only `id` and `timestamp` on
-> `MaintenanceVisitCreateDto`, and `MaintenanceVisitUpdateDto` has **no documented body
-> fields**. Send only fields confirmed by the spec; do not invent a `description` or
-> `scheduledDate` field (the old skill showed those — they are not in the spec).
+> **Note:** `MaintenanceVisitCreateDto` carries only the inherited `id` and `timestamp`, and
+> `MaintenanceVisitUpdateDto` declares **no body fields at all**, so PUT and PATCH have
+> nothing to change. Do not invent a `description` or `scheduledDate` field (the old skill
+> showed those; they do not exist on either DTO).
+
+**Permissions:** reads need `maintenance_visits_read`; writes need
+`maintenance_visits_create` / `maintenance_visits_update` / `maintenance_visits_delete`.
 
 ---
 
 ## PATCH (JSON Patch, RFC 6902)
 
-Every primary `SupportService` aggregate supports `PATCH` for **atomic partial updates** —
+Every primary `SupportService` aggregate supports `PATCH` for **atomic partial updates**,
 safer than `PUT` under concurrent edits because you send only the fields you intend to change.
 
 - **Content-Type:** `application/json`
@@ -916,7 +987,7 @@ safer than `PUT` under concurrent edits because you send only the fields you int
   JSON-Pointer strings (leading `/`, camelCase field names).
 - **Tenant:** `?tenantId=<tenant-guid>` is still required on the PATCH request.
 
-Example — close a ticket and re-point its priority in one atomic request:
+Example: close a ticket and re-point its priority in one atomic request:
 ```bash
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTickets/<ticket-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
@@ -931,7 +1002,7 @@ curl -X PATCH "$ABSUITE_HOST_URL/api/v2/SupportService/SupportTickets/<ticket-gu
 SupportTickets, SupportRequests, SupportRequestAttachments, SupportEntitlements,
 SupportTicketPriorities, SupportTicketTypes, RefundRequests, RefundPolicies,
 ReturnRequests, ReturnPolicies, WarrantyRequests, WarrantyPolicies, KnowledgeArticles,
-InquiryRequests, MaintenanceVisits.
+InquiryRequests, MaintenanceVisits (MaintenanceVisits has no patchable fields; see its note).
 
 > Sub-resources (ticket conversations, conversation messages, and the per-request
 > attachment relations) do **not** expose PATCH. Use their POST/GET/DELETE endpoints.
@@ -941,7 +1012,7 @@ InquiryRequests, MaintenanceVisits.
 ## End-to-End Workflow
 
 Stand up the classification lookups and an entitlement, open a ticket, discuss it, then close
-it atomically — all with verified endpoints:
+it atomically, all with verified endpoints:
 
 ```bash
 # 1. Create a ticket type
@@ -1074,8 +1145,8 @@ All paths are relative to `$ABSUITE_HOST_URL/api/v2/SupportService/`. `tenantId`
 ## Critical Rules
 
 - **Authenticate first**, then send `Authorization: Bearer …` on every call.
-- **`tenantId` is required on every request** (GET/POST/PUT/PATCH/DELETE). Omitting it on a
-  write returns 400. The `X-TenantId` header is the accepted equivalent.
+- **`tenantId` is required on every request** (GET/POST/PUT/PATCH/DELETE). Omitting it on
+  any verb returns 400. The `X-TenantId` header is the accepted equivalent.
 - **Set up priorities, types, and entitlements first**, then create tickets that reference them.
 - **Use ticket conversations** for threaded discussion; messages are read-only and paged.
 - **Prefer PATCH for status flips and single-field edits** to avoid clobbering concurrent

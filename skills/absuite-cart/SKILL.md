@@ -1,26 +1,30 @@
 ---
 name: absuite-cart
+key: paperclip/skills/absuite-cart/SKILL.md
+version: 1.0.0
 description: >
   Manage shopping carts, cart records/lines, wish lists, and compare tables in the
   Alliance Business Suite (ABS) Cart Service via the REST API. Covers reading ambient
   carts (guest/user/acting/business), adding/removing items, updating quantities,
-  submitting carts, wish lists, and product comparison — including atomic PATCH
+  submitting carts, wish lists, and product comparison, including atomic PATCH
   (JSON Patch) updates. CartService is HYBRID-scoped: most endpoints are anonymous,
-  user-, or cart-id-scoped; only a few take a tenant. Requires a bearer token
-  (see the absuite-login skill to authenticate).
+  user-, or cart-id-scoped; only a few take a tenant. A bearer token is needed for the
+  user cart and for submitting (see the absuite-login skill to authenticate).
 ---
 
-# Alliance Business Suite — Cart Skill (REST)
+# Alliance Business Suite: Cart Skill (REST)
 
 Manage shopping carts through the ABS Cart Service REST API. The Cart Service is
-**hybrid-scoped** — read the scope per endpoint and do **not** bolt `?tenantId=` onto
+**hybrid-scoped**: read the scope per endpoint and do **not** bolt `?tenantId=` onto
 anything that isn't marked tenant-scoped:
 
 - **Anonymous / ambient** (no tenant): `GuestCart`, `ActingCart`.
-- **JWT-user-scoped** (no tenant): `UserCart` — resolved from the bearer token.
-- **Tenant-scoped**: `BusinessCart/{tenantId}` (tenant in the **path**, required) and
-  `Carts/{cartId}/Submit` (optional `?tenantId=` query).
-- **Cart-id-scoped** (no tenant): everything addressed by `{cartId}` — the cart's
+- **JWT-user-scoped** (no tenant): `UserCart`, resolved from the bearer token.
+- **Tenant-addressed**: `BusinessCart/{tenantId}` (tenant in the **path**, required).
+- **Submit** (`Carts/{cartId}/Submit`): tenant optional (`?tenantId=` query or `X-TenantId`
+  header). With a tenant the caller needs the `carts_create` permission in that tenant;
+  without one the signed-in caller submits their own cart (sign-in only, no permission).
+- **Cart-id-scoped** (no tenant): everything addressed by `{cartId}`: the cart's
   records/items, lines, wish lists, and compare table. The cart ID itself is the scope.
 
 > For the CLI equivalent see `absuite-cart-cli`; for general REST conventions
@@ -30,9 +34,9 @@ anything that isn't marked tenant-scoped:
 
 > Full detail in `absuite-rest`; these rules apply across this skill's endpoints.
 
-- **Lists & counts are OData-enabled.** `GET` collection endpoints accept `$filter`, `$top`, `$skip`, `$orderby`, `$select` — page through results, don't fetch-all-and-filter. Each dedicated `.../Count` endpoint returns an integer and is **also** filterable (`?$filter=...` -> a filtered count). OData is a REST/HTTP-layer feature (the CLI does not expose it).
-- **`PUT` replaces the ENTIRE resource** — it overwrites, not merges, so any omitted field is reset to default/null. **GET the resource first, change the full object, then PUT it back**; sending a partial body to `PUT` (or an incomplete `POST` create) causes silent data loss.
-- **`PATCH`, where this service exposes it, is atomic and partial** (JSON Patch / RFC 6902) — it changes only the fields you name, needs no prior GET, and won't clobber the rest. Prefer it for small edits; use `PUT` only for a deliberate full replacement.
+- **Lists & counts are OData-enabled.** `GET` collection endpoints accept `$filter`, `$top`, `$skip`, `$orderby`, `$select`: page through results, don't fetch-all-and-filter. Each dedicated `.../Count` endpoint returns an integer and is **also** filterable (`?$filter=...` -> a filtered count). OData is a REST/HTTP-layer feature (the CLI does not expose it).
+- **`PUT` replaces the ENTIRE resource**: it overwrites, not merges, so any omitted field is reset to default/null. **GET the resource first, change the full object, then PUT it back**; sending a partial body to `PUT` (or an incomplete `POST` create) causes silent data loss.
+- **`PATCH`, where this service exposes it, is atomic and partial** (JSON Patch / RFC 6902): it changes only the fields you name, needs no prior GET, and won't clobber the rest. Prefer it for small edits; use `PUT` only for a deliberate full replacement.
 
 ## Authentication
 
@@ -54,7 +58,7 @@ export ABSUITE_ACCESS_TOKEN="<accessToken-from-response>"
 
 3. **Base path:** `$ABSUITE_HOST_URL/api/v2/CartService`
 
-4. **Response envelope** — every response is wrapped:
+4. **Response envelope**: every response is wrapped:
 ```json
 {
   "isSuccess": true,
@@ -69,19 +73,26 @@ for the `Contains`/`Exists`/`IsInCart` checks, or `null`).
 
 ## Key Concepts
 
-- **Cart** — a shopping cart holding records/lines, plus a currency and country. There are
+- **Cart**: a shopping cart holding records/lines, plus a currency and country. There are
   several **ambient** carts you can fetch without knowing an ID:
-  - **Guest cart** — anonymous/session cart for an unauthenticated visitor.
-  - **Acting cart** — the cart the current context is acting on (session cart).
-  - **User cart** — the signed-in user's cart, resolved from the JWT.
-  - **Business cart** — a tenant's cart, addressed by `{tenantId}` in the path.
-- **Record / Item / Line** — the cart's line entries. The Cart Service exposes them under
+  - **Guest cart**: anonymous/session cart for an unauthenticated visitor.
+  - **Acting cart**: the cart the current context is acting on (session cart). When a
+    signed-in caller reads it, any guest cart from the session is first merged into the
+    caller's cart.
+  - **User cart**: the signed-in user's cart, resolved from the JWT.
+  - **Business cart**: a tenant's cart, addressed by `{tenantId}` in the path.
+- **Record / Item / Line**: the cart's line entries. The Cart Service exposes them under
   three overlapping surfaces that all describe a cart's contents:
-  - `Carts/{cartId}/Items` and `Carts/{cartId}/Lines` — cart-scoped views.
-  - `Records` — a flat, trackable record surface (`ItemCartRecord`) addressed by `{recordId}`.
-- **Wish List** — a saved list of products inside a cart (`title`, `description`, `public`),
+  - `Carts/{cartId}/Items` and `Carts/{cartId}/Lines`: cart-scoped views.
+  - `Records`: a flat, trackable record surface (`ItemCartRecord`) addressed by `{recordId}`.
+- **Wish List**: a saved list of products inside a cart (`title`, `description`, `public`),
   holding wish-list records (one per product).
-- **Compare Table** — a per-cart set of products staged for side-by-side comparison.
+- **Compare Table**: a per-cart set of products staged for side-by-side comparison.
+- **Currency and country**: there is no USD default. A new cart has no currency or country
+  (`currencyId` / `countryId` read as `null`) until its first line write stamps them from the
+  root tenant. You can still set them explicitly (see below).
+- **Read-only cart fields**: `CartDto` also carries `saleChannel` and `directSellerTenantId`.
+  They are set when the first line binds the cart and are never accepted on any update or patch.
 
 > Field names in request bodies are the JSON keys exactly as the spec defines them.
 > Note two body fields use unusual casing the spec mandates verbatim: the currency-switch
@@ -94,42 +105,42 @@ for the `Contains`/`Exists`/`IsInCart` checks, or `null`).
 > You obtain a cart through one of the four ambient getters below (or by a known `{cartId}`),
 > then operate on its sub-resources.
 
-### Get Guest Cart (anonymous — no tenant)
+### Get Guest Cart (anonymous, no tenant)
 
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Carts/GuestCart" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Get Acting Cart (session cart — no tenant)
+### Get Acting Cart (session cart, no tenant)
 
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Carts/ActingCart" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Get Current User's Cart (JWT-user-scoped — no tenant)
+### Get Current User's Cart (JWT-user-scoped, no tenant)
 
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Carts/UserCart" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Get Business (Tenant) Cart — tenant in the path
+### Get Business (Tenant) Cart: tenant in the path
 
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Carts/BusinessCart/<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Get Cart by ID (cart-id-scoped — no tenant)
+### Get Cart by ID (cart-id-scoped, no tenant)
 
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Update Cart (PUT — cart-id-scoped)
+### Update Cart (PUT, cart-id-scoped)
 
 ```bash
 curl -X PUT "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>" \
@@ -143,7 +154,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>" \
 
 `CartUpdateRequest` fields: `currencyId`, `countryId`.
 
-### Patch Cart (PATCH — JSON Patch RFC 6902)
+### Patch Cart (PATCH, JSON Patch RFC 6902)
 
 ```bash
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>" \
@@ -155,10 +166,12 @@ curl -X PATCH "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>" \
   ]'
 ```
 
-### Submit Cart (Checkout) — optional tenant scoping
+### Submit Cart (Checkout): optional tenant scoping
 
-Converts the cart into an order for processing. Tenant is **optional** here: pass
-`?tenantId=<tenant-guid>` to submit under a tenant context, or omit it.
+Converts the cart into an order (returns `201 Created` with the `OrderDto`). Tenant is
+**optional** here: pass `?tenantId=<tenant-guid>` (or the `X-TenantId` header) to submit under
+a tenant context, which requires the `carts_create` permission in that tenant. Omit it and the
+signed-in caller submits their own cart (sign-in only, no permission).
 
 ```bash
 # Without tenant context
@@ -212,7 +225,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Currency" \
   }'
 ```
 
-`CurrencySwitchRequest` fields: `cartID`, `currencyID` (note the capital `ID` — spec-verbatim).
+`CurrencySwitchRequest` fields: `cartID`, `currencyID` (note the capital `ID`, spec-verbatim).
 
 ## Cart Items (cart-id-scoped)
 
@@ -247,7 +260,8 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Items/<item-
 
 ### Increase Item Quantity (PUT)
 
-Body is an `ItemCartRecordUpdateDto` (`quantity` = the amount to increase by).
+The body (`ItemCartRecordUpdateDto`) is required by binding, but its `quantity` is ignored:
+the line always moves by one.
 
 ```bash
 curl -X PUT "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Items/<item-guid>/Increase" \
@@ -257,6 +271,8 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Items/<item-
 ```
 
 ### Decrease Item Quantity (PUT)
+
+Same as Increase: the body is required but ignored, and the line moves down by one.
 
 ```bash
 curl -X PUT "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Items/<item-guid>/Decrease" \
@@ -338,7 +354,16 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Lines/<li
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-## Records (trackable cart records — cart-id-scoped)
+## Recently Viewed (cart-id-scoped)
+
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/RecentlyViewed" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+Returns the cart's `RecentlyViewedItemRecordDto` list.
+
+## Records (trackable cart records, cart-id-scoped)
 
 The `Records` surface is a flat view of cart records (`ItemCartRecord`), addressed by
 `{recordId}`, with a tracked create path and convenience query-param helpers.
@@ -381,6 +406,11 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Records/<record-guid>/Details"
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
+> **Known defect:** `PUT`, `PATCH`, `Increase` and `Decrease` on `Records/{recordId}` (and
+> `GET Compare/{recordId}/Details`) currently pass the record ID as both the cart ID and the
+> item ID, so they do not address the record. Prefer the `Carts/{cartId}/Lines/{lineId}`
+> routes for line edits.
+
 ### Update a Cart Record (PUT)
 
 ```bash
@@ -392,7 +422,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/CartService/Records/<record-guid>" \
 
 `ItemCartRecordUpdateDto` field: `quantity` (number).
 
-### Patch a Cart Record (PATCH — JSON Patch)
+### Patch a Cart Record (PATCH, JSON Patch)
 
 ```bash
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/CartService/Records/<record-guid>" \
@@ -437,7 +467,7 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CartService/Records?cartId=<cart-guid>&
 
 ### Clear All Items from a Cart (query-param helper, POST)
 
-`cartID` is a **required** query param (note the capital `ID` — spec-verbatim).
+`cartID` is a **required** query param (note the capital `ID`, spec-verbatim).
 
 ```bash
 curl -X POST "$ABSUITE_HOST_URL/api/v2/CartService/Records/ClearCart?cartID=<cart-guid>" \
@@ -446,7 +476,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/CartService/Records/ClearCart?cartID=<car
 
 ### Check if an Item Is in a Cart (query-param helper)
 
-`itemID` and `cartID` are **required** query params (capital `ID` — spec-verbatim).
+`itemID` and `cartID` are **required** query params (capital `ID`, spec-verbatim).
 
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Records/IsInCart?itemID=<item-guid>&cartID=<cart-guid>" \
@@ -608,7 +638,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/CartService/WishLists/<wishlist-guid>" \
 
 `WishListUpdateDto` fields: `title` (**required**), `description`, `public` (boolean).
 
-#### Patch a Wish List (PATCH — JSON Patch)
+#### Patch a Wish List (PATCH, JSON Patch)
 
 ```bash
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/CartService/WishLists/<wishlist-guid>" \
@@ -690,7 +720,7 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Compare" \
 
 #### Add an Item to the Compare Table (POST)
 
-No request body — the item is addressed by `{itemId}` in the path.
+No request body, the item is addressed by `{itemId}` in the path.
 
 ```bash
 curl -X POST "$ABSUITE_HOST_URL/api/v2/CartService/Carts/<cart-guid>/Compare/<item-guid>" \
@@ -786,7 +816,7 @@ curl -X PUT "$BASE/Carts/<cart-guid>/Items/<item-guid>/Increase" \
 curl -X GET "$BASE/Carts/<cart-guid>/Lines" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# 7. Submit the cart (optionally under a tenant context)
+# 7. Submit the cart (sign-in only; add ?tenantId= to submit under a tenant, needs carts_create)
 curl -X POST "$BASE/Carts/<cart-guid>/Submit" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
@@ -806,7 +836,7 @@ scoped by the `{cartId}`/`{recordId}` path or `cartId`/`cartID` param (no tenant
 | Get cart by ID | GET | `/api/v2/CartService/Carts/{cartId}` | cartId |
 | Update cart | PUT | `/api/v2/CartService/Carts/{cartId}` | cartId |
 | Patch cart | PATCH | `/api/v2/CartService/Carts/{cartId}` | cartId |
-| Submit cart | POST | `/api/v2/CartService/Carts/{cartId}/Submit` | tenant (optional query) |
+| Submit cart | POST | `/api/v2/CartService/Carts/{cartId}/Submit` | tenant optional (query or `X-TenantId`): `carts_create`; else user |
 | Get cart country | GET | `/api/v2/CartService/Carts/{cartId}/Country` | cartId |
 | Set cart country | PUT | `/api/v2/CartService/Carts/{cartId}/Country` | cartId |
 | Get cart currency | GET | `/api/v2/CartService/Carts/{cartId}/Currency` | cartId |
@@ -823,6 +853,7 @@ scoped by the `{cartId}`/`{recordId}` path or `cartId`/`cartID` param (no tenant
 | Get cart line | GET | `/api/v2/CartService/Carts/{cartId}/Lines/{lineId}` | cartId |
 | Update cart line | PUT | `/api/v2/CartService/Carts/{cartId}/Lines/{lineId}` | cartId |
 | Remove cart line | DELETE | `/api/v2/CartService/Carts/{cartId}/Lines/{lineId}` | cartId |
+| List recently viewed | GET | `/api/v2/CartService/Carts/{cartId}/RecentlyViewed` | cartId |
 | Increase cart line quantity | PUT | `/api/v2/CartService/Carts/{cartId}/Lines/{lineId}/Increase` | cartId |
 | Decrease cart line quantity | PUT | `/api/v2/CartService/Carts/{cartId}/Lines/{lineId}/Decrease` | cartId |
 | Get items in a cart | GET | `/api/v2/CartService/Records/{cartId}` | cartId |
@@ -842,7 +873,7 @@ scoped by the `{cartId}`/`{recordId}` path or `cartId`/`cartID` param (no tenant
 | Get wish list (nested) | GET | `/api/v2/CartService/Carts/{cartId}/WishLists/{wishListId}` | cartId |
 | Update wish list (nested) | PUT | `/api/v2/CartService/Carts/{cartId}/WishLists/{wishListId}` | cartId |
 | Delete wish list (nested) | DELETE | `/api/v2/CartService/Carts/{cartId}/WishLists/{wishListId}` | cartId |
-| Wish list exists (nested) | GET | `/api/v2/CartService/Carts/{cartId}/WishLists/{wishListId}/Exists` | cartId |
+| Wish list exists (nested) | GET, HEAD | `/api/v2/CartService/Carts/{cartId}/WishLists/{wishListId}/Exists` | cartId |
 | List wish list records (nested) | GET | `/api/v2/CartService/Carts/{cartId}/WishLists/{wishListId}/Records` | cartId |
 | Add record to wish list (nested) | POST | `/api/v2/CartService/Carts/{cartId}/WishLists/{wishListId}/Records` | cartId |
 | Get wish list record (nested) | GET | `/api/v2/CartService/Carts/{cartId}/WishLists/{wishListId}/Records/{recordId}` | cartId |
@@ -858,7 +889,7 @@ scoped by the `{cartId}`/`{recordId}` path or `cartId`/`cartID` param (no tenant
 | Add product to wish list (flat) | POST | `/api/v2/CartService/WishLists/Records` | cartId |
 | Delete wish list record (flat) | DELETE | `/api/v2/CartService/WishLists/Records/{recordId}` | cartId |
 | Product in wish lists? (flat) | GET | `/api/v2/CartService/WishLists/Contains` | cartId |
-| Wish list exists? (flat) | GET | `/api/v2/CartService/WishLists/Exists` | cartId |
+| Wish list exists? (flat) | GET, HEAD | `/api/v2/CartService/WishLists/Exists` | cartId |
 | List compare items (nested) | GET | `/api/v2/CartService/Carts/{cartId}/Compare` | cartId |
 | Add item to compare (nested) | POST | `/api/v2/CartService/Carts/{cartId}/Compare/{itemId}` | cartId |
 | Get compare item (nested) | GET | `/api/v2/CartService/Carts/{cartId}/Compare/{itemId}` | cartId |

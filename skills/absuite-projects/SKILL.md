@@ -1,5 +1,7 @@
 ---
 name: absuite-projects
+key: paperclip/skills/absuite-projects/SKILL.md
+version: 1.0.0
 description: >
   Manage projects, project tasks, task categories, task types, project periods,
   time logs, and time-log approvals in the Alliance Business Suite (ABS) via the
@@ -9,11 +11,11 @@ description: >
   authenticate).
 ---
 
-# Alliance Business Suite — Projects Skill (REST)
+# Alliance Business Suite: Projects Skill (REST)
 
 Manage project management data through the `ProjectsService` REST API: projects and
 their periods, tasks, task categories, task types, time logs, and time-log approvals.
-Every endpoint is tenant-scoped — `tenantId` is **required** on every call, including
+Every endpoint is tenant-scoped: `tenantId` is **required** on every call, including
 writes (POST/PUT/PATCH/DELETE).
 
 For the CLI equivalent, see `absuite-projects-cli`. For the cross-domain REST
@@ -23,9 +25,9 @@ reference (envelope, tenant scoping, JSON Patch), see `absuite-rest`.
 
 > Full detail in `absuite-rest`; these rules apply across this skill's endpoints.
 
-- **Lists & counts are OData-enabled.** `GET` collection endpoints accept `$filter`, `$top`, `$skip`, `$orderby`, `$select` — page through results, don't fetch-all-and-filter. Each dedicated `.../Count` endpoint returns an integer and is **also** filterable (`?$filter=...` -> a filtered count). OData is a REST/HTTP-layer feature (the CLI does not expose it).
-- **`PUT` replaces the ENTIRE resource** — it overwrites, not merges, so any omitted field is reset to default/null. **GET the resource first, change the full object, then PUT it back**; sending a partial body to `PUT` (or an incomplete `POST` create) causes silent data loss.
-- **`PATCH`, where this service exposes it, is atomic and partial** (JSON Patch / RFC 6902) — it changes only the fields you name, needs no prior GET, and won't clobber the rest. Prefer it for small edits; use `PUT` only for a deliberate full replacement.
+- **Lists & counts are OData-enabled.** `GET` collection endpoints accept `$filter`, `$top`, `$skip`, `$orderby`, `$select`, so page through results instead of fetching everything and filtering. Each dedicated `.../Count` endpoint returns an integer and is **also** filterable (`?$filter=...` -> a filtered count). OData is a REST/HTTP-layer feature (the CLI does not expose it).
+- **`PUT` replaces the ENTIRE resource**: it overwrites, not merges, so any omitted field is reset to default/null. **GET the resource first, change the full object, then PUT it back**; sending a partial body to `PUT` (or an incomplete `POST` create) causes silent data loss.
+- **`PATCH`, where this service exposes it, is atomic and partial** (JSON Patch / RFC 6902): it changes only the fields you name, needs no prior GET, and won't clobber the rest. Prefer it for small edits; use `PUT` only for a deliberate full replacement.
 
 ## Authentication
 
@@ -47,7 +49,7 @@ Extract `accessToken` from the JSON response into `$ABSUITE_ACCESS_TOKEN`.
 
 3. **Base path:** `$ABSUITE_HOST_URL/api/v2/ProjectsService/...`
 
-4. **Response envelope** — every response is wrapped:
+4. **Response envelope.** Every response is wrapped:
 
 ```json
 {
@@ -63,34 +65,34 @@ Always check `isSuccess`; read the payload from `result`.
 
 ## Tenant Scoping
 
-`tenantId` is **required** on every ProjectsService endpoint (it appears as
-`tenantId(query,req)` in the spec for all routes). Pass it as the `?tenantId=<tenant-guid>`
-query parameter on **every** verb, including POST/PUT/PATCH/DELETE — omitting it on a
+`tenantId` is **required** on every ProjectsService endpoint (every controller action binds it
+as `[BindTenantId] [BindRequired] Guid tenantId`). Pass it as the `?tenantId=<tenant-guid>`
+query parameter on **every** verb, including POST/PUT/PATCH/DELETE. Omitting it on a
 write returns 400. The header form `X-TenantId: <tenant-guid>` is the equivalent; the
 query param is used in the examples below.
 
 > Several TimeLogs / ProjectTasks / TimeLogApprovals endpoints also accept the optional
-> `api-version` query parameter (or the `x-api-version` header). These are optional —
+> `api-version` query parameter (or the `x-api-version` header). These are optional:
 > omit them to use the default API version.
 
 ## Key Concepts
 
-- **Project** — the top-level aggregate. Owns periods, tasks, task categories, and time
+- **Project**: the top-level aggregate. Owns periods, tasks, task categories, and time
   logs. Created with `title`, `description`, optional `individualId` / `organizationId`
   (the party the project is for), and `projectStartDate` / `projectEndDate`.
-- **Project Period** — a time window inside a project (e.g. a billing period or sprint),
+- **Project Period**: a time window inside a project (e.g. a billing period or sprint),
   with `periodStartDate` / `periodEndDate`. Time-log approvals are requested per period.
-- **Project Task** — a unit of work inside a project, with `title`, `description`,
+- **Project Task**: a unit of work inside a project, with `title`, `description`,
   `startDate`, and `dueLine` (the due date). Tasks are addressable two ways: nested under
   a project (`/Projects/{projectId}/Tasks`) **and** at the top level (`/ProjectTasks`).
-- **Task Category** — groups task types; tenant-wide or project-scoped (`title`, optional
+- **Task Category**: groups task types; tenant-wide or project-scoped (`title`, optional
   `projectId`).
-- **Task Type** — a kind of task within a category (`title`, `taskCategoryId`,
+- **Task Type**: a kind of task within a category (`title`, `taskCategoryId`,
   `displayInTimeTracker`, `requiresDescription`).
-- **Time Log** — recorded effort against a task within a period (`timeSpan`, `logDate`,
+- **Time Log**: recorded effort against a task within a period (`timeSpan`, `logDate`,
   `comments`, `projectTaskId`, `projectPeriodId`).
   - `projectTimeLogRecordType` ∈ `RegularHours` | `OvertimeToPay` | `OvertimeToCompensate`.
-- **Time-Log Approval** — an approval request for a project period's hours.
+- **Time-Log Approval**: an approval request for a project period's hours.
   - `approvalStatus` ∈ `Pending` | `Approved` | `Rejected`.
 
 > Field names below are the **JSON body** field names exactly as the spec defines them
@@ -153,11 +155,14 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/ProjectsService/Projects/<project-guid>?te
   -d '{
     "title": "Website Redesign (Phase 2)",
     "description": "Phase 2 of the company website redesign",
+    "individualId": "<contact-guid>",
+    "organizationId": "<organization-guid>",
+    "projectStartDate": "2026-07-01T00:00:00Z",
     "projectEndDate": "2027-03-31T00:00:00Z"
   }'
 ```
 
-### Patch a project (atomic, PATCH — JSON Patch RFC 6902)
+### Patch a project (atomic PATCH, JSON Patch RFC 6902)
 
 ```bash
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/ProjectsService/Projects/<project-guid>?tenantId=<tenant-guid>" \
@@ -219,7 +224,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/ProjectsService/Projects/<project-guid>/Pe
   }'
 ```
 
-### Patch a period (PATCH — JSON Patch)
+### Patch a period (PATCH, JSON Patch)
 
 ```bash
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/ProjectsService/Projects/<project-guid>/Periods/<period-guid>?tenantId=<tenant-guid>" \
@@ -284,11 +289,12 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/ProjectsService/Projects/<project-guid>/Ta
   -d '{
     "title": "Design homepage wireframe (revised)",
     "description": "Revised wireframe with new header",
+    "startDate": "2026-07-02T00:00:00Z",
     "dueLine": "2026-07-12T00:00:00Z"
   }'
 ```
 
-### Patch a task (PATCH — JSON Patch)
+### Patch a task (PATCH, JSON Patch)
 
 ```bash
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/ProjectsService/Projects/<project-guid>/Tasks/<task-guid>?tenantId=<tenant-guid>" \
@@ -391,11 +397,13 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/ProjectsService/ProjectTasks/<task-guid>?t
   -H "Content-Type: application/json" \
   -d '{
     "title": "Implement contact form (revised)",
+    "description": "Wire up the new contact form to the API",
+    "startDate": "2026-07-03T00:00:00Z",
     "dueLine": "2026-07-14T00:00:00Z"
   }'
 ```
 
-### Patch a project task (PATCH — JSON Patch)
+### Patch a project task (PATCH, JSON Patch)
 
 ```bash
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/ProjectsService/ProjectTasks/<task-guid>?tenantId=<tenant-guid>" \
@@ -466,7 +474,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/ProjectsService/TaskCategories/<category-g
   }'
 ```
 
-### Patch a task category (PATCH — JSON Patch)
+### Patch a task category (PATCH, JSON Patch)
 
 ```bash
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/ProjectsService/TaskCategories/<category-guid>?tenantId=<tenant-guid>" \
@@ -495,7 +503,7 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/ProjectsService/TaskCategories/<category-g
 
 ## Task Types
 
-> Task Types have no list-all or count endpoint in the spec — discover types for a
+> Task Types have no list-all or count endpoint. Discover the types for a
 > category via `GET /TaskCategories/<category-guid>/Types` (above).
 
 ### Get a task type by ID
@@ -539,7 +547,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/ProjectsService/TaskTypes/<type-guid>?tena
   }'
 ```
 
-### Patch a task type (PATCH — JSON Patch)
+### Patch a task type (PATCH, JSON Patch)
 
 ```bash
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/ProjectsService/TaskTypes/<type-guid>?tenantId=<tenant-guid>" \
@@ -647,7 +655,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/ProjectsService/TimeLogs/<time-log-guid>?t
   }'
 ```
 
-### Patch a time log (PATCH — JSON Patch)
+### Patch a time log (PATCH, JSON Patch)
 
 ```bash
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/ProjectsService/TimeLogs/<time-log-guid>?tenantId=<tenant-guid>" \
@@ -723,9 +731,9 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/ProjectsService/TimeLogApprovals/<approval
 
 PATCH endpoints take a JSON **array** of operations (`Content-Type: application/json`).
 Each operation has an `op` (`add` | `remove` | `replace` | `move` | `copy` | `test`), a
-`path` (JSON Pointer with a leading `/` and the camelCase field name), and — for
-`add`/`replace`/`test` — a `value`. Use PATCH for atomic partial updates (change a couple
-of fields without resending the whole object — safer than PUT for concurrent edits).
+`path` (JSON Pointer with a leading `/` and the camelCase field name), and (for
+`add`/`replace`/`test`) a `value`. Use PATCH for atomic partial updates (change a couple
+of fields without resending the whole object; this is safer than PUT for concurrent edits).
 
 ```bash
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/ProjectsService/Projects/<project-guid>?tenantId=<tenant-guid>" \
@@ -748,7 +756,7 @@ field paths matching their Update DTO):
 - `PATCH /TaskTypes/{taskTypeId}`
 - `PATCH /TimeLogs/{timeLogId}`
 
-> Time-Log Approvals do **not** support PATCH — the approver and status are changed via
+> Time-Log Approvals do **not** support PATCH. The approver and status are changed via
 > the dedicated `PUT .../Approver` and `PUT .../Status` endpoints above.
 
 ---
@@ -871,11 +879,9 @@ All paths are relative to `$ABSUITE_HOST_URL/api/v2/ProjectsService/`. Every cal
 
 - **Authenticate first** and send `Authorization: Bearer $ABSUITE_ACCESS_TOKEN` on every call.
 - **`tenantId` is required on every endpoint** (query `?tenantId=` or header `X-TenantId:`),
-  including POST/PUT/PATCH/DELETE — omitting it on a write returns 400.
+  including POST/PUT/PATCH/DELETE. Omitting it on a write returns 400.
 - **Check `isSuccess`** and read the payload from `result`.
 - **Create task categories and types before referencing them** from tasks and time logs.
 - **PATCH bodies are JSON arrays** of operations, not objects.
 - For the CLI equivalent, see `absuite-projects-cli`. For the cross-domain REST reference,
   see `absuite-rest`.
-</content>
-</invoke>

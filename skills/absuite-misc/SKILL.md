@@ -1,23 +1,25 @@
 ---
 name: absuite-misc
+key: paperclip/skills/absuite-misc/SKILL.md
+version: 1.0.0
 description: >
-  Manage inventory, logistics, shipments, and sales resources via the Alliance
-  Business Suite (ABS) REST API. Covers warehouses, ports, vessels, voyages,
-  waybills (air/road/rail/sea), trucks, proofs of delivery, packing/pick/restock
-  documents, shipments, bills of lading, shipping methods/couriers/zones/classes,
-  stores, point-of-sales, loyalty programs and sales literature — including atomic
-  PATCH (JSON Patch) updates. All operations are tenant-scoped and require a bearer
+  Manage logistics, shipments, and sales resources via the Alliance Business Suite
+  (ABS) REST API. Covers warehouses, ports, vessels, voyages, waybills
+  (air/road/rail/sea), trucks, proofs of delivery, packing/pick/restock documents,
+  shipments, bills of lading, shipping methods/couriers/zones/classes, stores,
+  point-of-sales, loyalty programs and sales literature, including atomic PATCH
+  (JSON Patch) updates. All working operations are tenant-scoped and require a bearer
   token (see the absuite-login skill to authenticate).
 ---
 
-# Alliance Business Suite — Misc Services (Inventory / Logistics / Shipments / Sales / Marketplace) REST Skill
+# Alliance Business Suite: Misc Services (Logistics / Shipments / Sales) REST Skill
 
-This skill teaches an agent to drive five ABS services purely over REST:
-**InventoryService**, **LogisticsService**, **ShipmentsService**, **SalesService**, and
-**MarketplaceService**. Logistics and Shipments are large transport/document services
-(waybills, proofs of delivery, bills of lading, voyages, trucks). Sales is a small POS
-catalog (stores, POS terminals, loyalty programs, literature). Inventory exposes a single
-read endpoint. Marketplace currently exposes no tenant-domain REST endpoints.
+This skill teaches an agent to drive three ABS services purely over REST:
+**LogisticsService**, **ShipmentsService**, and **SalesService**. Logistics and Shipments
+are large transport/document services (waybills, proofs of delivery, bills of lading,
+voyages, trucks). Sales is a small POS catalog (stores, POS terminals, loyalty programs,
+literature). **InventoryService** and **MarketplaceService** currently expose no working
+REST endpoints (see their sections).
 
 > For the CLI equivalent see `absuite-misc-cli`; for general REST conventions see `absuite-rest`.
 
@@ -25,9 +27,10 @@ read endpoint. Marketplace currently exposes no tenant-domain REST endpoints.
 
 > Full detail in `absuite-rest`; these rules apply across this skill's endpoints.
 
-- **Lists & counts are OData-enabled.** `GET` collection endpoints accept `$filter`, `$top`, `$skip`, `$orderby`, `$select` — page through results, don't fetch-all-and-filter. Each dedicated `.../Count` endpoint returns an integer and is **also** filterable (`?$filter=...` -> a filtered count). OData is a REST/HTTP-layer feature (the CLI does not expose it).
-- **`PUT` replaces the ENTIRE resource** — it overwrites, not merges, so any omitted field is reset to default/null. **GET the resource first, change the full object, then PUT it back**; sending a partial body to `PUT` (or an incomplete `POST` create) causes silent data loss.
-- **`PATCH`, where this service exposes it, is atomic and partial** (JSON Patch / RFC 6902) — it changes only the fields you name, needs no prior GET, and won't clobber the rest. Prefer it for small edits; use `PUT` only for a deliberate full replacement.
+- **Lists & counts are OData-enabled.** `GET` collection endpoints accept `$filter`, `$top`, `$skip`, `$orderby`, `$select`; page through results, don't fetch-all-and-filter. Each dedicated `.../Count` endpoint returns an integer and is **also** filterable (`?$filter=...` gives a filtered count). OData is a REST/HTTP-layer feature (the CLI does not expose it).
+- **`PUT` replaces the ENTIRE resource**: it overwrites, not merges, so any omitted field is reset to default/null. **GET the resource first, change the full object, then PUT it back**; sending a partial body to `PUT` (or an incomplete `POST` create) causes silent data loss.
+- **`PATCH`, where this service exposes it, is atomic and partial** (JSON Patch / RFC 6902): it changes only the fields you name, needs no prior GET, and won't clobber the rest. Prefer it for small edits; use `PUT` only for a deliberate full replacement.
+- **Most creates return no id in the body.** Every create DTO accepts an optional `id` (GUID); send your own so you know the new resource's id without a follow-up list.
 
 ## Authentication
 
@@ -51,15 +54,13 @@ curl -X POST "$ABSUITE_HOST_URL/login" \
 
 ## Tenant scoping
 
-Read the per-endpoint rule from the manifest, do not assume:
-
-- **Logistics, Shipments, Sales** domain endpoints all require **`?tenantId=<tenant-guid>`**
-  on **every** verb — including POST / PUT / PATCH / DELETE and the `/Count`, `/Extended`,
-  and action sub-paths. Omitting it on writes returns `400`. The equivalent header is
+- **Logistics, Shipments, Sales** endpoints all require **`?tenantId=<tenant-guid>`**
+  on **every** verb, including POST / PUT / PATCH / DELETE and the `/Count`, `/Extended`,
+  and action sub-paths. Omitting it returns `400`. The equivalent header is
   `X-TenantId: <tenant-guid>` (the platform binds the query param OR the header
-  interchangeably); examples below use the query param.
-- **InventoryService `Inventory/{stockItemId}/Details`** takes **no** `tenantId` param
-  (path-scoped by the stock item) — do not add one.
+  interchangeably); examples below use the query param. Every operation runs on the
+  tenant path and checks the caller's permission in that tenant; there is no
+  personal (no-tenant) path in these services.
 - Optional everywhere: `api-version` (query) and `x-api-version` (header). Omit unless told otherwise.
 
 ## PATCH = JSON Patch (RFC 6902)
@@ -73,29 +74,24 @@ Read the per-endpoint rule from the manifest, do not assume:
 ]
 ```
 
-`op` ∈ `add|remove|replace|move|copy|test`; `path`/`from` are JSON-Pointers (leading `/`,
-camelCase field names). PATCH is for atomic partial updates — change a couple of fields
+`op` is one of `add|remove|replace|move|copy|test`; `path`/`from` are JSON Pointers (leading `/`,
+camelCase field names). PATCH is for atomic partial updates: change a couple of fields
 without resending the whole object (safer than PUT under concurrent edits). PATCH is
 available on Logistics and Shipments aggregates and their line/entry sub-resources, and on
 all four Sales aggregates. See each section for which paths support it.
 
 Field names in `-d '{...}'` create/update bodies use **camelCase** exactly as transcribed
-from the manifest below (e.g. `documentNumber`, `freightCurrencyId`, `shipperContactId`).
+from the DTOs below (e.g. `documentNumber`, `freightCurrencyId`, `shipperContactId`).
 A handful of ShipmentsService policy fields use trailing uppercase `ID` (`currencyID`,
-`countryID`, `shippingCourierID`) — transcribe those verbatim.
+`countryID`, `shippingCourierID`); transcribe those verbatim.
 
 ---
 
 # Inventory
 
-The **InventoryService** exposes a single read endpoint: inventory details for a stock item.
-There is no list/create/update/delete and no PATCH.
-
-```bash
-# Get inventory details for a stock item (no tenantId param — path-scoped)
-curl -X GET "$ABSUITE_HOST_URL/api/v2/InventoryService/Inventory/<stockItemId>/Details" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
+The **InventoryService** currently exposes **no working endpoint**. Its only route,
+`GET /api/v2/InventoryService/Inventory/{stockItemId}/Details`, is a placeholder that
+returns an empty `200` without reading anything; do not call it or rely on its result.
 
 ---
 
@@ -103,10 +99,11 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/InventoryService/Inventory/<stockItemId>/D
 
 The **LogisticsService** manages supply-chain documents and assets: warehouses, ports,
 vessels, voyages (with port calls), trucks (with trips), truck drivers, proofs of delivery
-(with lines and attached delivery notes), delivery notes, supplier profiles, item restocks /
-retain samples / packing slips / pick lists (each with entries), and four waybill families
-(air / rail / road / sea, each with lines). Every aggregate supports list / count / get /
-create / **PUT** / **PATCH** / delete; transport documents add lifecycle actions.
+(with lines and attached delivery notes), supplier profiles, item restocks / retain
+samples / packing slips / pick lists (each with entries, except retain samples), and four
+waybill families (air / rail / road / sea, each with lines). Every aggregate supports
+list / count / get / create / **PUT** / **PATCH** / delete; transport documents add
+lifecycle actions. Some sub-resources are write-only (noted per section).
 
 **All Logistics endpoints require `?tenantId=<tenant-guid>` on every verb.**
 
@@ -141,7 +138,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/Warehouses?tenantId=<ten
         "parentWarehouseId": null
       }'
 
-# Update (PUT — full replace)
+# Update (PUT: full replace; send the whole object)
 curl -X PUT "$ABSUITE_HOST_URL/api/v2/LogisticsService/Warehouses/<warehouseId>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
   -d '{ "title": "Central DC (renamed)", "address1": "100 Dock Rd" }'
@@ -204,7 +201,8 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/Vessels?tenantId=<tenant
 ## Trucks & Truck Trips
 
 Trucks support standard CRUD + count + PATCH. **Trips are a sub-resource of a truck**
-with their own CRUD + count + PATCH **plus five lifecycle actions**.
+with list / count / create / PUT / PATCH / delete **plus five lifecycle actions**. There is
+**no single-trip GET**; read trips through the list (filter with OData).
 
 ```bash
 # Truck create
@@ -228,7 +226,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/Trucks/<truckId>/Trips/<
 # ...Depart, Arrive, Deliver, Cancel follow the identical shape.
 ```
 
-Trip sub-paths: `GET|POST .../Trips`, `GET .../Trips/Count`, `GET|PUT|PATCH|DELETE .../Trips/<tripId>`,
+Trip sub-paths: `GET|POST .../Trips`, `GET .../Trips/Count`, `PUT|PATCH|DELETE .../Trips/<tripId>`,
 `POST .../Trips/<tripId>/{Arrive|Cancel|Deliver|Depart|Dispatch}`.
 `TruckTripCreateDto`: `tripNumber`, `containerNumber`, `sealNumber`, `departureTime`,
 `arrivalTime`, `distanceKm`, `notes`, `originPortId`, `originLocationId`,
@@ -252,7 +250,8 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/TruckDrivers/<driverId>/
 ## Voyages & Port Calls
 
 Voyages support CRUD + count + PATCH plus **Start / Complete / Cancel** lifecycle actions.
-**Port Calls are a sub-resource** with CRUD + count + PATCH (no lifecycle actions).
+**Port Calls are a sub-resource** with list / count / create / PUT / PATCH / delete (no
+lifecycle actions, and **no single-port-call GET**; read them through the list).
 
 ```bash
 # Voyage create
@@ -280,14 +279,17 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/Voyages/<voyageId>/PortC
 
 ## Proofs of Delivery (+ Lines, + Delivery Notes attach/detach)
 
-PODs support CRUD + count + PATCH, three actions (**Sign / Reject / Dispute**), a **Lines**
-sub-resource (CRUD + count + PATCH), and **DeliveryNotes** attach/detach.
+PODs support CRUD + count + PATCH and three actions (**Sign / Reject / Dispute**). The
+**Lines** sub-resource is **write-only**: add, PUT, PATCH and delete a line; there is no
+working line list, count or single-line read (read lines through the POD itself). Delivery
+notes can be **attached and detached** only; there is no working list or count of attached
+notes.
 
 ```bash
-# Create POD
+# Create POD (send your own id to know <podId>)
 curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/ProofsOfDelivery?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
-  -d '{ "documentNumber": "POD-1001", "shipmentId": "<shipment-guid>",
+  -d '{ "id": "<podId>", "documentNumber": "POD-1001", "shipmentId": "<shipment-guid>",
         "recipientName": "Receiving Dept", "deliveryAddress": "100 Dock Rd",
         "deliveryDate": "2026-06-12", "overallCondition": "Good" }'
 
@@ -305,12 +307,11 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/ProofsOfDelivery/<podId>
   -d '{ "description": "Pallet A", "quantityExpected": 10, "quantityReceived": 9,
         "quantityRejected": 1, "condition": "Damaged", "hsCode": "8471.30" }'
 
-# Attach / detach a delivery note (note ID is in the path, not the body)
+# Attach / detach an existing delivery note (note ID is in the path, not the body)
 curl -X POST   "$ABSUITE_HOST_URL/api/v2/LogisticsService/ProofsOfDelivery/<podId>/DeliveryNotes/<noteId>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 curl -X DELETE "$ABSUITE_HOST_URL/api/v2/LogisticsService/ProofsOfDelivery/<podId>/DeliveryNotes/<noteId>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-# List/Count attached notes: GET .../DeliveryNotes  and  GET .../DeliveryNotes/Count
 ```
 
 `ProofOfDeliveryCreateDto` links to any one transport doc via
@@ -325,19 +326,17 @@ plus `documentNumber`, `shipmentId`, `recipientName`, `recipientCompanyContactId
 
 ## Delivery Notes
 
-Standard CRUD + count. **No PATCH, no actions.**
-`DeliveryNoteCreateDto`: `title`, `description`, `shipmentId`, `proofOfDeliveryId`.
-
-```bash
-curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/DeliveryNotes?tenantId=<tenant-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
-  -d '{ "title": "DN-1001", "shipmentId": "<shipment-guid>" }'
-```
+The `/DeliveryNotes` routes (list, count, get, create, PUT, delete) are **not working**:
+none of them has a use case behind it, so they cannot be used to manage delivery notes.
+Only the POD attach/detach above and the packing slip `deliveryNoteId` field reference
+delivery notes.
 
 ## Supplier Profiles
 
-Standard CRUD + count + PATCH. `SupplierProfileCreateDto`: `type`, `contactId`, `about`,
+Standard CRUD + count + PATCH. `SupplierProfileCreateDto`: `contactId`, `about`,
 `avatarUrl`, and generic `data`/`dataLabel` through `data9`/`data9Label` extension slots.
+Do not send `type`: it is the profile's TPH discriminator, the server sets it to
+`SupplierProfile` and ignores any value you send.
 
 ## Item Restocks, Retain Samples, Packing Slips, Pick Lists
 
@@ -348,13 +347,13 @@ Document aggregates with entry sub-resources. All require `tenantId`.
 | Item Restocks | `/ItemRestocks` | `/ItemRestocks/<id>/Entries` | aggregate + entry |
 | Item Pick Lists | `/ItemPickLists` | `/ItemPickLists/<id>/Entries` | aggregate + entry |
 | Item Packing Slips | `/ItemPackingSlips` | `/ItemPackingSlips/<id>/Entries` | aggregate + entry |
-| Item Retain Samples | `/ItemRetainSamples` | — (no entries) | aggregate |
+| Item Retain Samples | `/ItemRetainSamples` | none (no entries) | aggregate |
 
 ```bash
 # Create a restock
 curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemRestocks?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
-  -d '{ "name": "Q3 replenishment", "description": "" }'
+  -d '{ "id": "<restockId>", "name": "Q3 replenishment", "description": "" }'
 
 # Add a restock entry (itemId, warehouseId, itemRestockId required)
 curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/ItemRestocks/<restockId>/Entries?tenantId=<tenant-guid>" \
@@ -372,8 +371,10 @@ DTO field notes (required marked **req**):
 ## Waybills (Airway / Rail / Road / Seaway) + Lines
 
 Four parallel transport-document families. Each has CRUD + count + PATCH, a **Lines**
-sub-resource (CRUD + count + PATCH), and lifecycle actions. The Lines DTO is shared across
-all four (`WaybillLineCreateDto`/`WaybillLineUpdateDto`).
+sub-resource, and lifecycle actions. **Lines are write-only**: add (POST), PUT, PATCH and
+delete a line; there is no working line list, count or single-line read (read lines
+through the waybill itself). The Lines DTO is shared across all four
+(`WaybillLineCreateDto`/`WaybillLineUpdateDto`).
 
 | Family | Base path | Path id param | Lifecycle actions |
 |--------|-----------|---------------|-------------------|
@@ -386,7 +387,7 @@ all four (`WaybillLineCreateDto`/`WaybillLineUpdateDto`).
 # Representative: create an airway bill
 curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/AirwayBills?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
-  -d '{ "documentNumber": "AWB-1001", "airwayBillType": "Master",
+  -d '{ "id": "<billId>", "documentNumber": "AWB-1001", "airwayBillType": "Master",
         "masterAwbNumber": "020-12345675", "shipperContactId": "<contact-guid>",
         "consigneeContactId": "<contact-guid>", "carrierId": "<courier-guid>",
         "airlineCode": "AA", "flightNumber": "AA100",
@@ -402,7 +403,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/AirwayBills/<billId>/Lin
         "packageType": "Carton", "hsCode": "8471.30", "declaredValue": 50000,
         "declaredValueCurrencyId": "<currency-guid>", "chargeableWeightKg": 250 }'
 
-# Lifecycle action (POST, no body) — e.g. issue then mark in transit
+# Lifecycle action (POST, no body), e.g. issue then mark in transit
 curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/AirwayBills/<billId>/Issue?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/AirwayBills/<billId>/MarkInTransit?tenantId=<tenant-guid>" \
@@ -423,8 +424,8 @@ Family-specific header DTO fields of note:
 - **Airway** (`AirwayBillCreateDto`): `airwayBillType`, `masterAwbNumber`, `notifyPartyContactId`, `airlineCode`, `flightNumber`, `airportOfDepartureCode`, `airportOfDestinationCode`, `departureDate`, `arrivalDate`, `dateIssued`, `declaredValueForCarriage`, `declaredValueForCustoms`, `insuranceAmount`, `specialHandlingCodes`, `specialInstructions`.
 - **Rail** (`RailWaybillCreateDto`): `railOperatorName`, `stationOfDeparture(/Code)`, `stationOfDestination(/Code)`, `prescribedRoute`, `wagonNumbers`, `dateOfAcceptance`, `customsFormalities` (Update adds `dateOfDelivery`).
 - **Road** (`RoadWaybillCreateDto`): `roadWaybillType`, `successiveCarriers`, `truckId`, `truckDriverId`, `vehicleRegistration`, `trailerRegistration`, `placeOfTakingOver(PortId)`, `placeOfDelivery(PortId)`, `dateOfTakingOver`, `adrDangerousGoods`, `truckTripId` (Update adds `dateOfDelivery`).
-- **Seaway** (`SeawayBillCreateDto`): `vesselId`, `voyageId`, `portOfLoadingId`, `portOfDischargeId`, `placeOfReceipt`, `placeOfDelivery`, `dateIssued`, `dateShipped`, `totalWeight`.
-- Common to all four: `documentNumber`, `shipperContactId`, `consigneeContactId`, `carrierId`, `freightTerms`, `freightAmount`, `freightCurrencyId`, `totalGrossWeightKg`/`totalWeight`, `totalPackages`, `totalVolumeM3`, `remarks`, `shipmentId`.
+- **Seaway** (`SeawayBillCreateDto`): `notifyPartyContactId`, `vesselId`, `voyageId`, `portOfLoadingId`, `portOfDischargeId`, `placeOfReceipt`, `placeOfDelivery`, `dateIssued`, `dateShipped`, `totalWeight`.
+- Common to all four: `documentNumber`, `shipperContactId`, `consigneeContactId`, `carrierId`, `freightTerms`, `freightAmount`, `freightCurrencyId`, `totalGrossWeightKg` (Seaway: `totalWeight`), `totalPackages`, `totalVolumeM3` (not Seaway), `specialInstructions`, `remarks`, `shipmentId`.
 
 ---
 
@@ -433,7 +434,8 @@ Family-specific header DTO fields of note:
 The **ShipmentsService** manages shipments, shipping labels, bills of lading (with lines),
 shipping methods, couriers, regions, zones, classes, and item shipping policies. Every
 aggregate supports list / count / get / create / PUT / **PATCH** / delete. Only Bills of
-Lading have a sub-resource (Lines). **No lifecycle actions in this service.**
+Lading have a sub-resource (Lines, full CRUD + count + PATCH). **No lifecycle actions in
+this service.**
 
 **All Shipments endpoints require `?tenantId=<tenant-guid>` on every verb.**
 
@@ -479,7 +481,8 @@ CRUD + count + PATCH on the bill, and a **Lines** sub-resource (CRUD + count + P
 # Create a bill of lading
 curl -X POST "$ABSUITE_HOST_URL/api/v2/ShipmentsService/BillsOfLading?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
-  -d '{ "billOfLadingNumber": "BL-1001", "title": "Ocean BL", "billOfLadingType": "Negotiable",
+  -d '{ "id": "<billOfLadingId>", "billOfLadingNumber": "BL-1001", "title": "Ocean BL",
+        "billOfLadingType": "Negotiable",
         "isNegotiable": true, "isClean": true, "numberOfOriginals": 3,
         "freightPaymentType": "Prepaid", "shippingTerms": "CIF",
         "shipperContactId": "<contact-guid>", "consigneeContactId": "<contact-guid>",
@@ -546,7 +549,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ShippingClasses?tenantId
 
 ## Item Shipping Policies
 
-CRUD + count + PATCH. Several fields use trailing uppercase `ID` — transcribe verbatim.
+CRUD + count + PATCH. Several fields use trailing uppercase `ID`; transcribe verbatim.
 
 ```bash
 curl -X POST "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ItemShippingPolicies?tenantId=<tenant-guid>" \
@@ -562,17 +565,18 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/ShipmentsService/ItemShippingPolicies?ten
 `shippingCourierID`. Optional: `description`, `isExpressShipmentPolicy`, `isFree`, `reduce`,
 `isEnabled`, `isDefault`, `allowInternational`, `hours`, `days`, `weeks`, `months`, `years`,
 `value`, `percentage`, `countryID`, `countryStateID`, `customState`, `customCity`, `cityID`.
+(Here `type` is an ordinary business field; the policy's TPH discriminator is a separate
+server-owned column.)
 
 ---
 
 # Sales
 
-The **SalesService** manages stores, point-of-sale terminals, loyalty programs, sales
-literature, and exposes a read-only margin lookup. The four collection aggregates support
-list / count / get / create / PUT / **PATCH** / delete. **No lifecycle actions.**
+The **SalesService** manages stores, point-of-sale terminals, loyalty programs, and sales
+literature. The four collection aggregates support list / count / get / create / PUT /
+**PATCH** / delete. **No lifecycle actions.**
 
-**All Sales collection endpoints require `?tenantId=<tenant-guid>` on every verb.** The
-`Margins/<marginId>/Details` lookup takes **no** `tenantId` param.
+**All Sales endpoints require `?tenantId=<tenant-guid>` on every verb.**
 
 ## Stores
 
@@ -628,42 +632,39 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/SalesService/SalesLiteratures?tenantId=<t
 `SalesLiteratureCreateDto`: `title`, `content`, `description`, `modifiedDate`,
 `expirationDate`, `salesLiteratureTypeId`.
 
-## Margins (read-only)
+## Margins
 
-```bash
-# Get margin details (no tenantId param)
-curl -X GET "$ABSUITE_HOST_URL/api/v2/SalesService/Margins/<marginId>/Details" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
+Not available. `GET /api/v2/SalesService/Margins/{marginId}/Details` is a placeholder that
+returns an empty `200` without reading anything; do not call it or rely on its result.
 
 ---
 
 # Marketplace
 
-The **MarketplaceService** currently exposes **no tenant-domain REST endpoints** — its
-OpenAPI surface contains only shared host endpoints (login/register/health and the AI
-Completions helper), which are not part of this skill. There is nothing to create, list,
-or update here yet; re-check the manifest when the service gains resources.
+The **MarketplaceService** currently exposes **no tenant-domain REST endpoints** (it has no
+controllers of its own). There is nothing to create, list, or update here yet; re-check
+when the service gains resources.
 
 ---
 
-# End-to-end workflow (create → add lines → issue → patch)
+# End-to-end workflow (create, add lines, issue, patch)
 
-A typical outbound-air shipment, using only verified endpoints (tenantId required throughout):
+A typical outbound-air shipment, using only working endpoints (tenantId required
+throughout). Each create sends its own `id`, because most creates return no id in the body:
 
 ```bash
 # 1) Create a shipment
 curl -X POST "$ABSUITE_HOST_URL/api/v2/ShipmentsService/Shipments?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
-  -d '{ "trackingCode": "TRK-2001", "isInternational": true, "shippingTerms": "CIF",
-        "orderId": "<order-guid>" }'   # -> result.id = <shipment-guid>
+  -d '{ "id": "<shipment-guid>", "trackingCode": "TRK-2001", "isInternational": true,
+        "shippingTerms": "CIF", "orderId": "<order-guid>" }'
 
 # 2) Create the airway bill for that shipment
 curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/AirwayBills?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
-  -d '{ "documentNumber": "AWB-2001", "shipperContactId": "<contact-guid>",
+  -d '{ "id": "<billId>", "documentNumber": "AWB-2001", "shipperContactId": "<contact-guid>",
         "consigneeContactId": "<contact-guid>", "carrierId": "<courier-guid>",
-        "shipmentId": "<shipment-guid>" }'   # -> result.id = <billId>
+        "shipmentId": "<shipment-guid>" }'
 
 # 3) Add a line
 curl -X POST "$ABSUITE_HOST_URL/api/v2/LogisticsService/AirwayBills/<billId>/Lines?tenantId=<tenant-guid>" \
@@ -686,16 +687,15 @@ curl -X PATCH "$ABSUITE_HOST_URL/api/v2/ShipmentsService/Shipments/<shipment-gui
 
 # API Endpoints Quick Reference
 
-`:id`/`:lineId`/`:entryId`/`:tripId` etc. are path params. Unless noted, all
+`:id`/`:lineId`/`:entryId`/`:tripId` etc. are path params. All
 LogisticsService / ShipmentsService / SalesService paths require `?tenantId=<tenant-guid>`.
+Where `(CRUD)` = GET (list), GET `/Count`, GET `/:id`, POST, PUT `/:id`, PATCH `/:id`, DELETE `/:id`.
 
 ## InventoryService
 
-| Action | Method | Path |
-|--------|--------|------|
-| Get stock-item inventory details (no tenantId) | GET | `/api/v2/InventoryService/Inventory/:stockItemId/Details` |
+No working endpoints (the `Inventory/:stockItemId/Details` route is a placeholder).
 
-## LogisticsService — Warehouses
+## LogisticsService: Warehouses
 
 | Action | Method | Path |
 |--------|--------|------|
@@ -707,9 +707,9 @@ LogisticsService / ShipmentsService / SalesService paths require `?tenantId=<ten
 | Patch | PATCH | `/api/v2/LogisticsService/Warehouses/:id` |
 | Delete | DELETE | `/api/v2/LogisticsService/Warehouses/:id` |
 
-## LogisticsService — Ports / Vessels / Supplier Profiles (identical CRUD shape)
+## LogisticsService: Ports / Vessels / Supplier Profiles (identical CRUD shape)
 
-| Action | Method | Path (Ports shown; swap `Ports`→`Vessels`/`SupplierProfiles`) |
+| Action | Method | Path (Ports shown; swap `Ports` for `Vessels`/`SupplierProfiles`) |
 |--------|--------|------|
 | List | GET | `/api/v2/LogisticsService/Ports` |
 | Count | GET | `/api/v2/LogisticsService/Ports/Count` |
@@ -719,11 +719,11 @@ LogisticsService / ShipmentsService / SalesService paths require `?tenantId=<ten
 | Patch | PATCH | `/api/v2/LogisticsService/Ports/:id` |
 | Delete | DELETE | `/api/v2/LogisticsService/Ports/:id` |
 
-## LogisticsService — Trucks & Trips
+## LogisticsService: Trucks & Trips
 
 | Action | Method | Path |
 |--------|--------|------|
-| List / Count / Get / Create / Update / Patch / Delete | (CRUD) | `/api/v2/LogisticsService/Trucks[/Count|/:id]` |
+| Trucks | (CRUD) | `/api/v2/LogisticsService/Trucks[/Count|/:id]` |
 | List trips | GET | `/api/v2/LogisticsService/Trucks/:truckId/Trips` |
 | Count trips | GET | `/api/v2/LogisticsService/Trucks/:truckId/Trips/Count` |
 | Create trip | POST | `/api/v2/LogisticsService/Trucks/:truckId/Trips` |
@@ -732,96 +732,92 @@ LogisticsService / ShipmentsService / SalesService paths require `?tenantId=<ten
 | Delete trip | DELETE | `/api/v2/LogisticsService/Trucks/:truckId/Trips/:tripId` |
 | Trip action | POST | `/api/v2/LogisticsService/Trucks/:truckId/Trips/:tripId/{Arrive\|Cancel\|Deliver\|Depart\|Dispatch}` |
 
-> Note: Trucks has **no `GET /Trips/:tripId`** single-trip read in the manifest.
+> Note: there is **no `GET /Trips/:tripId`** single-trip read.
 
-## LogisticsService — Truck Drivers
+## LogisticsService: Truck Drivers
 
 | Action | Method | Path |
 |--------|--------|------|
-| CRUD + Count | (CRUD) | `/api/v2/LogisticsService/TruckDrivers[/Count|/:id]` (+ PATCH `/:id`) |
+| Truck drivers | (CRUD) | `/api/v2/LogisticsService/TruckDrivers[/Count|/:id]` |
 | Activate | POST | `/api/v2/LogisticsService/TruckDrivers/:id/Activate` |
 | Deactivate | POST | `/api/v2/LogisticsService/TruckDrivers/:id/Deactivate` |
 
-## LogisticsService — Voyages & Port Calls
+## LogisticsService: Voyages & Port Calls
 
 | Action | Method | Path |
 |--------|--------|------|
-| CRUD + Count + Patch | (CRUD) | `/api/v2/LogisticsService/Voyages[/Count|/:id]` |
+| Voyages | (CRUD) | `/api/v2/LogisticsService/Voyages[/Count|/:id]` |
 | Lifecycle | POST | `/api/v2/LogisticsService/Voyages/:id/{Start\|Complete\|Cancel}` |
-| Port calls CRUD + Count + Patch | (CRUD) | `/api/v2/LogisticsService/Voyages/:id/PortCalls[/Count|/:portCallId]` |
+| List / Count port calls | GET | `/api/v2/LogisticsService/Voyages/:id/PortCalls[/Count]` |
+| Create port call | POST | `/api/v2/LogisticsService/Voyages/:id/PortCalls` |
+| Update / Patch / Delete port call | PUT / PATCH / DELETE | `/api/v2/LogisticsService/Voyages/:id/PortCalls/:portCallId` |
 
-## LogisticsService — Proofs of Delivery
+> Note: there is **no `GET /PortCalls/:portCallId`** single-port-call read.
+
+## LogisticsService: Proofs of Delivery
 
 | Action | Method | Path |
 |--------|--------|------|
-| CRUD + Count + Patch | (CRUD) | `/api/v2/LogisticsService/ProofsOfDelivery[/Count|/:id]` |
+| Proofs of delivery | (CRUD) | `/api/v2/LogisticsService/ProofsOfDelivery[/Count|/:id]` |
 | Sign / Reject / Dispute | POST | `/api/v2/LogisticsService/ProofsOfDelivery/:id/{Sign\|Reject\|Dispute}` |
-| Lines CRUD + Count + Patch | (CRUD) | `/api/v2/LogisticsService/ProofsOfDelivery/:id/Lines[/Count|/:lineId]` |
-| List / Count delivery notes | GET | `/api/v2/LogisticsService/ProofsOfDelivery/:id/DeliveryNotes[/Count]` |
+| Add line | POST | `/api/v2/LogisticsService/ProofsOfDelivery/:id/Lines` |
+| Update / Patch / Delete line | PUT / PATCH / DELETE | `/api/v2/LogisticsService/ProofsOfDelivery/:id/Lines/:lineId` |
 | Attach delivery note | POST | `/api/v2/LogisticsService/ProofsOfDelivery/:id/DeliveryNotes/:noteId` |
 | Detach delivery note | DELETE | `/api/v2/LogisticsService/ProofsOfDelivery/:id/DeliveryNotes/:noteId` |
 
-## LogisticsService — Delivery Notes
-
-| Action | Method | Path |
-|--------|--------|------|
-| List / Count / Get / Create / Update / Delete (no PATCH) | (CRUD) | `/api/v2/LogisticsService/DeliveryNotes[/Count|/:id]` |
-
-## LogisticsService — Item Restocks / Pick Lists / Packing Slips (with Entries)
+## LogisticsService: Item Restocks / Pick Lists / Packing Slips (with Entries)
 
 | Action | Method | Path (Restocks shown) |
 |--------|--------|------|
-| CRUD + Count + Patch | (CRUD) | `/api/v2/LogisticsService/ItemRestocks[/Count|/:id]` |
-| Entries CRUD + Count + Patch | (CRUD) | `/api/v2/LogisticsService/ItemRestocks/:id/Entries[/Count|/:entryId]` |
+| Restocks | (CRUD) | `/api/v2/LogisticsService/ItemRestocks[/Count|/:id]` |
+| Entries | (CRUD) | `/api/v2/LogisticsService/ItemRestocks/:id/Entries[/Count|/:entryId]` |
 
-Swap `ItemRestocks`→`ItemPickLists` or `ItemPackingSlips` (same shape).
+Swap `ItemRestocks` for `ItemPickLists` or `ItemPackingSlips` (same shape).
 
-## LogisticsService — Item Retain Samples
+## LogisticsService: Item Retain Samples
 
 | Action | Method | Path |
 |--------|--------|------|
-| CRUD + Count + Patch (no entries) | (CRUD) | `/api/v2/LogisticsService/ItemRetainSamples[/Count|/:id]` |
+| Retain samples (no entries) | (CRUD) | `/api/v2/LogisticsService/ItemRetainSamples[/Count|/:id]` |
 
-## LogisticsService — Waybills (Airway / Rail / Road / Seaway) + Lines
+## LogisticsService: Waybills (Airway / Rail / Road / Seaway) + Lines
 
 | Action | Method | Path (`AirwayBills`/`:billId` shown) |
 |--------|--------|------|
-| CRUD + Count + Patch | (CRUD) | `/api/v2/LogisticsService/AirwayBills[/Count|/:billId]` |
-| Lines CRUD + Count + Patch | (CRUD) | `/api/v2/LogisticsService/AirwayBills/:billId/Lines[/Count|/:lineId]` |
+| Waybills | (CRUD) | `/api/v2/LogisticsService/AirwayBills[/Count|/:billId]` |
+| Add line | POST | `/api/v2/LogisticsService/AirwayBills/:billId/Lines` |
+| Update / Patch / Delete line | PUT / PATCH / DELETE | `/api/v2/LogisticsService/AirwayBills/:billId/Lines/:lineId` |
 | Airway actions | POST | `.../AirwayBills/:billId/{Issue\|Cancel\|MarkInTransit\|MarkArrived\|MarkDelivered}` |
 | Rail actions | POST | `.../RailWaybills/:waybillId/{Issue\|Cancel\|MarkInTransit\|MarkDelivered}` |
 | Road actions | POST | `.../RoadWaybills/:waybillId/{Issue\|Cancel\|Dispute\|MarkInTransit\|MarkDelivered}` |
 | Seaway actions | POST | `.../SeawayBills/:billId/{Issue\|Cancel\|MarkInTransit\|MarkArrived\|Release}` |
 
-> Rail/Road use `:waybillId`, Airway/Seaway use `:billId`. Lines paths and DTO are identical across all four families.
+> Rail/Road use `:waybillId`, Airway/Seaway use `:billId`. Lines paths and DTO are identical across all four families. There is no working line list, line count, or single-line read.
 
 ## ShipmentsService
 
 | Action | Method | Path |
 |--------|--------|------|
-| Shipments CRUD + Count + Patch | (CRUD) | `/api/v2/ShipmentsService/Shipments[/Count|/:id]` |
-| Shipping Labels CRUD + Count + Patch | (CRUD) | `/api/v2/ShipmentsService/ShippingLabels[/Count|/:id]` |
-| Bills of Lading CRUD + Count + Patch | (CRUD) | `/api/v2/ShipmentsService/BillsOfLading[/Count|/:id]` |
-| BoL Lines CRUD + Count + Patch | (CRUD) | `/api/v2/ShipmentsService/BillsOfLading/:id/Lines[/Count|/:lineId]` |
-| Shipping Methods CRUD + Count + Patch | (CRUD) | `/api/v2/ShipmentsService/ShippingMethods[/Count|/:id]` |
-| Shipping Couriers CRUD + Count + Patch | (CRUD) | `/api/v2/ShipmentsService/ShippingCouriers[/Count|/:id]` |
-| Shipping Regions CRUD + Count + Patch | (CRUD) | `/api/v2/ShipmentsService/ShippingRegions[/Count|/:id]` |
-| Shipping Zones CRUD + Count + Patch | (CRUD) | `/api/v2/ShipmentsService/ShippingZones[/Count|/:id]` |
-| Shipping Classes CRUD + Count + Patch | (CRUD) | `/api/v2/ShipmentsService/ShippingClasses[/Count|/:id]` |
-| Item Shipping Policies CRUD + Count + Patch | (CRUD) | `/api/v2/ShipmentsService/ItemShippingPolicies[/Count|/:id]` |
-
-Where `(CRUD)` = GET (list), GET `/Count`, GET `/:id`, POST, PUT `/:id`, PATCH `/:id`, DELETE `/:id`.
+| Shipments | (CRUD) | `/api/v2/ShipmentsService/Shipments[/Count|/:id]` |
+| Shipping Labels | (CRUD) | `/api/v2/ShipmentsService/ShippingLabels[/Count|/:id]` |
+| Bills of Lading | (CRUD) | `/api/v2/ShipmentsService/BillsOfLading[/Count|/:id]` |
+| BoL Lines | (CRUD) | `/api/v2/ShipmentsService/BillsOfLading/:id/Lines[/Count|/:lineId]` |
+| Shipping Methods | (CRUD) | `/api/v2/ShipmentsService/ShippingMethods[/Count|/:id]` |
+| Shipping Couriers | (CRUD) | `/api/v2/ShipmentsService/ShippingCouriers[/Count|/:id]` |
+| Shipping Regions | (CRUD) | `/api/v2/ShipmentsService/ShippingRegions[/Count|/:id]` |
+| Shipping Zones | (CRUD) | `/api/v2/ShipmentsService/ShippingZones[/Count|/:id]` |
+| Shipping Classes | (CRUD) | `/api/v2/ShipmentsService/ShippingClasses[/Count|/:id]` |
+| Item Shipping Policies | (CRUD) | `/api/v2/ShipmentsService/ItemShippingPolicies[/Count|/:id]` |
 
 ## SalesService
 
 | Action | Method | Path |
 |--------|--------|------|
-| Stores CRUD + Count + Patch | (CRUD) | `/api/v2/SalesService/Stores[/Count|/:id]` |
-| Point of Sales CRUD + Count + Patch | (CRUD) | `/api/v2/SalesService/PointOfSales[/Count|/:id]` |
-| Loyalty Programs CRUD + Count + Patch | (CRUD) | `/api/v2/SalesService/LoyaltyPrograms[/Count|/:id]` |
-| Sales Literatures CRUD + Count + Patch | (CRUD) | `/api/v2/SalesService/SalesLiteratures[/Count|/:id]` |
+| Stores | (CRUD) | `/api/v2/SalesService/Stores[/Count|/:id]` |
+| Point of Sales | (CRUD) | `/api/v2/SalesService/PointOfSales[/Count|/:id]` |
+| Loyalty Programs | (CRUD) | `/api/v2/SalesService/LoyaltyPrograms[/Count|/:id]` |
+| Sales Literatures | (CRUD) | `/api/v2/SalesService/SalesLiteratures[/Count|/:id]` |
 | Sales Literatures (extended list) | GET | `/api/v2/SalesService/SalesLiteratures/Extended` |
-| Margin details (no tenantId) | GET | `/api/v2/SalesService/Margins/:marginId/Details` |
 
 ## MarketplaceService
 
@@ -833,11 +829,14 @@ No tenant-domain REST endpoints currently exposed.
 
 - Always check `isSuccess` and read data from `result`.
 - Send `?tenantId=<tenant-guid>` on **every** Logistics / Shipments / Sales call (incl. writes,
-  `/Count`, `/Extended`, actions). Do **not** send it to `Inventory/.../Details` or
-  `Margins/.../Details`.
+  `/Count`, `/Extended`, actions).
+- Do not use the placeholder routes (`Inventory/.../Details`, `Margins/.../Details`) or the
+  `/DeliveryNotes` CRUD and the line/note list and count routes noted above: they have no
+  implementation behind them.
+- Send your own `id` on create when you need the new resource's id; most creates don't return it.
 - PATCH bodies are JSON-Patch arrays (`[{op,path,value}]`); PUT bodies are full DTO objects.
-- Create/Update body keys are camelCase as transcribed — except ItemShippingPolicies, which
+- Create/Update body keys are camelCase as transcribed, except ItemShippingPolicies, which
   use `currencyID`/`countryID`/`countryStateID`/`cityID`/`shippingCourierID` (uppercase `ID`).
-- `shippingTerms` (Shipments) and `shippingClassCalculationType` (Shipping Methods) are enums —
+- `shippingTerms` (Shipments) and `shippingClassCalculationType` (Shipping Methods) are enums;
   use only the listed values.
 - For the CLI equivalent see `absuite-misc-cli`; for general REST conventions see `absuite-rest`.

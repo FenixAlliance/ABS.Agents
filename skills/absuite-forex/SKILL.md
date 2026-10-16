@@ -1,17 +1,19 @@
 ---
 name: absuite-forex
+key: paperclip/skills/absuite-forex/SKILL.md
+version: 1.0.0
 description: >
   Retrieve foreign-exchange rates and perform currency conversions via the
   Alliance Business Suite (ABS) REST API. Covers latest and historical rate
   lookups (all currencies or a single currency) and currency-amount exchange at
   latest or historical rates, on both the v2 and v3 endpoints. ForexService is
-  PUBLIC reference data — operations are NOT tenant-scoped. A bearer token is
+  PUBLIC reference data: operations are NOT tenant-scoped. A bearer token is
   still recommended (see the absuite-login skill to authenticate).
 ---
 
-# Alliance Business Suite — Forex Skill (REST)
+# Alliance Business Suite: Forex Skill (REST)
 
-Retrieve currency exchange rates and convert monetary amounts through the `ForexService` REST API. ForexService exposes **public reference data** (exchange rates and currency conversion). Every operation is a `GET`; there are **no** create/update/delete operations and **no** tenant scoping — do not pass `tenantId` or an `X-TenantId` header to these endpoints (it is ignored).
+Retrieve currency exchange rates and convert monetary amounts through the `ForexService` REST API. ForexService exposes **public reference data** (exchange rates and currency conversion). Every public operation is a `GET`; there are **no** create/update/delete operations and **no** tenant scoping: do not pass `tenantId` or an `X-TenantId` header to these endpoints (it is ignored).
 
 > For the CLI equivalent see `absuite-forex-cli`; for general REST conventions (envelope, auth, scoping) see `absuite-rest`.
 
@@ -48,7 +50,7 @@ export ABSUITE_ACCESS_TOKEN="<access-token>"
 
 3. **Base path:** `$ABSUITE_HOST_URL/api/v2/ForexService/<Resource>` (and `$ABSUITE_HOST_URL/api/v3/ForexService/<Resource>` for the v3 Exchange endpoints).
 
-4. **Response envelope** — every response is wrapped:
+4. **Response envelope**: every response is wrapped:
 
 ```json
 {
@@ -64,21 +66,21 @@ Always check `isSuccess`; read the payload from `result`.
 
 ## Tenant scoping
 
-**None.** ForexService is public reference data. The manifest lists **no `tenantId` parameter** on any ForexService endpoint — these are public, like Globe and login/health. Do **not** add `?tenantId=` or an `X-TenantId` header; it is ignored.
+**None.** ForexService is public reference data. The manifest lists **no `tenantId` parameter** on any ForexService endpoint: these are public, like Globe and login/health. Do **not** add `?tenantId=` or an `X-TenantId` header; it is ignored.
 
 ## Key Concepts
 
 - **Currency IDs** are passed verbatim as the `sourceCurrencyId` / `targetCurrencyId` query values and as the `{currencyId}` path segment for single-currency rate lookups. Use the Globe service (`GlobeService` / `absuite globe`) to discover valid currency identifiers; do not assume a format.
-- **Latest vs Historical** — "Latest" endpoints use the most recent available rates and take no date. "Historical" endpoints require a `date` (Exchange) or accept an optional `date` (Rates) to select the rate snapshot. Dates are ISO 8601 (e.g. `2026-01-15T00:00:00Z`).
-- **v2 vs v3 Exchange** — `Exchange/Latest` and `Exchange/History` exist under both `/api/v2/...` and `/api/v3/...` with identical query parameters. The v2 responses return a `Money` payload (converted amount + currency); the v3 responses return an `ExchangeRate` payload (source `Money`, target `Money`, and rate `Money`). The Rates endpoints exist on `/api/v2/...` only.
-- **`ExchangeRate` payload** — `source` (`Money`), `target` (`Money`), `rate` (`Money`).
-- **`Money` payload** — `amount` (number) and `currency` (a `CurrencyId`).
-- **`ForexRatesDto` payload** (rate-set responses) — `success` (bool), `date` (string), `base` (string), `timestamp` (int64), `requestTimestamp` (datetime), `rates` (map of currency → rate).
-- **API version selectors** — the Rates endpoints accept an optional `api-version` query parameter and an optional `x-api-version` request header. Both are optional; omit them unless you need to pin a version.
+- **Latest vs Historical**: "Latest" endpoints use the most recent available rates and take no date. "Historical" endpoints require a `date` (Exchange) or accept an optional `date` (Rates) to select the rate snapshot. Dates are ISO 8601 (e.g. `2026-01-15T00:00:00Z`).
+- **v2 vs v3 Exchange**: `Exchange/Latest` and `Exchange/History` exist under both `/api/v2/...` and `/api/v3/...` with identical query parameters. The v2 responses return a `Money` payload (converted amount + currency); the v3 responses return an `ExchangeRate` payload (source `Money`, target `Money`, and rate `Money`). The Rates endpoints exist on `/api/v2/...` only.
+- **`ExchangeRate` payload**: `source` (`Money`), `target` (`Money`), `rate` (`Money`).
+- **`Money` payload**: `amount` (number) and `currency` (a `CurrencyId`).
+- **`ForexRatesDto` payload** (rate-set responses): `success` (bool), `date` (string), `base` (string), `timestamp` (int64), `requestTimestamp` (datetime), `rates` (map of currency → rate).
+- **API version selectors**: the Rates endpoints accept an optional `api-version` query parameter and an optional `x-api-version` request header. Both are optional; omit them unless you need to pin a version.
 
 ## PATCH availability
 
-**PATCH is not available for ForexService.** This service is read-only public reference data — the manifest defines only `GET` operations, with no `POST`, `PUT`, `DELETE`, or `PATCH`. There is no JSON-Patch surface here. (PATCH, where it exists in ABS, is a REST-only capability documented in the relevant domain's REST skill.)
+**PATCH is not available for ForexService.** This service is read-only public reference data: its public operations are all `GET`, with no `PUT`, `DELETE`, or `PATCH`. (Two `POST` maintenance operations exist for the platform operator only; they are not for tenant or agent use and are not covered here.) There is no JSON-Patch surface here. (PATCH, where it exists in ABS, is a REST-only capability documented in the relevant domain's REST skill.)
 
 ## Operations
 
@@ -174,7 +176,7 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/ForexService/Rates/History/<currency-id>?d
 
 ## End-to-end workflow
 
-Discover a currency, read the latest rate, then convert an amount — using only verified endpoints.
+Discover a currency, read the latest rate, then convert an amount: using only verified endpoints.
 
 ```bash
 # 1. (Discovery) find valid currency identifiers via the Globe service.
@@ -210,8 +212,8 @@ curl -X GET "$ABSUITE_HOST_URL/api/v3/ForexService/Exchange/History?amount=1000&
 
 ## Critical Rules
 
-- **Public, untenanted.** Never attach `tenantId` or an `X-TenantId` header to ForexService calls — the manifest defines no tenant parameter and it is ignored.
+- **Public, untenanted.** Never attach `tenantId` or an `X-TenantId` header to ForexService calls: the manifest defines no tenant parameter and it is ignored.
 - **Exchange `date` is required for History; Rates `date` is optional.** The two `Exchange/History` endpoints (v2 and v3) require `date`; the two `Rates/History` endpoints treat `date` as optional.
 - **v2 Exchange returns `Money`; v3 Exchange returns `ExchangeRate`.** Pick the version by the payload shape you need.
 - **Discover currency IDs via the Globe service** rather than hard-coding any format.
-- **Always parse the envelope** — check `isSuccess`, then read `result`.
+- **Always parse the envelope**: check `isSuccess`, then read `result`.

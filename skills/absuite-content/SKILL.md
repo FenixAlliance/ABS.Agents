@@ -1,7 +1,9 @@
 ---
 name: absuite-content
+key: paperclip/skills/absuite-content/SKILL.md
+version: 1.0.0
 description: >
-  Manage web content in the Alliance Business Suite (ABS) via the REST API — web
+  Manage web content in the Alliance Business Suite (ABS) via the REST API: web
   portals, web pages, web-page categories/tags, web content blocks, web templates,
   website themes, web components, menu contexts, localization strings, business
   domains, and the full blog system (posts, authors, categories, tags, comments).
@@ -9,7 +11,7 @@ description: >
   tenant-scoped and require a bearer token (see the absuite-login skill to authenticate).
 ---
 
-# Alliance Business Suite — Content Skill (REST)
+# Alliance Business Suite: Content Skill (REST)
 
 Drive the ABS **ContentService** directly over HTTP with `curl`. This skill is the
 comprehensive content surface: web portals and their settings/options/domain bindings,
@@ -20,16 +22,16 @@ comments). For a blog-only subset use the separate `absuite-blog` skill.
 
 - For the CLI equivalent, see `absuite-content-cli`.
 - For generic REST conventions (envelope, auth, paging), see `absuite-rest`.
-- The portal **Initialize** / onboarding flow is documented in `absuite-onboarding` — it
+- The portal **Initialize** / onboarding flow is documented in `absuite-onboarding`: it
   is referenced here but not duplicated.
 
 ## API usage essentials
 
 > Full detail in `absuite-rest`; these rules apply across this skill's endpoints.
 
-- **Lists & counts are OData-enabled.** `GET` collection endpoints accept `$filter`, `$top`, `$skip`, `$orderby`, `$select` — page through results, don't fetch-all-and-filter. Each dedicated `.../Count` endpoint returns an integer and is **also** filterable (`?$filter=...` -> a filtered count). OData is a REST/HTTP-layer feature (the CLI does not expose it).
-- **`PUT` replaces the ENTIRE resource** — it overwrites, not merges, so any omitted field is reset to default/null. **GET the resource first, change the full object, then PUT it back**; sending a partial body to `PUT` (or an incomplete `POST` create) causes silent data loss.
-- **`PATCH`, where this service exposes it, is atomic and partial** (JSON Patch / RFC 6902) — it changes only the fields you name, needs no prior GET, and won't clobber the rest. Prefer it for small edits; use `PUT` only for a deliberate full replacement.
+- **Lists & counts are OData-enabled.** `GET` collection endpoints accept `$filter`, `$top`, `$skip`, `$orderby`, `$select`: page through results, don't fetch-all-and-filter. Each dedicated `.../Count` endpoint returns an integer and is **also** filterable (`?$filter=...` -> a filtered count). OData is a REST/HTTP-layer feature (the CLI does not expose it).
+- **`PUT` replaces the ENTIRE resource**: it overwrites, not merges, so any omitted field is reset to default/null. **GET the resource first, change the full object, then PUT it back**; sending a partial body to `PUT` (or an incomplete `POST` create) causes silent data loss.
+- **`PATCH`, where this service exposes it, is atomic and partial** (JSON Patch / RFC 6902): it changes only the fields you name, needs no prior GET, and won't clobber the rest. Prefer it for small edits; use `PUT` only for a deliberate full replacement.
 
 ## Authentication
 
@@ -48,27 +50,27 @@ Extract `accessToken` from the JSON response.
 
 3. **Base path:** `$ABSUITE_HOST_URL/api/v2/ContentService/<Resource>`
 
-4. **Response envelope** — every response is wrapped:
+4. **Response envelope**: every response is wrapped:
 ```json
 { "isSuccess": true, "errorMessage": null, "correlationId": "...", "timestamp": "...", "result": <data|array|int|null> }
 ```
 Always check `isSuccess`; read the payload from `result`.
 
-## Tenant scoping (read carefully — it is per-endpoint)
+## Tenant scoping (read carefully: it is per-endpoint)
 
 ABS binds the tenant from the `?tenantId=<tenant-guid>` query param **or** the
 `X-TenantId: <tenant-guid>` header (interchangeable). The rules below come straight
 from the ContentService manifest:
 
-- **Tenant REQUIRED** (`tenantId(query,req)`) — pass `?tenantId=<tenant-guid>` on **every**
+- **Tenant REQUIRED** (`tenantId(query,req)`): pass `?tenantId=<tenant-guid>` on **every**
   verb, including POST/PUT/PATCH/DELETE. Omitting it on a write returns 400. This applies
   to: Portals list/create/update/patch/delete + settings/domain-bindings, BusinessDomains
   (all), WebPages create/update/patch/delete + relations, WebPageCategories, WebPageTags,
   WebContents, WebComponents, WebTemplates, WebsiteThemes, MenuContexts, LocalizationStrings,
   BlogPostCategories, BlogPostTags, and all blog write/relation/comment operations.
-- **Tenant OPTIONAL** (`tenantId(query,opt)`) — omit for the global/public view, pass to scope
+- **Tenant OPTIONAL** (`tenantId(query,opt)`): omit for the global/public view, pass to scope
   to a tenant. This applies to: `GET /BlogPosts` (list) and `GET /BlogPosts/Count`.
-- **No tenantId param** — do **NOT** add a tenant param or header; it is ignored. This applies to:
+- **No tenantId param**: do **NOT** add a tenant param or header; it is ignored. This applies to:
   - `GET /Portals/Current`, `GET /Portals/Current/Options`, `GET /Portals/Root`,
     `GET /Portals/Search`, `POST /Portals/Initialize` (host/portal-scoped).
   - `GET /Portals/{portalId}`, `GET /Portals/{portalId}/Options`, `GET /Portals/{portalId}/Settings`
@@ -76,7 +78,7 @@ from the ContentService manifest:
   - `GET /BlogPosts/{blogPostId}` and the blog sub-reads
     (`/BlogPostAuthors`, `.../Categories`, `.../Tags`, `.../Comments`, `.../Replies`),
     and `GET /WebPages/{webPageId}/Categories`, `GET /WebPages/{webPageId}/Tags`.
-  - `GET /Themes/Update`.
+  - `POST /Themes/BaseWebContent` (root-tenant instance administrators only).
 
 > Note the header is `X-TenantId` (no second hyphen). `X-Tenant-ID` is **not** read by the platform.
 
@@ -93,7 +95,7 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/Portals?tenantId=<tenant-gu
 curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/Portals/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Get portal by ID (NO tenantId — resolved by portal id)
+# Get portal by ID (NO tenantId: resolved by portal id)
 curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/Portals/<portal-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
@@ -112,7 +114,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/Portals?tenantId=<tenant-g
     "BusinessPortalApplicationId": "<app-guid>"
   }'
 
-# Update a portal (PUT — full replace)
+# Update a portal (PUT: full replace)
 curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/Portals/<portal-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
@@ -127,7 +129,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/Portals/<portal-guid>?tenan
     "BusinessPortalApplicationId": "<app-guid>"
   }'
 
-# Patch a portal (PARTIAL — JSON Patch)
+# Patch a portal (PARTIAL: JSON Patch)
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/ContentService/Portals/<portal-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
@@ -142,7 +144,7 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/Portals/<portal-guid>?te
 `Root` (bool), `Disabled` (bool), `WebsiteThemeId`, `BusinessDomainId`,
 `BusinessPortalApplicationId`. (Create also accepts `Id`, `Timestamp`.)
 
-### Current / Root / Search / Initialize portals (host-scoped — NO tenantId)
+### Current / Root / Search / Initialize portals (host-scoped: NO tenantId)
 
 ```bash
 # Current portal (resolved from the request host)
@@ -161,7 +163,7 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/Portals/Root" \
 curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/Portals/Search?domain=www.example.com" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Initialize the current portal (onboarding flow — see absuite-onboarding)
+# Initialize the current portal (onboarding flow: see absuite-onboarding)
 curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/Portals/Initialize" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
@@ -177,7 +179,7 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/Portals/<portal-guid>/Optio
 curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/Portals/<portal-guid>/Settings" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Update settings (tenant required) — body is a PortalSettings object
+# Update settings (tenant required): body is a PortalSettings object
 curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/Portals/<portal-guid>/Settings?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
@@ -185,7 +187,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/Portals/<portal-guid>/Setti
     "Enable": true,
     "PortalID": "<portal-guid>",
     "Scopes": "...",
-    "TenantID": "<tenant-guid>",
+    "TenantId": "<tenant-guid>",
     "HomePageID": "<page-guid>",
     "BlogPageID": "<page-guid>",
     "StorePageID": "<page-guid>",
@@ -199,7 +201,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/Portals/<portal-guid>/Setti
   }'
 ```
 
-**PortalSettings fields:** `Enable` (bool), `PortalID`, `Scopes`, `TenantID`, `HomePageID`,
+**PortalSettings fields:** `Enable` (bool), `PortalID`, `Scopes`, `TenantId`, `HomePageID`,
 `BlogPageID`, `StorePageID`, `BaseEndpoint`, `StoreRoutePrefix`, `PublicKey`, `PrivateKey`,
 `AuthToken`, `AuthTokenType`, `AuthTokenExpiration` (int), `Options` (PortalOptions object).
 
@@ -424,7 +426,7 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/WebPageCategories/<categ
 ```
 
 **WebPageCategoryCreateDto fields:** `Slug`, `Title`, `Description`, `SeoTitle`,
-`MetaDescription`, `CornerstoneContent` (bool), `AllowSerachEngines` (bool — note spelling),
+`MetaDescription`, `CornerstoneContent` (bool), `AllowSerachEngines` (bool: note spelling),
 `SeoKeyPhrases`, `CanonicalUrl`, `ImageURL`, `Image`, `WebPortalId` (+ `Id`, `Timestamp`).
 **UpdateDto** is the same minus `WebPortalId`/`Id`/`Timestamp`.
 
@@ -610,8 +612,9 @@ curl -X PATCH "$ABSUITE_HOST_URL/api/v2/ContentService/WebsiteThemes/<theme-guid
 curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/WebsiteThemes/<theme-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Update base web content themes (utility — NO tenantId)
-curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/Themes/Update" \
+# Update the base web content theme (NO tenantId; root-tenant instance administrators only;
+# installs only the pinned, SHA-256-verified package. The old GET Themes/Update was removed.)
+curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/Themes/BaseWebContent" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
@@ -649,7 +652,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/WebComponents?tenantId=<te
     "FeaturedImageUrl": "https://cdn.example.com/comp.png"
   }'
 
-# Update (PUT — note: no PATCH for web components)
+# Update (PUT: note: no PATCH for web components)
 curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/WebComponents/<component-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
@@ -694,7 +697,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/MenuContexts?tenantId=<ten
     "WebPortalId": "<portal-guid>"
   }'
 
-# Update (PUT — no PATCH for menu contexts)
+# Update (PUT: no PATCH for menu contexts)
 curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/MenuContexts/<menu-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
@@ -727,7 +730,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/LocalizationStrings?tenant
   -H "Content-Type: application/json" \
   -d '{ "Base": "welcome.title", "Comments": "Home hero heading", "CountryLanguageId": "<lang-guid>" }'
 
-# Update (PUT — no PATCH for localization strings)
+# Update (PUT: no PATCH for localization strings)
 curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/LocalizationStrings/<string-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
@@ -746,7 +749,7 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/LocalizationStrings/<str
 ## Blog Posts
 
 ```bash
-# List (tenant OPTIONAL — omit for global view, pass to scope)
+# List (tenant OPTIONAL: omit for global view, pass to scope)
 curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
@@ -754,7 +757,7 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts?tenantId=<tenant-
 curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Get by ID (NO tenantId)
+# Get by ID (tenant optional: pass it to read your own draft)
 curl -X GET "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
@@ -771,21 +774,23 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts?tenantId=<tenant
     "FeaturedImageUrl": "https://cdn.example.com/post.png",
     "CodeType": "Markdown",
     "Slug": "getting-started-with-abs",
+    "WebPortalId": "<portal-guid>",
     "BlogPostCategoryId": "<category-guid>",
     "WebTemplateId": "<template-guid>"
   }'
 
-# Update (PUT)
+# Update (PUT): assigns EVERY field, so send the full post (GET it first). A partial body blanks the rest.
 curl -X PUT "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{ "Title": "Getting Started with ABS (v2)", "Slug": "getting-started-with-abs", "Published": true }'
+  -d @full-post.json
 
-# Patch (JSON Patch — e.g. publish)
+# Patch (JSON Patch: e.g. publish; the post must already have a WebPortalId, or set it in the same patch)
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '[ {"op": "replace", "path": "/published", "value": true} ]'
+  -d '[ {"op": "replace", "path": "/webPortalId", "value": "<portal-guid>"},
+        {"op": "replace", "path": "/published", "value": true} ]'
 
 # Delete
 curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>?tenantId=<tenant-guid>" \
@@ -793,9 +798,17 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/ContentService/BlogPosts/<post-guid>?te
 ```
 
 **BlogPostCreateDto fields:** `Title` (REQUIRED), `Published` (bool), `Description`, `Code`,
-`Markup`, `FeaturedImageUrl`, `CodeType` (enum), `Slug`, `BlogPostCategoryId`, `WebTemplateId`
-(+ `Id`, `Timestamp`). **BlogPostUpdateDto** has the same large field set as WebPageUpdateDto
-plus `BlogPostCategoryId` and `WebTemplateId` (no `Is*Page`/`ParentWebContentId` fields).
+`Markup`, `FeaturedImageUrl`, `CodeType` (enum), `Slug`, `WebPortalId` (REQUIRED when
+`Published` is true), `Excerpt`, `SeoTitle`, `MetaDescription`, `BlogPostCategoryId`,
+`WebTemplateId`, `BannerSlots` (+ `Id`, `Timestamp`). **BlogPostUpdateDto** has the same large
+field set as WebPageUpdateDto plus `BlogPostCategoryId`, `WebTemplateId`, `WebPortalId` (null
+keeps the portal) and `BannerSlots` (no `Is*Page`/`ParentWebContentId` fields).
+
+A site shows only the posts on its portal: check with the anonymous
+`GET /api/v2/ContentService/BlogPosts/Public/Count?portalId=<portal-guid>`. Use `CodeType`
+`Markdown`, `Html5` or `Markup`; the code types (and an empty `CodeType`) are refused outside
+workspaces the instance administrator enables. The `absuite-blog` skill has the full blog
+surface, including the public reads.
 
 ### Blog post ↔ category / tag / comment operations
 
@@ -1115,7 +1128,7 @@ curl -X GET "$HOST/WebPages/<page-guid>?$T" -H "Authorization: Bearer $ABSUITE_A
 | Update website theme | PUT | `/api/v2/ContentService/WebsiteThemes/{id}` |
 | Patch website theme | PATCH | `/api/v2/ContentService/WebsiteThemes/{id}` |
 | Delete website theme | DELETE | `/api/v2/ContentService/WebsiteThemes/{id}` |
-| Update base themes | GET | `/api/v2/ContentService/Themes/Update` |
+| Update base theme (root admin) | POST | `/api/v2/ContentService/Themes/BaseWebContent` |
 | List web components | GET | `/api/v2/ContentService/WebComponents` |
 | Count web components | GET | `/api/v2/ContentService/WebComponents/Count` |
 | Create web component | POST | `/api/v2/ContentService/WebComponents` |
@@ -1176,9 +1189,9 @@ curl -X GET "$HOST/WebPages/<page-guid>?$T" -H "Authorization: Bearer $ABSUITE_A
 ## Critical Rules
 
 - **Authenticate first.** Send `Authorization: Bearer $ABSUITE_ACCESS_TOKEN` on every call.
-- **Tenant scoping is per-endpoint** — pass `?tenantId=<tenant-guid>` only where the manifest
+- **Tenant scoping is per-endpoint**: pass `?tenantId=<tenant-guid>` only where the manifest
   marks it required/optional; never add it to Portals `Current`/`Root`/`Search`/`Initialize`,
-  the by-id portal reads, the blog sub-reads, or `Themes/Update`.
+  the by-id portal reads, the blog sub-reads, or `Themes/BaseWebContent`.
 - **PATCH bodies are JSON Patch arrays** with camelCase JSON-Pointer paths.
 - **Blog/web body text** goes in `Code` (source) or `HtmlContent`/`RazorContent`/etc. depending
   on `CodeType`.

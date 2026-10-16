@@ -1,34 +1,36 @@
 ---
 name: absuite-emails
+key: paperclip/skills/absuite-emails/SKILL.md
+version: 1.0.0
 description: >
   Manage email templates and dispatch transactional emails via the Alliance Business Suite
   (ABS) REST API. Covers marketing email templates / groups / signatures / newsletters
-  (MarketingService), and admin email sending & previewing to recipients, tenants, and users
-  (SystemService) — including atomic PATCH (JSON Patch) updates of email resources. All
+  (MarketingService), and email sending & previewing to recipients, tenants, and users
+  (SystemService), including atomic PATCH (JSON Patch) updates of email resources. All
   operations are tenant-scoped (per endpoint) and require a bearer token (see the
   absuite-login skill to authenticate). For the CLI equivalent, see `absuite-emails-cli`;
   for raw HTTP helpers see `absuite-rest`; for broad marketing campaigns/lists see
   `absuite-marketing`.
 ---
 
-# Alliance Business Suite — Emails (REST)
+# Alliance Business Suite: Emails (REST)
 
 Manage **email templates** (the reusable content/markup that drives branded mail) and **dispatch transactional emails** (basic, tenant, and user) through the ABS platform over the REST API.
 
 This skill spans two services:
 
-- **MarketingService** — CRUD + PATCH for tenant-scoped email **resources**: `EmailTemplates`, `EmailGroups`, `EmailSignatures`, `Newsletters`.
-- **SystemService** — admin **sending & previewing** of emails: a basic transactional email (`/Emails/SendBasic`, `/Emails/Preview`), an email to a tenant (`/Tenants/{tenantId}/Emails/Send|Preview`), and an email to a user (`/Users/{userId}/Emails/Send|Preview`).
+- **MarketingService**: CRUD + PATCH for tenant-scoped email **resources**: `EmailTemplates`, `EmailGroups`, `EmailSignatures`, `Newsletters`.
+- **SystemService**: **sending & previewing** of emails: a basic transactional email (`/Emails/SendBasic`, `/Emails/Preview`), an email to a tenant (`/Tenants/{tenantId}/Emails/Send|Preview`), and an email to a user (`/Users/{userId}/Emails/Send|Preview`).
 
-> Contact-targeted email send/preview lives in **CrmService**, which is out of scope here — see the `absuite-crm` skill if you need to email a CRM contact directly.
+> Contact-targeted email send/preview lives in **CrmService** (`/api/v2/CrmService/Contacts/{contactId}/Emails/Send|Preview`), which is out of scope here; see the `absuite-crm` skill if you need to email a CRM contact directly.
 
 ## API usage essentials
 
 > Full detail in `absuite-rest`; these rules apply across this skill's endpoints.
 
-- **Lists & counts are OData-enabled.** `GET` collection endpoints accept `$filter`, `$top`, `$skip`, `$orderby`, `$select` — page through results, don't fetch-all-and-filter. Each dedicated `.../Count` endpoint returns an integer and is **also** filterable (`?$filter=...` -> a filtered count). OData is a REST/HTTP-layer feature (the CLI does not expose it).
-- **`PUT` replaces the ENTIRE resource** — it overwrites, not merges, so any omitted field is reset to default/null. **GET the resource first, change the full object, then PUT it back**; sending a partial body to `PUT` (or an incomplete `POST` create) causes silent data loss.
-- **`PATCH`, where this service exposes it, is atomic and partial** (JSON Patch / RFC 6902) — it changes only the fields you name, needs no prior GET, and won't clobber the rest. Prefer it for small edits; use `PUT` only for a deliberate full replacement.
+- **Lists & counts are OData-enabled.** `GET` collection endpoints accept `$filter`, `$top`, `$skip`, `$orderby`, `$select`; page through results, don't fetch-all-and-filter. Each dedicated `.../Count` endpoint returns an integer and is **also** filterable (`?$filter=...` -> a filtered count). OData is a REST/HTTP-layer feature (the CLI does not expose it).
+- **`PUT` replaces the ENTIRE resource**: it overwrites, not merges, so any omitted field is reset to default/null. **GET the resource first, change the full object, then PUT it back**; sending a partial body to `PUT` (or an incomplete `POST` create) causes silent data loss.
+- **`PATCH`, where this service exposes it, is atomic and partial** (JSON Patch / RFC 6902): it changes only the fields you name, needs no prior GET, and won't clobber the rest. Prefer it for small edits; use `PUT` only for a deliberate full replacement.
 
 ## Authentication
 
@@ -52,25 +54,31 @@ export ABSUITE_ACCESS_TOKEN="<accessToken-from-response>"
 -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-3. **Base path:** `$ABSUITE_HOST_URL/api/v2/<ServiceName>/<Resource>` — here `<ServiceName>` is `MarketingService` or `SystemService`.
+3. **Base path:** `$ABSUITE_HOST_URL/api/v2/<ServiceName>/<Resource>`, where `<ServiceName>` is `MarketingService` or `SystemService`.
 
-4. **Response envelope** — every call returns:
+4. **Response envelope:** every JSON call returns:
 
 ```json
 { "isSuccess": true, "errorMessage": null, "correlationId": "...", "timestamp": "...", "result": <data|array|int|null> }
 ```
 
-Always check `isSuccess`; read the payload from `result`.
+Always check `isSuccess`; read the payload from `result`. Exception: the **Preview** endpoints return the rendered **HTML** directly (not a JSON envelope) on success.
 
-## Tenant scoping (read carefully — it differs per endpoint)
+## Tenant scoping and permissions (read carefully: it differs per endpoint)
 
 The platform binds the tenant from the `?tenantId=` **query param** OR the `X-TenantId` **request header** interchangeably.
 
-- **MarketingService** email resources (`EmailTemplates`, `EmailGroups`, `EmailSignatures`, `Newsletters`): **`tenantId` is REQUIRED** on every verb (GET/POST/PUT/PATCH/DELETE). Pass `?tenantId=<tenant-guid>` (or header `X-TenantId: <tenant-guid>`).
-- **SystemService** sending/previewing:
-  - `/Emails/SendBasic` and `/Emails/Preview` take **no `tenantId`** parameter — do not add one.
-  - `/Tenants/{tenantId}/Emails/Send|Preview` carries the tenant in the **path** (`{tenantId}`), not the query.
-  - `/Users/{userId}/Emails/Send|Preview` carries the **user** in the path; no `tenantId`.
+- **MarketingService** email resources (`EmailTemplates`, `EmailGroups`, `EmailSignatures`, `Newsletters`): **`tenantId` is REQUIRED** on every verb (GET/POST/PUT/PATCH/DELETE). Pass `?tenantId=<tenant-guid>` (or header `X-TenantId: <tenant-guid>`). The caller needs the matching workspace permission in that tenant:
+  - Email templates: `email_templates_read` (get by ID), `email_templates_create`, `email_templates_update` (PUT and PATCH), `email_templates_delete`. The list and count endpoints currently check membership in the tenant only, with no permission.
+  - Email groups: `email_groups_read|create|update|delete` (PATCH uses `email_groups_update`).
+  - Email signatures: `email_signatures_read|create|update|delete` (PATCH uses `email_signatures_update`).
+  - Newsletters: `newsletters_read|create|update|delete` (PATCH uses `newsletters_update`).
+- **SystemService** sending/previewing: every endpoint requires the workspace permission **`email_send`**, checked in the tenant the endpoint acts on:
+  - `/Emails/SendBasic` and `/Emails/Preview` take **no `tenantId`** parameter (do not add one). The server runs them in the **platform root tenant**, so the caller needs `email_send` there.
+  - `/Users/{userId}/Emails/Send|Preview` carry the **user** in the path; no `tenantId`. They also run in the platform root tenant (`email_send` there).
+  - `/Tenants/{tenantId}/Emails/Send|Preview` carry the tenant in the **path** (`{tenantId}`), not the query. `email_send` is checked in **that** tenant.
+
+> The Swagger descriptions of these SystemService endpoints say "only global administrators (business_owner)"; the code actually enforces the `email_send` permission as described above.
 
 > An optional API version selector exists on all of these: `?api-version=<v>` (query) or `x-api-version: <v>` (header). Omit unless you need a specific version.
 
@@ -84,53 +92,56 @@ An **EmailTemplate** is a content aggregate (it shares the rich content/SEO shap
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `id` | string | No | Server-assigned if omitted |
-| `timestamp` | string | No | |
-| `title` | string | **Yes** | Template title |
+| `id` | guid | No | Generated if omitted |
+| `timestamp` | string | No | Defaults to now (UTC) |
+| `title` | string | **Yes** | Template title, 3 to 100 characters |
 | `published` | boolean | No | |
 | `description` | string | No | |
 | `code` | string | No | Source/markup code |
 | `markup` | string | No | |
 | `featuredImageUrl` | string | No | |
-| `codeType` | enum | No | `Razor` \| `CSharp` \| `CSHtml` \| `Liquid` \| `Html5` \| `Markdown` \| `Markup` |
+| `codeType` | enum | No | `Razor` \| `CSharp` \| `CSHtml` \| `Liquid` \| `Html5` \| `Markdown` \| `Markup` (defaults to `Markdown`) |
 | `marketingCampaignId` | string | No | Links the template to a campaign |
 
-`EmailTemplateUpdateDto` (PUT body) additionally exposes the full content surface, including: `order`, `slug`, `name`, `excerpt`, `password`, `highlightImage`, `canonicalUrl`, `seoTitle`, `seoKeyWords`, `seoKeyPhrases`, `metaDescription`, `twitterImage/Title/Description`, `facebookImage/Title/Description`, `content`, `code`, `namespace`, `typeName`, `generatedCode`, `compilationPath`, `htmlContent`, `codeType`, `cSharpContent`, `razorContent`, `cssContent`, `jsContent`, `cssFiles`, `jsFiles`, `razorGeneratedCode`, `cSharpGeneratedCode`, the `precompiled*Size` integers, and the booleans `template`, `default`, `enable`, `enableComments`, `displaySocialBox`, `published`, `inTrashCan`, `systemLocked`, `allowPingbacks`, `allowTrackbacks`, `cornerstoneContent`, `isEssentialContent`, `allowSearchEngineIndexing`, plus `marketingCampaignId`.
+`EmailTemplateUpdateDto` (PUT body) additionally exposes the full content surface, including: `order`, `slug`, `name`, `title`, `excerpt`, `password`, `description`, `highlightImage`, `canonicalUrl`, `seoTitle`, `seoKeyWords`, `seoKeyPhrases`, `metaDescription`, `twitterImage/Title/Description`, `facebookImage/Title/Description`, `featuredImageUrl`, `content`, `code`, `namespace`, `typeName`, `generatedCode`, `compilationPath`, `htmlContent`, `codeType`, `cSharpContent`, `razorContent`, `cssContent`, `jsContent`, `cssFiles`, `jsFiles`, `razorGeneratedCode`, `cSharpGeneratedCode`, the `precompiled*Size` integers, and the booleans `template`, `default`, `enable`, `enableComments`, `displaySocialBox`, `published`, `inTrashCan`, `systemLocked`, `allowPingbacks`, `allowTrackbacks`, `cornerstoneContent`, `isEssentialContent`, `allowSearchEngineIndexing`, plus `marketingCampaignId`.
 
-`EmailSignatureCreateDto` / `EmailSignatureUpdateDto` follow the **same content shape** as templates (signature create requires `title`; same `codeType` enum). `EmailGroupCreateDto`/`UpdateDto` are simple: `name`, `description`, `enabled` (create also accepts `id`, `timestamp`). `NewsletterCreateDto`/`UpdateDto`: `code`, `title`, `name` (create also accepts `id`, `timestamp`).
+`EmailSignatureCreateDto` / `EmailSignatureUpdateDto` follow the **same content shape** as templates (signature create requires `title`; same `codeType` enum; no `marketingCampaignId`). `EmailGroupCreateDto`/`UpdateDto` are simple: `name`, `description`, `enabled` (create also accepts `id`, `timestamp`). `NewsletterCreateDto`/`UpdateDto`: `code`, `title`, `name` (create also accepts `id`, `timestamp`).
 
 ### Email dispatch model (SystemService)
 
-Sending and previewing share a dispatch body. Two named shapes appear in the spec — they carry the **same fields**:
+Sending and previewing share a dispatch body (`EmailDispatchRequest`). Two named shapes appear in the spec; they carry the **same fields**:
 
-- `ObjectEmailDispatchRequest` — used by `/Emails/SendBasic` and `/Emails/Preview` (it also carries a free-form `payload`).
-- `EmailDispatchRequest` — used by `/Tenants/{tenantId}/Emails/*` and `/Users/{userId}/Emails/*`.
+- `ObjectEmailDispatchRequest` (C# `EmailDispatchRequest<dynamic>`): used by `/Emails/SendBasic` and `/Emails/Preview` (it also carries a free-form `payload`).
+- `EmailDispatchRequest`: used by `/Tenants/{tenantId}/Emails/*` and `/Users/{userId}/Emails/*`.
 
 **Dispatch body fields:**
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `title` | string | **Yes** | Email subject / heading |
-| `message` | string | **Yes** | Main body text |
-| `buttonLink` | string | No | CTA button target URL |
-| `buttonText` | string | No | CTA button label |
+| `title` | string | **Yes** | Email subject / heading (max 150 characters) |
+| `message` | string | **Yes** | Main body text (at least 10 characters) |
+| `buttonLink` | string | No | CTA button target URL (must be an absolute URL) |
+| `buttonText` | string | No | CTA button label (max 50 characters) |
 | `alertMessage` | string | No | Alert/banner text |
-| `alertType` | enum | No | `None` \| `Info` \| `Error` \| `Warning` \| `Success` \| `Action` \| `Alert` |
-| `culture` | string | **Yes** | Content language (e.g. `en`, `es`) |
-| `uiCulture` | string | **Yes** | UI-chrome language |
-| `recipients` | string[] | **Yes** | Direct email addresses |
-| `contactIds` | string[] | No | ABS Contact IDs — platform resolves their emails |
-| `tenantIds` | string[] | No | ABS Tenant IDs — platform resolves their emails |
-| `userIds` | string[] | No | ABS User IDs — platform resolves their emails |
+| `alertType` | enum | No | `None` \| `Info` \| `Error` \| `Warning` \| `Success` \| `Action` \| `Alert` (defaults to `None`) |
+| `culture` | string | **Yes** | Content language, ISO format (`en` or `en-US`); defaults to `en` |
+| `uiCulture` | string | **Yes** | UI-chrome language, same format; defaults to `en` |
+| `recipients` | string[] | **Yes** | Direct email addresses; **at least one** valid address |
+| `contactIds` | string[] | No | ABS Contact IDs |
+| `tenantIds` | string[] | No | ABS Tenant IDs; the platform resolves their emails |
+| `userIds` | string[] | No | ABS User IDs; the platform resolves their emails |
 | `templateUrl` | string | No | Custom template URL |
-| `emailTemplateId` | string | No | ID of a saved MarketingService email template |
+| `emailTemplateId` | string | No | ID of a saved MarketingService email template **owned by the tenant the call runs in** |
 | `payload` | object | No | Free-form data (`ObjectEmailDispatchRequest` only) |
 
-> `alertType` is an **enum string** (`Info`, `Warning`, …) per the spec — send the name, not a numeric index.
+> `alertType` is an **enum string** (`Info`, `Warning`, ...): send the name, not a numeric index.
 
-Recipients can be combined: direct `recipients` plus any of `contactIds` / `tenantIds` / `userIds` (the platform resolves IDs to addresses).
+Recipients can be combined: direct `recipients` plus `tenantIds` / `userIds` (the platform resolves IDs to addresses). Notes on what the code honours today:
 
-## Operations — Email Templates (MarketingService)
+- An `emailTemplateId` resolves only to a template owned by the tenant the call runs in. `/Emails/*` and `/Users/{userId}/Emails/*` run in the platform root tenant, so a template created under another tenant is ignored (the default template is used instead).
+- `/Tenants/{tenantId}/Emails/*` and `/Users/{userId}/Emails/*` copy only `title`, `message`, the button and alert fields, `culture`, `uiCulture`, `recipients` and `templateUrl` from the body; `contactIds`, `tenantIds`, `userIds` and `emailTemplateId` are dropped there. Put the target addresses in `recipients`.
+
+## Operations: Email Templates (MarketingService)
 
 `tenantId` is **required** on all of these.
 
@@ -172,7 +183,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailTemplates?tenantId=
   }'
 ```
 
-### Update an email template (PUT — full replace)
+### Update an email template (PUT, full replace)
 
 ```bash
 curl -X PUT "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailTemplates/<emailTemplate-guid>?tenantId=<tenant-guid>" \
@@ -187,7 +198,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailTemplates/<emailTemp
   }'
 ```
 
-### Patch an email template (PATCH — see PATCH section)
+### Patch an email template (PATCH, see PATCH section)
 
 ```bash
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailTemplates/<emailTemplate-guid>?tenantId=<tenant-guid>" \
@@ -203,7 +214,7 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailTemplates/<emailT
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-## Operations — Email Groups (MarketingService)
+## Operations: Email Groups (MarketingService)
 
 Recipient grouping. `tenantId` required.
 
@@ -237,7 +248,7 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailGroups/<emailgrou
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-## Operations — Email Signatures (MarketingService)
+## Operations: Email Signatures (MarketingService)
 
 Same content shape as templates; create requires `title`. `tenantId` required.
 
@@ -271,7 +282,7 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailSignatures/<email
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-## Operations — Newsletters (MarketingService)
+## Operations: Newsletters (MarketingService)
 
 `tenantId` required.
 
@@ -305,13 +316,13 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/MarketingService/Newsletters/<newslette
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-## Operations — Sending & Previewing (SystemService)
+## Operations: Sending & Previewing (SystemService)
 
-> These admin endpoints are restricted to global administrators (e.g. `business_owner`).
+> Every endpoint here requires the `email_send` permission (in the platform root tenant for `/Emails/*` and `/Users/*`, in the path tenant for `/Tenants/{tenantId}/*`). `recipients` must hold at least one valid address, or the request is rejected with 400.
 
 ### Preview a basic email (no send)
 
-No `tenantId` parameter. Returns the rendered email.
+No `tenantId` parameter. Returns the rendered email as HTML.
 
 ```bash
 curl -X POST "$ABSUITE_HOST_URL/api/v2/SystemService/Emails/Preview" \
@@ -351,7 +362,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/SystemService/Emails/SendBasic" \
 
 ### Preview a tenant email
 
-Tenant in the path.
+Tenant in the path. Returns HTML rendered with the tenant's data.
 
 ```bash
 curl -X POST "$ABSUITE_HOST_URL/api/v2/SystemService/Tenants/<tenant-guid>/Emails/Preview" \
@@ -362,7 +373,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/SystemService/Tenants/<tenant-guid>/Email
     "message": "Your organization settings have been updated.",
     "culture": "en",
     "uiCulture": "en",
-    "recipients": []
+    "recipients": ["<recipient-email>"]
   }'
 ```
 
@@ -378,12 +389,13 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/SystemService/Tenants/<tenant-guid>/Email
     "alertType": "Info",
     "culture": "en",
     "uiCulture": "en",
-    "recipients": [],
-    "tenantIds": ["<tenant-guid>"]
+    "recipients": ["<recipient-email>"]
   }'
 ```
 
 ### Preview a user email
+
+Returns HTML rendered with the user's data.
 
 ```bash
 curl -X POST "$ABSUITE_HOST_URL/api/v2/SystemService/Users/<user-guid>/Emails/Preview" \
@@ -394,7 +406,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/SystemService/Users/<user-guid>/Emails/Pr
     "message": "Your account has been updated.",
     "culture": "en",
     "uiCulture": "en",
-    "recipients": []
+    "recipients": ["<recipient-email>"]
   }'
 ```
 
@@ -409,14 +421,13 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/SystemService/Users/<user-guid>/Emails/Se
     "message": "Your account has been updated.",
     "culture": "en",
     "uiCulture": "en",
-    "recipients": [],
-    "userIds": ["<user-guid>"]
+    "recipients": ["<recipient-email>"]
   }'
 ```
 
-## PATCH (JSON Patch — RFC 6902)
+## PATCH (JSON Patch, RFC 6902)
 
-PATCH performs an **atomic partial update** — safer than PUT for concurrent edits because you send only the operations you want. The body is a JSON **array** of operations with `Content-Type: application/json`. Each op has `op` ∈ `add|remove|replace|move|copy|test`, a JSON-Pointer `path` (leading `/`, camelCase field), and (for `add`/`replace`) a `value`.
+PATCH performs an **atomic partial update**, safer than PUT for concurrent edits because you send only the operations you want. The body is a JSON **array** of operations with `Content-Type: application/json`. Each op has `op` ∈ `add|remove|replace|move|copy|test`, a JSON-Pointer `path` (leading `/`, camelCase field), and (for `add`/`replace`) a `value`.
 
 Within this domain, PATCH is available on the four **MarketingService** email resources:
 
@@ -427,7 +438,7 @@ Within this domain, PATCH is available on the four **MarketingService** email re
 
 > The SystemService send/preview endpoints are POST actions and do **not** support PATCH.
 
-Example — publish a template and update two fields atomically:
+Example: publish a template and update two fields atomically:
 
 ```bash
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailTemplates/<emailTemplate-guid>?tenantId=<tenant-guid>" \
@@ -439,7 +450,7 @@ curl -X PATCH "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailTemplates/<emailTe
   ]'
 ```
 
-Example — disable an email group:
+Example: disable an email group:
 
 ```bash
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailGroups/<emailgroup-guid>?tenantId=<tenant-guid>" \
@@ -450,7 +461,7 @@ curl -X PATCH "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailGroups/<emailgroup
 
 ## End-to-end workflow
 
-Create a template, publish it via PATCH, then send a basic email referencing it.
+Create a template, publish it via PATCH, then send a basic email referencing it. Because `/Emails/*` runs in the platform root tenant, `emailTemplateId` only takes effect when `<tenant-guid>` is the root tenant; for any other tenant the default template is used.
 
 ```bash
 # 1. Create an email template (capture the returned result.id as <emailTemplate-guid>)
@@ -494,13 +505,13 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/SystemService/Emails/SendBasic" \
 
 ## Critical Rules
 
-- **Authenticate first.** Obtain a bearer token from `POST /login` and send `Authorization: Bearer …` on every call.
+- **Authenticate first.** Obtain a bearer token from `POST /login` and send `Authorization: Bearer ...` on every call.
 - **Tenant scoping is per-endpoint.** MarketingService email resources require `?tenantId=` on every verb (incl. POST/PUT/PATCH/DELETE). SystemService `/Emails/SendBasic|Preview` take no tenant; tenant/user email endpoints carry the id in the path.
-- **`alertType` is an enum string** (`None|Info|Error|Warning|Success|Action|Alert`) — send the name, not a number.
-- **`recipients` is required** on dispatch bodies (it may be an empty array when you target only `contactIds`/`tenantIds`/`userIds`).
-- **`title` and `message` are required** on every dispatch; `culture` and `uiCulture` are required — set them to the recipient's language.
+- **`alertType` is an enum string** (`None|Info|Error|Warning|Success|Action|Alert`): send the name, not a number.
+- **`recipients` is required and must contain at least one valid email address** on every dispatch body; an empty array is rejected with 400. On the tenant and user endpoints, `recipients` is the only targeting field honoured.
+- **`title` and `message` are required** on every dispatch (`message` at least 10 characters); `culture` and `uiCulture` are required (ISO `en` / `en-US` format), set them to the recipient's language.
 - **PATCH bodies are JSON arrays** of RFC 6902 operations, only on the four MarketingService resources.
-- **Send/preview are admin operations** (global-administrator role).
+- **Send/preview require the `email_send` permission** (root tenant for `/Emails/*` and `/Users/*`, the path tenant for `/Tenants/{tenantId}/*`), not a global-administrator role as the Swagger text claims.
 - **Never hard-code real GUIDs, emails, names, or tokens.** Resolve them dynamically.
 - **For broad marketing campaigns/lists** (MarketingCampaigns, MarketingLists, MarketingLeads, etc.), use the `absuite-marketing` skill rather than this one.
 - **For the CLI equivalent of everything here, see `absuite-emails-cli`.** For generic HTTP helpers, see `absuite-rest`.

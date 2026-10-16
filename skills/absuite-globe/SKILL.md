@@ -1,18 +1,20 @@
 ---
 name: absuite-globe
+key: paperclip/skills/absuite-globe/SKILL.md
+version: 1.0.0
 description: >
-  Look up global reference data — countries, states, cities, currencies, languages,
-  timezones, calling codes, and top-level domains — via the Alliance Business Suite (ABS)
+  Look up global reference data (countries, states, cities, currencies, languages,
+  timezones, calling codes, and top-level domains) via the Alliance Business Suite (ABS)
   REST API. This is PUBLIC, read-only reference data: endpoints are NOT tenant-scoped and
   take no tenantId. Send a bearer token for consistency (see the absuite-login skill).
 ---
 
-# Alliance Business Suite — Globe Skill (REST)
+# Alliance Business Suite: Globe Skill (REST)
 
 `GlobeService` exposes the platform's **global reference data**: the canonical lists of
 countries (and their states, cities, currencies, languages, timezones, calling codes, and
 top-level domains), plus standalone currency, language, and timezone catalogs. This data is
-**public and read-only** — there are no create / update / delete operations, and **no PATCH
+**public and read-only**: there are no create / update / delete operations, and **no PATCH
 endpoint exists** on this service. Use it to resolve foreign-key lookups when populating
 other entities (e.g. an address's country/state/city, an invoice's currency, a user's
 language or timezone).
@@ -45,7 +47,7 @@ curl -X POST "$ABSUITE_HOST_URL/login" \
 
 - **Base path:** `$ABSUITE_HOST_URL/api/v2/GlobeService/<Resource>`
 - **No tenant scoping.** Do **not** add `?tenantId=` or an `X-TenantId` header to these
-  endpoints — they are global/public and any tenant value is ignored.
+  endpoints: they are global/public and any tenant value is ignored.
 - **Response envelope:** every call returns
   `{ "isSuccess": bool, "errorMessage": str|null, "correlationId": str, "timestamp": str, "result": <data|array|int|null> }`.
   Always check `isSuccess`, then read the payload from `result`.
@@ -67,7 +69,7 @@ curl -X POST "$ABSUITE_HOST_URL/login" \
 - **Sub-resources hang off a country.** States, cities, calling codes, currencies, timezones,
   and top-level domains are all reachable under `Countries/{countryId}/...`. Cities are nested
   one level deeper, under a state: `Countries/{countryId}/States/{countryStateId}/Cities`.
-- **`Count` endpoints** return an integer (in `result`) rather than a list — useful for
+- **`Count` endpoints** return an integer (in `result`) rather than a list, useful for
   paging without pulling the full collection.
 - **Search** is name-based and country-only: `Countries/Search?countryName=<term>`.
 - **OData** pagination/filtering query options are accepted on the list and count endpoints
@@ -216,7 +218,7 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Timezones/<timezone-id>" \
 ## PATCH (not available)
 
 `GlobeService` is read-only global reference data. **It exposes no PATCH (JSON Patch)
-endpoint** — there is nothing to partially update. The manifest contains zero PATCH (and zero
+endpoint**: there is nothing to partially update. The manifest contains zero PATCH (and zero
 POST/PUT/DELETE) operations for this service. If you need to mutate data, you are on the wrong
 service.
 
@@ -280,8 +282,8 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/GlobeService/Countries/<country-id>/Curren
 ## Critical Rules
 
 - **Read-only & public.** No create / update / delete / **PATCH** on this service, and **no
-  tenant scoping** — never attach `?tenantId=` or an `X-TenantId` header.
-- **Path ids are opaque `Id` values**, matched against the record's primary key — not ISO
+  tenant scoping**: never attach `?tenantId=` or an `X-TenantId` header.
+- **Path ids are opaque `Id` values**, matched against the record's primary key, not ISO
   codes. Discover the `Id` via list/search first; ISO/code fields (`Iso3`, `Iso2`, `Code`,
   `Iso6391`, `Iso6392`) are for matching the right record, not for the URL.
 - **Search is country-only and requires `countryName`** as the query param.

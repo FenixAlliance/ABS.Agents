@@ -1,20 +1,22 @@
 ---
 name: absuite-users
+key: paperclip/skills/absuite-users/SKILL.md
+version: 1.0.0
 description: >
   Read and manage the current user's account in the Alliance Business Suite (ABS)
-  via the REST API. Covers the `/api/v2/Me` surface — profile, extended profile,
+  via the REST API. Covers the `/api/v2/Me` surface, profile, extended profile,
   avatar, settings, addresses, cart, wallet, social profile, followers/follows,
   notifications, tenant memberships, enrollments, invitations, and user options
-  (key-value metadata) — including atomic PATCH (JSON Patch) updates. These endpoints
+  (key-value metadata), including atomic PATCH (JSON Patch) updates. These endpoints
   are USER-scoped (resolved from the bearer token); they take NO tenantId. Requires
   a bearer token (see the absuite-login skill to authenticate).
 ---
 
-# Alliance Business Suite — Users Skill (REST)
+# Alliance Business Suite: Users Skill (REST)
 
 Read and manage the **current user's** account through the ABS REST API. Every endpoint
 in this skill lives under `/api/v2/Me/...` and is **user-scoped**: the acting user is
-resolved from the bearer token (JWT). These endpoints take **no `tenantId`** — do **not**
+resolved from the bearer token (JWT). These endpoints take **no `tenantId`**: do **not**
 add `?tenantId=` or an `X-TenantId` header; it is ignored. Operations apply to the
 currently authenticated user, never to an arbitrary user.
 
@@ -26,9 +28,9 @@ currently authenticated user, never to an arbitrary user.
 
 > Full detail in `absuite-rest`; these rules apply across this skill's endpoints.
 
-- **Lists & counts are OData-enabled.** `GET` collection endpoints accept `$filter`, `$top`, `$skip`, `$orderby`, `$select` — page through results, don't fetch-all-and-filter. Each dedicated `.../Count` endpoint returns an integer and is **also** filterable (`?$filter=...` -> a filtered count). OData is a REST/HTTP-layer feature (the CLI does not expose it).
-- **`PUT` replaces the ENTIRE resource** — it overwrites, not merges, so any omitted field is reset to default/null. **GET the resource first, change the full object, then PUT it back**; sending a partial body to `PUT` (or an incomplete `POST` create) causes silent data loss.
-- **`PATCH`, where this service exposes it, is atomic and partial** (JSON Patch / RFC 6902) — it changes only the fields you name, needs no prior GET, and won't clobber the rest. Prefer it for small edits; use `PUT` only for a deliberate full replacement.
+- **Lists & counts are OData-enabled.** `GET` collection endpoints accept `$filter`, `$top`, `$skip`, `$orderby`, `$select`, page through results, don't fetch-all-and-filter. Each dedicated `.../Count` endpoint returns an integer and is **also** filterable (`?$filter=...` -> a filtered count). OData is a REST/HTTP-layer feature (the CLI does not expose it).
+- **`PUT` replaces the ENTIRE resource**: it overwrites, not merges, so any omitted field is reset to default/null. **GET the resource first, change the full object, then PUT it back**; sending a partial body to `PUT` (or an incomplete `POST` create) causes silent data loss.
+- **`PATCH`, where this service exposes it, is atomic and partial** (JSON Patch / RFC 6902), it changes only the fields you name, needs no prior GET, and won't clobber the rest. Prefer it for small edits; use `PUT` only for a deliberate full replacement.
 
 ## Authentication
 
@@ -50,7 +52,7 @@ export ABSUITE_ACCESS_TOKEN="<accessToken-from-response>"
 
 3. **Base path:** `$ABSUITE_HOST_URL/api/v2/Me/...`
 
-4. **Response envelope** — every response is wrapped:
+4. **Response envelope**: every response is wrapped:
 ```json
 {
   "isSuccess": true,
@@ -63,32 +65,32 @@ export ABSUITE_ACCESS_TOKEN="<accessToken-from-response>"
 Always check `isSuccess`; read the payload from `result` (an object, an array, an int for
 `Count`, or `null` for write operations that return an empty envelope).
 
-5. **Optional API-version selector** — every endpoint accepts an optional `?api-version=`
+5. **Optional API-version selector**: every endpoint accepts an optional `?api-version=`
    query param (or an `x-api-version` request header). Omit it to use the default version.
 
 ## Key Concepts
 
-- **Me** — the currently authenticated user, resolved from the bearer token. There is no
+- **Me**: the currently authenticated user, resolved from the bearer token. There is no
   user-id path segment; `/api/v2/Me` always means "the caller".
-- **No tenant scoping** — these endpoints are user-scoped, not tenant-scoped. Passing a
+- **No tenant scoping**: these endpoints are user-scoped, not tenant-scoped. Passing a
   `tenantId` has no effect. (The tenant memberships an endpoint reports are derived from the
   user's enrollments, not from a request parameter.)
-- **Profile** (`UserUpdateDto`) — the editable user profile. The two enum fields are
+- **Profile** (`UserUpdateDto`), the editable user profile. The two enum fields are
   `gender`: **`Unknown` | `Male` | `Female` | `PreferNotToSay`** and
   `availability`: **`DND` | `Busy` | `Away` | `Offline` | `Available`** (string values).
-- **Extended profile** (`/Me/Extended`) — the profile enriched with related data.
-- **Settings** (`UserSettingsUpdateDto`) — display preferences. `siteTheme` is the enum
+- **Extended profile** (`/Me/Extended`), the profile enriched with related data.
+- **Settings** (`UserSettingsUpdateDto`), display preferences. `siteTheme` is the enum
   **`System` | `Light` | `Dark`**. `dateFormat`, `currencyFormat`, `dateTimeFormat`, and
   `siteTheme` are **required** on update; `pageSize` is an integer.
-- **Tenant** vs **Enrollment** — a *tenant* is an organization the user belongs to; an
+- **Tenant** vs **Enrollment**: a *tenant* is an organization the user belongs to; an
   *enrollment* (`TenantEnrollment`) is the membership record linking the user to a tenant.
   Both have plain and `/Extended` (related-data) variants.
-- **Invitation** — a pending tenant-enrollment invitation addressed to the user.
-- **Option** (`OptionCreateDto` / `OptionUpdateDto`) — a per-user key-value setting.
+- **Invitation**: a pending tenant-enrollment invitation addressed to the user.
+- **Option** (`OptionCreateDto` / `OptionUpdateDto`), a per-user key-value setting.
   Fields: `key` (req on create), `value` (req on create), `portalId`, `frozen`, `autoload`,
   `transient`, `expiration` (integer). Options can be scoped to a portal via the optional
   `portalId` query param / body field. Use **Upsert by key** for idempotent writes.
-- **Social graph** — `Followers` (who follows me) and `Follows` (who I follow), each with a
+- **Social graph**: `Followers` (who follows me) and `Follows` (who I follow), each with a
   `/Count`.
 
 ## Current User Profile
@@ -102,7 +104,7 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/Me" \
 curl -X GET "$ABSUITE_HOST_URL/api/v2/Me/Extended" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Update my profile (full replace — PUT, UserUpdateDto)
+# Update my profile (full replace: PUT, UserUpdateDto)
 curl -X PUT "$ABSUITE_HOST_URL/api/v2/Me" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
@@ -141,7 +143,7 @@ Full editable field list for `UserUpdateDto` (all optional on PUT): `qualifiedNa
 `stateId`, `cityId`, `gitHubUrl`, `websiteUrl`, `twitterUrl`, `facebookUrl`, `youTubeUrl`,
 `linkedInUrl`, `instagramUrl`, `webUrl`, `availability`.
 
-### Patch my profile (partial — PATCH, JSON Patch)
+### Patch my profile (partial: PATCH, JSON Patch)
 
 `PATCH /api/v2/Me` takes a **JSON Patch** array (RFC 6902), not a partial DTO. Use it to
 change a few fields without resending the whole profile (see the [PATCH](#patch-json-patch)
@@ -207,7 +209,7 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/Me/Addresses" \
 curl -X GET "$ABSUITE_HOST_URL/api/v2/Me/Settings" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Update my settings (PUT, UserSettingsUpdateDto — dateFormat, currencyFormat,
+# Update my settings (PUT, UserSettingsUpdateDto: dateFormat, currencyFormat,
 # dateTimeFormat, siteTheme are required)
 curl -X PUT "$ABSUITE_HOST_URL/api/v2/Me/Settings" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
@@ -307,7 +309,7 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/Me/Options/<option-guid>" \
 curl -X GET "$ABSUITE_HOST_URL/api/v2/Me/Options/Key/ui.theme" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Create an option — key is a REQUIRED query param; body is OptionCreateDto
+# Create an option: key is a REQUIRED query param; body is OptionCreateDto
 # (key and value are required body fields)
 curl -X POST "$ABSUITE_HOST_URL/api/v2/Me/Options?key=ui.theme" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
@@ -328,13 +330,13 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/Me/Options/<option-guid>" \
   -H "Content-Type: application/json" \
   -d '{ "key": "ui.theme", "value": "light", "autoload": true }'
 
-# Upsert an option by key (PUT, OptionUpdateDto — key is a path segment)
+# Upsert an option by key (PUT, OptionUpdateDto: key is a path segment)
 curl -X PUT "$ABSUITE_HOST_URL/api/v2/Me/Options/Upsert/ui.theme" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{ "value": "dark" }'
 
-# Patch an option by ID (PATCH, JSON Patch — see PATCH section)
+# Patch an option by ID (PATCH, JSON Patch: see PATCH section)
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/Me/Options/<option-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
@@ -373,7 +375,7 @@ curl -X PATCH "$ABSUITE_HOST_URL/api/v2/Me" \
   ]'
 ```
 
-PUT replaces the whole object; PATCH changes only the listed paths — safer under concurrent
+PUT replaces the whole object; PATCH changes only the listed paths, safer under concurrent
 edits.
 
 ## End-to-End Workflow
@@ -452,7 +454,7 @@ curl -s -X PUT "$ABSUITE_HOST_URL/api/v2/Me/Settings" \
 ## Critical Rules
 
 - **Authenticate first** (see `absuite-login`). Send `Authorization: Bearer …` on every call.
-- **No tenant scoping.** These `/Me/*` endpoints resolve the user from the JWT — do **not**
+- **No tenant scoping.** These `/Me/*` endpoints resolve the user from the JWT, do **not**
   add `?tenantId=` or `X-TenantId`; it is ignored.
 - **All operations apply to the current user**, never to an arbitrary user. There is no
   user-id path segment here; for admin user management use the platform's admin/system

@@ -5,14 +5,16 @@ description: >
   Covers courses and their full content tree (sections, units, unit components, content
   groups), assignments, problem sets, grading rubrics, cohorts, enrollments, certificates
   and templates, forums, wikis, articles, pages, updates, handouts, files, libraries, team
-  memberships, instructor/student profiles, and per-user "Me" reads — including atomic PATCH
-  (JSON Patch) updates. Tenant scoping is per-endpoint and most operations require a bearer
-  token (see the absuite-login skill to authenticate).
+  memberships, instructor/student profiles, the public course catalog, and per-user "Me" reads,
+  including atomic PATCH (JSON Patch) updates. Tenant scoping is per-endpoint and most operations
+  require a bearer token (see the absuite-login skill to authenticate).
+key: paperclip/skills/absuite-learning/SKILL.md
+version: 1.0.0
 ---
 
-# Alliance Business Suite — Learning Skill (REST)
+# Alliance Business Suite: Learning Skill (REST)
 
-Manage e-learning through the `LearningService` REST API. Most operations are tenant-scoped and require authentication. A subset of reads (get-by-id and course sub-resource listings) are public / optional-tenant, and the `Me/*` endpoints are strictly user-scoped (no tenant). **Tenant scoping is enforced per-endpoint — read each curl example's `?tenantId=` usage; do not blanket-add it.**
+Manage e-learning through the `LearningService` REST API. Most operations are tenant-scoped and require authentication. A subset of reads (course lists, get-by-id and course sub-resource listings) take an optional tenant, the `Courses/Public` catalog needs no sign-in, and the `Me/*` endpoints are strictly user-scoped (no tenant). **Tenant scoping is enforced per-endpoint: read each curl example's `?tenantId=` usage; do not blanket-add it.**
 
 > For the CLI equivalent of these operations, see `absuite-learning-cli`. For general REST conventions (auth, envelope, tenant scoping, JSON Patch), see `absuite-rest`.
 
@@ -20,9 +22,9 @@ Manage e-learning through the `LearningService` REST API. Most operations are te
 
 > Full detail in `absuite-rest`; these rules apply across this skill's endpoints.
 
-- **Lists & counts are OData-enabled.** `GET` collection endpoints accept `$filter`, `$top`, `$skip`, `$orderby`, `$select` — page through results, don't fetch-all-and-filter. Each dedicated `.../Count` endpoint returns an integer and is **also** filterable (`?$filter=...` -> a filtered count). OData is a REST/HTTP-layer feature (the CLI does not expose it).
-- **`PUT` replaces the ENTIRE resource** — it overwrites, not merges, so any omitted field is reset to default/null. **GET the resource first, change the full object, then PUT it back**; sending a partial body to `PUT` (or an incomplete `POST` create) causes silent data loss.
-- **`PATCH`, where this service exposes it, is atomic and partial** (JSON Patch / RFC 6902) — it changes only the fields you name, needs no prior GET, and won't clobber the rest. Prefer it for small edits; use `PUT` only for a deliberate full replacement.
+- **Lists & counts are OData-enabled.** `GET` collection endpoints accept `$filter`, `$top`, `$skip`, `$orderby`, `$select`: page through results, don't fetch-all-and-filter. Each dedicated `.../Count` endpoint returns an integer and is **also** filterable (`?$filter=...` -> a filtered count). OData is a REST/HTTP-layer feature (the CLI does not expose it).
+- **`PUT` replaces the ENTIRE resource**: it overwrites, not merges, so any omitted field is reset to default/null. **GET the resource first, change the full object, then PUT it back**; sending a partial body to `PUT` (or an incomplete `POST` create) causes silent data loss.
+- **`PATCH`, where this service exposes it, is atomic and partial** (JSON Patch / RFC 6902): it changes only the fields you name, needs no prior GET, and won't clobber the rest. Prefer it for small edits; use `PUT` only for a deliberate full replacement.
 
 ## Authentication
 
@@ -45,39 +47,47 @@ Extract `accessToken` from the response.
 
 ## Tenant scoping rules (per-endpoint)
 
-- **Tenant required** — all list/count/create/update/patch/delete on the top-level resources (Courses, CourseSections, CourseEnrollments, etc.). Pass `?tenantId=<tenant-guid>` on **every verb**, including POST/PUT/PATCH/DELETE. The header form `X-TenantId: <tenant-guid>` is equivalent.
-- **Tenant optional** — `GET /Courses/{courseId}` (get a single course): omitting `tenantId` returns the public/global view; pass it to scope to a tenant.
-- **No tenant param (public / optional read)** — most **get-by-id** endpoints (e.g. `GET /CourseSections/{sectionId}`) and the **course sub-resource listings** (`GET /Courses/{courseId}/Sections`, `/Units/{sectionId}`, `/Assignments`, …) take no `tenantId`. Do not add one; it is ignored.
-- **User-scoped** — the entire `Me/*` controller is resolved from the JWT. **Never** add `tenantId` or `X-TenantId` to `Me/*` calls.
-- Exceptions worth noting: `GET /Courses/{courseId}/Enrollments` **requires** `tenantId` (unlike the other course sub-resources). `CourseCertificates` and `StudentProfiles` get-by-id **require** `tenantId` (unlike most other get-by-id endpoints). Follow the per-call examples below.
+- **Tenant required**: all list/count/create/update/patch/delete on the top-level resources (CourseSections, CourseEnrollments, etc.; the Courses list and count are the exception below). Pass `?tenantId=<tenant-guid>` on **every verb**, including POST/PUT/PATCH/DELETE. The header form `X-TenantId: <tenant-guid>` is equivalent.
+- **Tenant optional (server-resolved reads)**: `GET /Courses` and `/Courses/Count`, most **get-by-id** endpoints (e.g. `GET /Courses/{courseId}`, `GET /CourseSections/{sectionId}`) and the **course sub-resource listings** (`GET /Courses/{courseId}/Sections`, `/Units/{sectionId}`, `/Assignments`, ...). With `tenantId`, a workspace member holding `courses_read` reads that workspace's records. Without it (or for a caller who is not a member), the service returns only what the signed-in user is enrolled in; a caller enrolled in nothing gets an empty list or a not-found.
+- **Public, no sign-in**: `GET /Courses/Public`, `/Courses/Public/Count` and `/Courses/Public/{courseId}` list the published course catalog. Send no token and no tenant.
+- **User-scoped**: the entire `Me/*` controller is resolved from the JWT. **Never** add `tenantId` or `X-TenantId` to `Me/*` calls.
+- **Tenant required on reads too**: `GET /Courses/{courseId}/Enrollments`, `GET /CourseEnrollments/Student/{studentProfileId}`, and get-by-id on `CourseEnrollments`, `CourseCertificates` (and their templates), `InstructorProfiles` and `StudentProfiles`. Follow the per-call examples below.
+
+## Permissions
+
+Workspace calls check the course permissions: `courses_read` for lists, counts and reads, `courses_create` for POST, `courses_update` for PUT and PATCH, and `courses_delete` for DELETE. They are granted through the workspace's security roles. `Me/*` and `Courses/Public` need none.
 
 ## Key Concepts
 
-- **Course** — top-level learning entity; carries pricing (`currencyId` + `regularPrice`), effort metrics, enrollment window, and a `published` flag (settable via update/patch).
-- **Section → Unit → Unit Component** — the course content tree. A Section groups Units; a Unit holds Unit Components (content blocks). Create them in that order.
-- **Content Group** — an optional grouping a Unit can belong to (`courseContentGroupId`).
-- **Cohort** — a group of students moving through a course together (`startDateTime`/`endDateTime`).
-- **Enrollment** — a student's registration in a course (links `studentProfileId`, optional `courseCohortId`).
-- **Assignment / Assignment Type / Assignment Component** — graded work, its weighting category, and its sub-parts.
-- **Problem Set** — practice exercises, optionally tied to a grading rubric.
-- **Grading Rubric** — scoring scheme (`enablePoints`).
-- **Certificate / Certificate Template** — completion credential and its reusable template.
-- **Forum / Wiki / Article / Page / Update / Handout / File / Library** — course content & resources. Articles live under a Wiki (`courseWikiId`).
-- **Team Membership** — instructor membership on a course; `courseTeamMembershipType` is `Admin` or `Staff`.
-- **Instructor Profile / Student Profile** — the learning identities of a contact (`contactId`).
+- **Course**: top-level learning entity; carries pricing (`currencyId` + `regularPrice`), effort metrics, enrollment window, and a `published` flag (settable via update/patch).
+- **Section → Unit → Unit Component**: the course content tree. A Section groups Units; a Unit holds Unit Components (content blocks). Create them in that order.
+- **Content Group**: an optional grouping a Unit can belong to (`courseContentGroupId`).
+- **Cohort**: a group of students moving through a course together (`startDateTime`/`endDateTime`).
+- **Enrollment**: a student's registration in a course (links `studentProfileId`, optional `courseCohortId`).
+- **Assignment / Assignment Type / Assignment Component**: graded work, its weighting category, and its sub-parts.
+- **Problem Set**: practice exercises, optionally tied to a grading rubric.
+- **Grading Rubric**: scoring scheme (`enablePoints`).
+- **Certificate / Certificate Template**: completion credential and its reusable template.
+- **Forum / Wiki / Article / Page / Update / Handout / File / Library**: course content & resources. Articles live under a Wiki (`courseWikiId`).
+- **Team Membership**: instructor membership on a course; `courseTeamMembershipType` is `Admin` or `Staff`.
+- **Instructor Profile / Student Profile**: the learning identities of a contact (`contactId`).
 
 ## Courses
 
 ```bash
-# List courses (tenant REQUIRED)
+# List courses (tenant OPTIONAL: with it, the workspace's courses for a member with courses_read;
+# without it, only the courses the signed-in user is enrolled in)
 curl -X GET "$ABSUITE_HOST_URL/api/v2/LearningService/Courses?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Count (tenant REQUIRED)
+# Count (same resolution as the list)
 curl -X GET "$ABSUITE_HOST_URL/api/v2/LearningService/Courses/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Get by ID (tenant OPTIONAL — omit for public view, pass to scope)
+# Public catalog: published courses, no token and no tenant (+ /Public/Count, /Public/<course-guid>)
+curl -X GET "$ABSUITE_HOST_URL/api/v2/LearningService/Courses/Public"
+
+# Get by ID (tenant OPTIONAL, same resolution as the list)
 curl -X GET "$ABSUITE_HOST_URL/api/v2/LearningService/Courses/<course-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
@@ -106,7 +116,8 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/LearningService/Courses?tenantId=<tenant-
     "inscriptionsEndDateTime": "2026-01-14T00:00:00Z"
   }'
 
-# Update (PUT — full replace, tenant REQUIRED). Adds "published".
+# Update (PUT, full replace, tenant REQUIRED). Adds "published". Send the FULL object from a prior GET;
+# the short body below only shows the changed fields.
 curl -X PUT "$ABSUITE_HOST_URL/api/v2/LearningService/Courses/<course-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
@@ -117,7 +128,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/LearningService/Courses/<course-guid>?tena
     "published": true
   }'
 
-# Patch (PATCH — atomic partial update, tenant REQUIRED). See PATCH section below.
+# Patch (PATCH: atomic partial update, tenant REQUIRED). See PATCH section below.
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/LearningService/Courses/<course-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
@@ -130,7 +141,7 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/LearningService/Courses/<course-guid>?t
 
 ### Course sub-resource reads
 
-These list a course's related entities. **Except where noted, they take NO `tenantId`.** Each has a matching `/Count` variant.
+These list a course's related entities. **Except where noted, `tenantId` is optional**: send it as a workspace member, omit it as an enrolled learner (the service checks the caller per record). Each has a matching `/Count` variant.
 
 ```bash
 # Sections, Units, Unit Components, Content Groups
@@ -184,7 +195,7 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/LearningService/Courses/<course-guid>/Inst
 curl -X GET "$ABSUITE_HOST_URL/api/v2/LearningService/Courses/<course-guid>/Students" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Enrollments for a course — NOTE: tenant REQUIRED here (exception)
+# Enrollments for a course: NOTE: tenant REQUIRED here (exception)
 curl -X GET "$ABSUITE_HOST_URL/api/v2/LearningService/Courses/<course-guid>/Enrollments?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
@@ -281,7 +292,7 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/LearningService/CourseEnrollments?tenantId
 curl -X GET "$ABSUITE_HOST_URL/api/v2/LearningService/CourseEnrollments/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Get by ID (tenant REQUIRED — exception)
+# Get by ID (tenant REQUIRED: exception)
 curl -X GET "$ABSUITE_HOST_URL/api/v2/LearningService/CourseEnrollments/<enrollment-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
@@ -318,7 +329,7 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/LearningService/CourseEnrollments/Student/
 
 ### Assignments
 
-Path: `CourseAssignments` · ID param `assignmentId`. Create body (`CourseAssignmentCreateDto`): `title` REQ, `description`, `instructions`, `points` (number), `courseId` REQ, `courseUnitId`, `courseCohortId`, `courseAssignmentTypeId`, `dueDateTime`, `asignToAllCohorts` (boolean — spelled exactly as `asignToAllCohorts`), `resources`.
+Path: `CourseAssignments` · ID param `assignmentId`. Create body (`CourseAssignmentCreateDto`): `title` REQ, `description`, `instructions`, `points` (number), `courseId` REQ, `courseUnitId`, `courseCohortId`, `courseAssignmentTypeId`, `dueDateTime`, `asignToAllCohorts` (boolean: spelled exactly as `asignToAllCohorts`), `resources`.
 
 ```bash
 curl -X POST "$ABSUITE_HOST_URL/api/v2/LearningService/CourseAssignments?tenantId=<tenant-guid>" \
@@ -397,7 +408,7 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/LearningService/CourseCertificates/Temp
 
 These all follow the standard family shape (list/count tenant-REQUIRED, get-by-id no-tenant, create/update/patch/delete tenant-REQUIRED). Paths, ID params, and create bodies:
 
-| Family | Path | ID param | Create body (`*CreateDto`) — REQ fields in **bold** |
+| Family | Path | ID param | Create body (`*CreateDto`): REQ fields in **bold** |
 |---|---|---|---|
 | Categories | `CourseCategories` | `categoryId` | **title**, description, imageURL, isFeatured (bool) |
 | Forums | `CourseForums` | `forumId` | **title**, description, **courseId** |
@@ -411,7 +422,7 @@ These all follow the standard family shape (list/count tenant-REQUIRED, get-by-i
 
 > Categories has no `courseId` in its create body (it is a tenant-wide taxonomy; associate via the course). The Updates resource uses `CourseNewsCreateDto`/`CourseNewsUpdateDto` despite the `CourseUpdates` path.
 
-Representative create (Articles — note `courseWikiId` is required):
+Representative create (Articles: note `courseWikiId` is required):
 
 ```bash
 curl -X POST "$ABSUITE_HOST_URL/api/v2/LearningService/CourseArticles?tenantId=<tenant-guid>" \
@@ -468,38 +479,39 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/LearningService/InstructorProfiles?tenant
 
 ### Student Profiles
 
-Path: `StudentProfiles` · ID param `studentProfileId`. **List/count/get-by-id/create/update/patch/delete ALL require `tenantId`.** Plus two per-student stat reads (tenant REQUIRED):
+Path: `StudentProfiles` · ID param `studentProfileId`. **List/count/get-by-id/create/update/patch/delete ALL require `tenantId`.**
 
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/LearningService/StudentProfiles/<student-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-# Average score for a student
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LearningService/StudentProfiles/<student-guid>/Average?tenantId=<tenant-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-# Hours completed by a student
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LearningService/StudentProfiles/<student-guid>/HoursCompleted?tenantId=<tenant-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-## My Learning (Me) — user-scoped, NO tenant
+Do not call `StudentProfiles/{id}/Average` or `StudentProfiles/{id}/HoursCompleted`: grading and progress tracking are not built, so they return no meaningful value (HoursCompleted fails).
 
-Read-only endpoints resolved entirely from the authenticated user's JWT. **Do NOT pass `tenantId` or `X-TenantId` — it is ignored.**
+## My Learning (Me): user-scoped, NO tenant
+
+Read-only endpoints resolved entirely from the authenticated user's JWT. **Do NOT pass `tenantId` or `X-TenantId`: it is ignored.**
 
 ```bash
-# My average score across courses
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LearningService/Me/AverageScore" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 # My completion certificates (+ /Count)
 curl -X GET "$ABSUITE_HOST_URL/api/v2/LearningService/Me/Certificates" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-# My enrolled courses as a student (+ /Count)
+# One of my certificates
+curl -X GET "$ABSUITE_HOST_URL/api/v2/LearningService/Me/Certificates/<cert-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+# My enrolled courses as a student (+ /Count); revoked enrollments are excluded
 curl -X GET "$ABSUITE_HOST_URL/api/v2/LearningService/Me/Courses" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+# Am I enrolled in this course? (my enrollment, or not found)
+curl -X GET "$ABSUITE_HOST_URL/api/v2/LearningService/Me/Courses/<course-guid>/Enrollment" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 # My course enrollments (+ /Count)
 curl -X GET "$ABSUITE_HOST_URL/api/v2/LearningService/Me/Enrollments" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-# My completed hours
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LearningService/Me/HoursCompleted" \
+# One assignment or problem set of a course I am enrolled in
+curl -X GET "$ABSUITE_HOST_URL/api/v2/LearningService/Me/Assignments/<assignment-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/LearningService/Me/ProblemSets/<problem-set-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 # Courses where I am an instructor (+ /Count)
 curl -X GET "$ABSUITE_HOST_URL/api/v2/LearningService/Me/InstructorCourses" \
@@ -507,13 +519,12 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/LearningService/Me/InstructorCourses" \
 # My instructor profiles (+ /Count)
 curl -X GET "$ABSUITE_HOST_URL/api/v2/LearningService/Me/InstructorProfiles" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-# My pending task count
-curl -X GET "$ABSUITE_HOST_URL/api/v2/LearningService/Me/PendingTasks" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 # My student profiles (+ /Count)
 curl -X GET "$ABSUITE_HOST_URL/api/v2/LearningService/Me/StudentProfiles" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
+
+Do not use `Me/AverageScore`, `Me/HoursCompleted` or `Me/PendingTasks`: grading, progress and task tracking are not built, so they return 0 or a meaningless value.
 
 ## PATCH (JSON Patch, RFC 6902)
 
@@ -571,40 +582,41 @@ curl -s -X PATCH "$ABSUITE_HOST_URL/api/v2/LearningService/Courses/<course-guid>
 
 ## API Endpoints Quick Reference
 
-All paths relative to `/api/v2/LearningService/`. **T** = `tenantId` required · **opt** = optional · **—** = no tenant param.
+All paths relative to `/api/v2/LearningService/`. **T** = `tenantId` required · **opt** = optional (member with it, enrolled learner without it) · **none** = no tenant param.
 
 ### Standard CRUD families
 
 | Resource | List | Get by ID | Create | Update (PUT) | Patch | Delete | Count |
 |---|---|---|---|---|---|---|---|
-| Courses | `GET /Courses` (T) | `GET /Courses/:id` (opt) | `POST /Courses` (T) | `PUT /Courses/:id` (T) | `PATCH /Courses/:id` (T) | `DELETE /Courses/:id` (T) | `GET /Courses/Count` (T) |
-| CourseSections | `GET /CourseSections` (T) | `GET /CourseSections/:id` (—) | `POST /CourseSections` (T) | `PUT /CourseSections/:id` (T) | `PATCH /CourseSections/:id` (T) | `DELETE /CourseSections/:id` (T) | `GET /CourseSections/Count` (T) |
-| CourseUnits | `GET /CourseUnits` (T) | `GET /CourseUnits/:id` (—) | `POST /CourseUnits` (T) | `PUT /CourseUnits/:id` (T) | `PATCH /CourseUnits/:id` (T) | `DELETE /CourseUnits/:id` (T) | `GET /CourseUnits/Count` (T) |
-| CourseUnitComponents | `GET /CourseUnitComponents` (T) | `GET /CourseUnitComponents/:id` (—) | `POST /CourseUnitComponents` (T) | `PUT /CourseUnitComponents/:id` (T) | `PATCH /CourseUnitComponents/:id` (T) | `DELETE /CourseUnitComponents/:id` (T) | `GET /CourseUnitComponents/Count` (T) |
-| CourseContentGroups | `GET /CourseContentGroups` (T) | `GET /CourseContentGroups/:id` (—) | `POST /CourseContentGroups` (T) | `PUT /CourseContentGroups/:id` (T) | `PATCH /CourseContentGroups/:id` (T) | `DELETE /CourseContentGroups/:id` (T) | `GET /CourseContentGroups/Count` (T) |
-| CourseCohorts | `GET /CourseCohorts` (T) | `GET /CourseCohorts/:id` (—) | `POST /CourseCohorts` (T) | `PUT /CourseCohorts/:id` (T) | `PATCH /CourseCohorts/:id` (T) | `DELETE /CourseCohorts/:id` (T) | `GET /CourseCohorts/Count` (T) |
+| Courses | `GET /Courses` (opt) | `GET /Courses/:id` (opt) | `POST /Courses` (T) | `PUT /Courses/:id` (T) | `PATCH /Courses/:id` (T) | `DELETE /Courses/:id` (T) | `GET /Courses/Count` (opt) |
+| CourseSections | `GET /CourseSections` (T) | `GET /CourseSections/:id` (opt) | `POST /CourseSections` (T) | `PUT /CourseSections/:id` (T) | `PATCH /CourseSections/:id` (T) | `DELETE /CourseSections/:id` (T) | `GET /CourseSections/Count` (T) |
+| CourseUnits | `GET /CourseUnits` (T) | `GET /CourseUnits/:id` (opt) | `POST /CourseUnits` (T) | `PUT /CourseUnits/:id` (T) | `PATCH /CourseUnits/:id` (T) | `DELETE /CourseUnits/:id` (T) | `GET /CourseUnits/Count` (T) |
+| CourseUnitComponents | `GET /CourseUnitComponents` (T) | `GET /CourseUnitComponents/:id` (opt) | `POST /CourseUnitComponents` (T) | `PUT /CourseUnitComponents/:id` (T) | `PATCH /CourseUnitComponents/:id` (T) | `DELETE /CourseUnitComponents/:id` (T) | `GET /CourseUnitComponents/Count` (T) |
+| CourseContentGroups | `GET /CourseContentGroups` (T) | `GET /CourseContentGroups/:id` (opt) | `POST /CourseContentGroups` (T) | `PUT /CourseContentGroups/:id` (T) | `PATCH /CourseContentGroups/:id` (T) | `DELETE /CourseContentGroups/:id` (T) | `GET /CourseContentGroups/Count` (T) |
+| CourseCohorts | `GET /CourseCohorts` (T) | `GET /CourseCohorts/:id` (opt) | `POST /CourseCohorts` (T) | `PUT /CourseCohorts/:id` (T) | `PATCH /CourseCohorts/:id` (T) | `DELETE /CourseCohorts/:id` (T) | `GET /CourseCohorts/Count` (T) |
 | CourseEnrollments | `GET /CourseEnrollments` (T) | `GET /CourseEnrollments/:id` (T) | `POST /CourseEnrollments` (T) | `PUT /CourseEnrollments/:id` (T) | `PATCH /CourseEnrollments/:id` (T) | `DELETE /CourseEnrollments/:id` (T) | `GET /CourseEnrollments/Count` (T) |
-| CourseAssignments | `GET /CourseAssignments` (T) | `GET /CourseAssignments/:id` (—) | `POST /CourseAssignments` (T) | `PUT /CourseAssignments/:id` (T) | `PATCH /CourseAssignments/:id` (T) | `DELETE /CourseAssignments/:id` (T) | `GET /CourseAssignments/Count` (T) |
-| CourseAssignmentTypes | `GET /CourseAssignmentTypes` (T) | `GET /CourseAssignmentTypes/:id` (—) | `POST /CourseAssignmentTypes` (T) | `PUT /CourseAssignmentTypes/:id` (T) | `PATCH /CourseAssignmentTypes/:id` (T) | `DELETE /CourseAssignmentTypes/:id` (T) | `GET /CourseAssignmentTypes/Count` (T) |
-| CourseAssignmentComponents | `GET /CourseAssignmentComponents` (T) | `GET /CourseAssignmentComponents/:id` (—) | `POST /CourseAssignmentComponents` (T) | `PUT /CourseAssignmentComponents/:id` (T) | `PATCH /CourseAssignmentComponents/:id` (T) | `DELETE /CourseAssignmentComponents/:id` (T) | `GET /CourseAssignmentComponents/Count` (T) |
-| CourseProblemSets | `GET /CourseProblemSets` (T) | `GET /CourseProblemSets/:id` (—) | `POST /CourseProblemSets` (T) | `PUT /CourseProblemSets/:id` (T) | `PATCH /CourseProblemSets/:id` (T) | `DELETE /CourseProblemSets/:id` (T) | `GET /CourseProblemSets/Count` (T) |
-| CourseGradingRubrics | `GET /CourseGradingRubrics` (T) | `GET /CourseGradingRubrics/:id` (—) | `POST /CourseGradingRubrics` (T) | `PUT /CourseGradingRubrics/:id` (T) | `PATCH /CourseGradingRubrics/:id` (T) | `DELETE /CourseGradingRubrics/:id` (T) | `GET /CourseGradingRubrics/Count` (T) |
+| CourseAssignments | `GET /CourseAssignments` (T) | `GET /CourseAssignments/:id` (opt) | `POST /CourseAssignments` (T) | `PUT /CourseAssignments/:id` (T) | `PATCH /CourseAssignments/:id` (T) | `DELETE /CourseAssignments/:id` (T) | `GET /CourseAssignments/Count` (T) |
+| CourseAssignmentTypes | `GET /CourseAssignmentTypes` (T) | `GET /CourseAssignmentTypes/:id` (opt) | `POST /CourseAssignmentTypes` (T) | `PUT /CourseAssignmentTypes/:id` (T) | `PATCH /CourseAssignmentTypes/:id` (T) | `DELETE /CourseAssignmentTypes/:id` (T) | `GET /CourseAssignmentTypes/Count` (T) |
+| CourseAssignmentComponents | `GET /CourseAssignmentComponents` (T) | `GET /CourseAssignmentComponents/:id` (opt) | `POST /CourseAssignmentComponents` (T) | `PUT /CourseAssignmentComponents/:id` (T) | `PATCH /CourseAssignmentComponents/:id` (T) | `DELETE /CourseAssignmentComponents/:id` (T) | `GET /CourseAssignmentComponents/Count` (T) |
+| CourseProblemSets | `GET /CourseProblemSets` (T) | `GET /CourseProblemSets/:id` (opt) | `POST /CourseProblemSets` (T) | `PUT /CourseProblemSets/:id` (T) | `PATCH /CourseProblemSets/:id` (T) | `DELETE /CourseProblemSets/:id` (T) | `GET /CourseProblemSets/Count` (T) |
+| CourseGradingRubrics | `GET /CourseGradingRubrics` (T) | `GET /CourseGradingRubrics/:id` (opt) | `POST /CourseGradingRubrics` (T) | `PUT /CourseGradingRubrics/:id` (T) | `PATCH /CourseGradingRubrics/:id` (T) | `DELETE /CourseGradingRubrics/:id` (T) | `GET /CourseGradingRubrics/Count` (T) |
 | CourseCertificates | `GET /CourseCertificates` (T) | `GET /CourseCertificates/:id` (T) | `POST /CourseCertificates` (T) | `PUT /CourseCertificates/:id` (T) | `PATCH /CourseCertificates/:id` (T) | `DELETE /CourseCertificates/:id` (T) | `GET /CourseCertificates/Count` (T) |
 | Certificate Templates | `GET /CourseCertificates/Template` (T) | `GET /CourseCertificates/Template/:id` (T) | `POST /CourseCertificates/Template` (T) | `PUT /CourseCertificates/Template/:id` (T) | `PATCH /CourseCertificates/Template/:id` (T) | `DELETE /CourseCertificates/Template/:id` (T) | `GET /CourseCertificates/Template/Count` (T) |
-| CourseCategories | `GET /CourseCategories` (T) | `GET /CourseCategories/:id` (—) | `POST /CourseCategories` (T) | `PUT /CourseCategories/:id` (T) | `PATCH /CourseCategories/:id` (T) | `DELETE /CourseCategories/:id` (T) | `GET /CourseCategories/Count` (T) |
-| CourseForums | `GET /CourseForums` (T) | `GET /CourseForums/:id` (—) | `POST /CourseForums` (T) | `PUT /CourseForums/:id` (T) | `PATCH /CourseForums/:id` (T) | `DELETE /CourseForums/:id` (T) | `GET /CourseForums/Count` (T) |
-| CourseWikis | `GET /CourseWikis` (T) | `GET /CourseWikis/:id` (—) | `POST /CourseWikis` (T) | `PUT /CourseWikis/:id` (T) | `PATCH /CourseWikis/:id` (T) | `DELETE /CourseWikis/:id` (T) | `GET /CourseWikis/Count` (T) |
-| CourseArticles | `GET /CourseArticles` (T) | `GET /CourseArticles/:id` (—) | `POST /CourseArticles` (T) | `PUT /CourseArticles/:id` (T) | `PATCH /CourseArticles/:id` (T) | `DELETE /CourseArticles/:id` (T) | `GET /CourseArticles/Count` (T) |
-| CoursePages | `GET /CoursePages` (T) | `GET /CoursePages/:id` (—) | `POST /CoursePages` (T) | `PUT /CoursePages/:id` (T) | `PATCH /CoursePages/:id` (T) | `DELETE /CoursePages/:id` (T) | `GET /CoursePages/Count` (T) |
-| CourseUpdates | `GET /CourseUpdates` (T) | `GET /CourseUpdates/:id` (—) | `POST /CourseUpdates` (T) | `PUT /CourseUpdates/:id` (T) | `PATCH /CourseUpdates/:id` (T) | `DELETE /CourseUpdates/:id` (T) | `GET /CourseUpdates/Count` (T) |
-| CourseHandouts | `GET /CourseHandouts` (T) | `GET /CourseHandouts/:id` (—) | `POST /CourseHandouts` (T) | `PUT /CourseHandouts/:id` (T) | `PATCH /CourseHandouts/:id` (T) | `DELETE /CourseHandouts/:id` (T) | `GET /CourseHandouts/Count` (T) |
-| CourseFiles | `GET /CourseFiles` (T) | `GET /CourseFiles/:id` (—) | `POST /CourseFiles` (T) | `PUT /CourseFiles/:id` (T) | `PATCH /CourseFiles/:id` (T) | `DELETE /CourseFiles/:id` (T) | `GET /CourseFiles/Count` (T) |
-| CourseLibraries | `GET /CourseLibraries` (T) | `GET /CourseLibraries/:id` (—) | `POST /CourseLibraries` (T) | `PUT /CourseLibraries/:id` (T) | `PATCH /CourseLibraries/:id` (T) | `DELETE /CourseLibraries/:id` (T) | `GET /CourseLibraries/Count` (T) |
-| CourseTeamMemberships | `GET /CourseTeamMemberships` (T) | `GET /CourseTeamMemberships/:id` (—) | `POST /CourseTeamMemberships` (T) | `PUT /CourseTeamMemberships/:id` (T) | `PATCH /CourseTeamMemberships/:id` (T) | `DELETE /CourseTeamMemberships/:id` (T) | `GET /CourseTeamMemberships/Count` (T) |
+| CourseCategories | `GET /CourseCategories` (T) | `GET /CourseCategories/:id` (opt) | `POST /CourseCategories` (T) | `PUT /CourseCategories/:id` (T) | `PATCH /CourseCategories/:id` (T) | `DELETE /CourseCategories/:id` (T) | `GET /CourseCategories/Count` (T) |
+| CourseForums | `GET /CourseForums` (T) | `GET /CourseForums/:id` (opt) | `POST /CourseForums` (T) | `PUT /CourseForums/:id` (T) | `PATCH /CourseForums/:id` (T) | `DELETE /CourseForums/:id` (T) | `GET /CourseForums/Count` (T) |
+| CourseWikis | `GET /CourseWikis` (T) | `GET /CourseWikis/:id` (opt) | `POST /CourseWikis` (T) | `PUT /CourseWikis/:id` (T) | `PATCH /CourseWikis/:id` (T) | `DELETE /CourseWikis/:id` (T) | `GET /CourseWikis/Count` (T) |
+| CourseArticles | `GET /CourseArticles` (T) | `GET /CourseArticles/:id` (opt) | `POST /CourseArticles` (T) | `PUT /CourseArticles/:id` (T) | `PATCH /CourseArticles/:id` (T) | `DELETE /CourseArticles/:id` (T) | `GET /CourseArticles/Count` (T) |
+| CoursePages | `GET /CoursePages` (T) | `GET /CoursePages/:id` (opt) | `POST /CoursePages` (T) | `PUT /CoursePages/:id` (T) | `PATCH /CoursePages/:id` (T) | `DELETE /CoursePages/:id` (T) | `GET /CoursePages/Count` (T) |
+| CourseUpdates | `GET /CourseUpdates` (T) | `GET /CourseUpdates/:id` (opt) | `POST /CourseUpdates` (T) | `PUT /CourseUpdates/:id` (T) | `PATCH /CourseUpdates/:id` (T) | `DELETE /CourseUpdates/:id` (T) | `GET /CourseUpdates/Count` (T) |
+| CourseHandouts | `GET /CourseHandouts` (T) | `GET /CourseHandouts/:id` (opt) | `POST /CourseHandouts` (T) | `PUT /CourseHandouts/:id` (T) | `PATCH /CourseHandouts/:id` (T) | `DELETE /CourseHandouts/:id` (T) | `GET /CourseHandouts/Count` (T) |
+| CourseFiles | `GET /CourseFiles` (T) | `GET /CourseFiles/:id` (opt) | `POST /CourseFiles` (T) | `PUT /CourseFiles/:id` (T) | `PATCH /CourseFiles/:id` (T) | `DELETE /CourseFiles/:id` (T) | `GET /CourseFiles/Count` (T) |
+| CourseLibraries | `GET /CourseLibraries` (T) | `GET /CourseLibraries/:id` (opt) | `POST /CourseLibraries` (T) | `PUT /CourseLibraries/:id` (T) | `PATCH /CourseLibraries/:id` (T) | `DELETE /CourseLibraries/:id` (T) | `GET /CourseLibraries/Count` (T) |
+| CourseTeamMemberships | `GET /CourseTeamMemberships` (T) | `GET /CourseTeamMemberships/:id` (opt) | `POST /CourseTeamMemberships` (T) | `PUT /CourseTeamMemberships/:id` (T) | `PATCH /CourseTeamMemberships/:id` (T) | `DELETE /CourseTeamMemberships/:id` (T) | `GET /CourseTeamMemberships/Count` (T) |
 | InstructorProfiles | `GET /InstructorProfiles` (T) | `GET /InstructorProfiles/:id` (T) | `POST /InstructorProfiles` (T) | `PUT /InstructorProfiles/:id` (T) | `PATCH /InstructorProfiles/:id` (T) | `DELETE /InstructorProfiles/:id` (T) | `GET /InstructorProfiles/Count` (T) |
+| CourseCollections | `GET /CourseCollections` (T) | `GET /CourseCollections/:id` (T) | `POST /CourseCollections` (T) | `PUT /CourseCollections/:id` (T) | none | `DELETE /CourseCollections/:id` (T) | `GET /CourseCollections/Count` (T) |
 | StudentProfiles | `GET /StudentProfiles` (T) | `GET /StudentProfiles/:id` (T) | `POST /StudentProfiles` (T) | `PUT /StudentProfiles/:id` (T) | `PATCH /StudentProfiles/:id` (T) | `DELETE /StudentProfiles/:id` (T) | `GET /StudentProfiles/Count` (T) |
 
-### Course sub-resource reads (no tenant unless noted)
+### Course sub-resource reads (tenant optional unless noted)
 
 | Action | Method | Path |
 |---|---|---|
@@ -627,35 +639,33 @@ All paths relative to `/api/v2/LearningService/`. **T** = `tenantId` required ·
 | Pages by course | GET | `/Courses/:courseId/Pages` (+ `/Count`) |
 | Instructors by course | GET | `/Courses/:courseId/Instructors` (+ `/Count`) |
 | Students by course | GET | `/Courses/:courseId/Students` (+ `/Count`) |
+| Public catalog, no token, no tenant | GET | `/Courses/Public` (+ `/Count`, `/Public/:courseId`) |
 
 ### Other reads & stats
 
 | Action | Method | Path | Tenant |
 |---|---|---|---|
 | Enrollments by student | GET | `/CourseEnrollments/Student/:studentProfileId` | T |
-| Student average score | GET | `/StudentProfiles/:studentProfileId/Average` | T |
-| Student hours completed | GET | `/StudentProfiles/:studentProfileId/HoursCompleted` | T |
 
-### Me/* (user-scoped — NEVER pass tenant)
+### Me/* (user-scoped: NEVER pass tenant)
 
 | Action | Method | Path |
 |---|---|---|
-| My average score | GET | `/Me/AverageScore` |
-| My certificates | GET | `/Me/Certificates` (+ `/Count`) |
+| My certificates | GET | `/Me/Certificates` (+ `/Count`, `/:certificateId`) |
 | My enrolled courses | GET | `/Me/Courses` (+ `/Count`) |
+| My enrollment in a course | GET | `/Me/Courses/:courseId/Enrollment` |
+| An assignment / problem set of a course I take | GET | `/Me/Assignments/:id`, `/Me/ProblemSets/:id` |
 | My enrollments | GET | `/Me/Enrollments` (+ `/Count`) |
-| My hours completed | GET | `/Me/HoursCompleted` |
 | My instructor courses | GET | `/Me/InstructorCourses` (+ `/Count`) |
 | My instructor profiles | GET | `/Me/InstructorProfiles` (+ `/Count`) |
-| My pending task count | GET | `/Me/PendingTasks` |
 | My student profiles | GET | `/Me/StudentProfiles` (+ `/Count`) |
 
 ## Critical Rules
 
 - **Authenticate first** and send `Authorization: Bearer …` on every call.
-- **Tenant scoping is per-endpoint.** Top-level writes/lists require `?tenantId=`; most get-by-id and course sub-resource reads take none; `Me/*` never takes one. Honor the (T)/(opt)/(—) flags above.
+- **Tenant scoping is per-endpoint.** Top-level writes/lists require `?tenantId=`; the Courses list/count, most get-by-id and the course sub-resource reads take it optionally (member with it, enrolled learner without it); `Courses/Public` needs no token; `Me/*` never takes one. Honor the (T)/(opt)/(opt) flags above.
 - **Course hierarchy**: Course → Section → Unit → Unit Component. Create in order; Units need both `courseId` and `courseSectionId`.
 - **Articles require `courseWikiId`**; create the Wiki first.
-- **Body field names are camelCase** exactly as in the manifest (e.g. `imageURL`, `fileUploadURL`, `asignToAllCohorts` — note the original spelling).
-- **PATCH** is REST-only here (JSON Patch array). For the CLI, use PUT-style `update` instead — see `absuite-learning-cli`.
+- **Body field names are camelCase** exactly as in the manifest (e.g. `imageURL`, `fileUploadURL`, `asignToAllCohorts`: note the original spelling).
+- **PATCH** is REST-only here (JSON Patch array). For the CLI, use PUT-style `update` instead: see `absuite-learning-cli`.
 - **REST base path**: `$ABSUITE_HOST_URL/api/v2/LearningService/`.

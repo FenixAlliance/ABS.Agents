@@ -1,5 +1,7 @@
 ---
 name: absuite-invoicing
+key: paperclip/skills/absuite-invoicing/SKILL.md
+version: 1.0.0
 description: >
   Create, read, update, patch, delete, and manage invoices in the Alliance Business
   Suite (ABS) Invoicing Service via the REST API. Covers invoices, invoice lines,
@@ -9,11 +11,11 @@ description: >
   require a bearer token (see the absuite-login skill to authenticate).
 ---
 
-# Alliance Business Suite — Invoicing Skill (REST)
+# Alliance Business Suite: Invoicing Skill (REST)
 
 Manage invoices through the ABS Invoicing Service REST API. Every invoicing endpoint
 is tenant-scoped: pass `?tenantId=<tenant-guid>` (or the equivalent `X-TenantId: <tenant-guid>`
-header) on **every** request — GET, POST, PUT, PATCH, and DELETE alike.
+header) on **every** request: GET, POST, PUT, PATCH, and DELETE alike.
 
 > For the CLI equivalent see `absuite-invoicing-cli`; for general REST conventions
 > (envelope, tenant scoping, JSON Patch) see `absuite-rest`.
@@ -22,9 +24,9 @@ header) on **every** request — GET, POST, PUT, PATCH, and DELETE alike.
 
 > Full detail in `absuite-rest`; these rules apply across this skill's endpoints.
 
-- **Lists & counts are OData-enabled.** `GET` collection endpoints accept `$filter`, `$top`, `$skip`, `$orderby`, `$select` — page through results, don't fetch-all-and-filter. Each dedicated `.../Count` endpoint returns an integer and is **also** filterable (`?$filter=...` -> a filtered count). OData is a REST/HTTP-layer feature (the CLI does not expose it).
-- **`PUT` replaces the ENTIRE resource** — it overwrites, not merges, so any omitted field is reset to default/null. **GET the resource first, change the full object, then PUT it back**; sending a partial body to `PUT` (or an incomplete `POST` create) causes silent data loss.
-- **`PATCH`, where this service exposes it, is atomic and partial** (JSON Patch / RFC 6902) — it changes only the fields you name, needs no prior GET, and won't clobber the rest. Prefer it for small edits; use `PUT` only for a deliberate full replacement.
+- **Lists & counts are OData-enabled.** `GET` collection endpoints accept `$filter`, `$top`, `$skip`, `$orderby`, `$select`: page through results, don't fetch-all-and-filter. Each dedicated `.../Count` endpoint returns an integer and is **also** filterable (`?$filter=...` -> a filtered count). OData is a REST/HTTP-layer feature (the CLI does not expose it).
+- **`PUT` replaces the ENTIRE resource**: it overwrites, not merges, so any omitted field is reset to default/null. **GET the resource first, change the full object, then PUT it back**; sending a partial body to `PUT` (or an incomplete `POST` create) causes silent data loss.
+- **`PATCH`, where this service exposes it, is atomic and partial** (JSON Patch / RFC 6902): it changes only the fields you name, needs no prior GET, and won't clobber the rest. Prefer it for small edits; use `PUT` only for a deliberate full replacement.
 
 ## Authentication
 
@@ -46,7 +48,7 @@ export ABSUITE_ACCESS_TOKEN="<accessToken-from-response>"
 
 3. **Base path:** `$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices`
 
-4. **Response envelope** — every response is wrapped:
+4. **Response envelope**: every response is wrapped:
 ```json
 {
   "isSuccess": true,
@@ -60,19 +62,21 @@ Always check `isSuccess`; read the payload from `result` (an object, an array, a
 
 ## Key Concepts
 
-- **Invoice** — a formal billing document with header info (customer, currency, totals, status), line items, adjustments, and references.
-- **Invoice Line** — an individual item/service billed, with quantity, pricing, and tax info.
-- **Invoice Line Tax** — a tax policy applied to a specific invoice line.
-- **Invoice Adjustment** — a discount or surcharge applied at the invoice level (percentage or fixed amount).
-- **Invoice Reference** — a link between invoices (e.g. a credit note referencing the original invoice).
-- **Invoice Payment** — payment records associated with an invoice (read-only here).
-- **InvoiceType** — `PurchaseInvoice` | `SalesInvoice` | `CreditNote` | `DebitNote`.
-- **DocumentType** — `Standard` | `DebitNote` | `CreditNote`.
-- **InvoiceStatus** — lifecycle state: `Draft` | `Closed` | `Signed` | `Expired` | `Paid`.
-- **CostCalculationMethod** — `Automatic` | `Custom`.
-- **TaxCalculationMethod** — `Included` | `Excluded`.
-- **AdjustmentType** (`type` on an adjustment) — `Discount` | `Surcharge`.
-- **Enumeration** — invoice number/sequence (auto-generated or from an enumeration range).
+- **Invoice**: a formal billing document with header info (customer, currency, totals, status), line items, adjustments, and references.
+- **Invoice Line**: an individual item/service billed, with quantity, pricing, and tax info.
+- **Invoice Line Tax**: a tax policy applied to a specific invoice line.
+- **Invoice Adjustment**: a discount or surcharge applied at the invoice level (percentage or fixed amount).
+- **Invoice Reference**: a link between invoices (e.g. a credit note referencing the original invoice).
+- **Invoice Payment**: payment records associated with an invoice (read-only here).
+- **InvoiceType**: `PurchaseInvoice` | `SalesInvoice` | `CreditNote` | `DebitNote`.
+- **DocumentType**: `Standard` | `DebitNote` | `CreditNote`.
+- **InvoiceStatus**: lifecycle state: `Draft` | `Closed` | `Signed` | `Expired` | `Paid`.
+- **CostCalculationMethod**: `Automatic` | `Custom`.
+- **TaxCalculationMethod**: `Included` | `Excluded`.
+- **InvoiceAdjustmentType** (`type` on an adjustment): `Discount` | `Surcharge`.
+- **Issued**: an invoice is issued when its `issuedAtUtc` is set (by `POST .../Issue`), not by its status. An
+  issued invoice can still read `Draft`; never patch the status to issue it.
+- **Enumeration**: invoice number/sequence (auto-generated or from an enumeration range).
 
 > Field names in request bodies are PascalCase JSON keys (e.g. `"Title"`, `"CurrencyId"`,
 > `"InvoiceType"`). Monetary amounts are split into a value field and a matching
@@ -84,9 +88,11 @@ Always check `isSuccess`; read the payload from `result` (an object, an array, a
 2. **Add invoice lines** for each billed item/service.
 3. **Add line taxes** to each line (link to tax policies).
 4. **(Optional)** Add adjustments (invoice-level discounts/surcharges).
-5. **Calculate totals** — let the server compute taxes, discounts, and grand total.
+5. **Calculate totals**: let the server compute taxes, discounts, and grand total.
 6. **(Optional)** Add references to related invoices.
-7. **Patch the status** (e.g. `Draft` → `Signed`) and **send** the invoice via transactional email.
+7. **Issue** the invoice (`POST .../Issue`, which numbers it from the tenant's range) and **send** it via
+   transactional email.
+8. **(Later)** Correct an issued invoice with a **credit note** or a **debit note**, never by editing it.
 
 ## Invoices
 
@@ -99,7 +105,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices?tenantId=<tenan
   -d '{
     "title": "Invoice - Q2 Enterprise License",
     "description": "Enterprise license and support services",
-    "currencyId": "<currency-guid>",
+    "currencyId": "<currency-id, e.g. COP.COL>",
     "individualId": "<contact-guid>",
     "organizationId": "<organization-guid>",
     "firstName": "<first-name>",
@@ -148,7 +154,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices?tenantId=<tenan
   -H "Content-Type: application/json" \
   -d '{
     "title": "Invoice - Acme",
-    "currencyId": "<currency-guid>",
+    "currencyId": "<currency-id, e.g. COP.COL>",
     "individualId": "<contact-guid>",
     "invoiceType": "SalesInvoice",
     "invoiceStatus": "Draft",
@@ -159,7 +165,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices?tenantId=<tenan
       {
         "itemId": "<item-guid-1>",
         "quantity": 5,
-        "currencyId": "<currency-guid>",
+        "currencyId": "<currency-id, e.g. COP.COL>",
         "itemPriceId": "<price-guid-1>",
         "title": "Enterprise License",
         "description": "5 seats, annual"
@@ -167,7 +173,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices?tenantId=<tenan
       {
         "itemId": "<item-guid-2>",
         "quantity": 1,
-        "currencyId": "<currency-guid>",
+        "currencyId": "<currency-id, e.g. COP.COL>",
         "itemPriceId": "<price-guid-2>",
         "title": "Premium Support"
       }
@@ -177,7 +183,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices?tenantId=<tenan
         "description": "Volume discount",
         "discountPercent": 10,
         "type": "Discount",
-        "currencyId": "<currency-guid>"
+        "currencyId": "<currency-id, e.g. COP.COL>"
       }
     ],
     "invoiceReferences": [
@@ -228,7 +234,7 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/<invoice-guid>/E
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Update Invoice (PUT — full replace)
+### Update Invoice (PUT, full replace)
 
 ```bash
 curl -X PUT "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/<invoice-guid>?tenantId=<tenant-guid>" \
@@ -236,7 +242,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/<invoice-guid>?t
   -H "Content-Type: application/json" \
   -d '{
     "title": "Invoice - Q2 Enterprise License (revised)",
-    "currencyId": "<currency-guid>",
+    "currencyId": "<currency-id, e.g. COP.COL>",
     "invoiceStatus": "Closed",
     "notes": "Revised payment terms"
   }'
@@ -247,7 +253,7 @@ The `InvoiceUpdateDto` carries the same header/monetary fields as `InvoiceCreate
 the inline `invoiceLines` / `invoiceReferences` / `invoiceAdjustments` arrays). It does **not**
 carry `id`. Prefer PATCH (below) for small, partial edits.
 
-### Patch Invoice (PATCH — JSON Patch RFC 6902)
+### Patch Invoice (PATCH, JSON Patch RFC 6902)
 
 ```bash
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/<invoice-guid>?tenantId=<tenant-guid>" \
@@ -274,6 +280,23 @@ Recompute server-side totals after editing lines, taxes, or adjustments.
 curl -X PUT "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/<invoice-guid>/Calculate?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
+
+### Issue Invoice
+
+Makes the invoice a payable obligation: numbers it from the tenant's enumeration range (when the
+tenant has one) and sets `issuedAtUtc`. Requires the `Invoices.Update` permission. It is idempotent:
+issuing an already-issued invoice is a no-op. Returns an empty envelope (200).
+
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/<invoice-guid>/Issue?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+```
+
+- A tenant with **no** enumeration range issues unnumbered.
+- A tenant whose ranges are all expired or used up is refused with **503**, error code
+  `billing.numbering.no-usable-range`. Fix the range, then retry.
+- Several active ranges for the same document type is ambiguous and refused (400).
+- Once issued, pricing is frozen: change it with a credit or debit note, not with PUT or PATCH.
 
 ## Invoice Lines
 
@@ -311,7 +334,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/<invoice-guid>/
     "itemId": "<item-guid>",
     "itemPriceId": "<price-guid>",
     "quantity": 10,
-    "currencyId": "<currency-guid>",
+    "currencyId": "<currency-id, e.g. COP.COL>",
     "costCalculationMethod": "Automatic",
     "taxCalculationMethod": "Excluded"
   }'
@@ -329,7 +352,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/<invoice-guid>/L
   -d '{
     "quantity": 15,
     "description": "Increased to 15 seats",
-    "currencyId": "<currency-guid>"
+    "currencyId": "<currency-id, e.g. COP.COL>"
   }'
 ```
 
@@ -337,7 +360,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/<invoice-guid>/L
 `shippingMethodId`, `quantity`, `itemId`, `itemPriceId`, `invoiceLineId`,
 `taxAmountInUsd`, `taxBaseAmountInUsd` on top of the shared header/monetary fields.
 
-### Patch Line (PATCH — JSON Patch)
+### Patch Line (PATCH, JSON Patch)
 
 ```bash
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/<invoice-guid>/Lines/<invoice-line-guid>?tenantId=<tenant-guid>" \
@@ -407,7 +430,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/<invoice-guid>/L
 
 `InvoiceLineAppliedTaxUpdateDto` has a single field: `taxPolicyId`.
 
-### Patch a Line Tax (PATCH — JSON Patch)
+### Patch a Line Tax (PATCH, JSON Patch)
 
 ```bash
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/<invoice-guid>/Lines/<invoice-line-guid>/Taxes/<invoice-line-tax-guid>?tenantId=<tenant-guid>" \
@@ -461,7 +484,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/<invoice-guid>/
     "description": "Early payment discount",
     "discountPercent": 5,
     "type": "Discount",
-    "currencyId": "<currency-guid>",
+    "currencyId": "<currency-id, e.g. COP.COL>",
     "priority": 1,
     "code": "EARLY5"
   }'
@@ -474,7 +497,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/<invoice-guid>/
     "description": "Rush processing fee",
     "surchargeAmount": 150.00,
     "type": "Surcharge",
-    "currencyId": "<currency-guid>"
+    "currencyId": "<currency-id, e.g. COP.COL>"
   }'
 ```
 
@@ -492,7 +515,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/<invoice-guid>/A
     "discountPercent": 8,
     "description": "Loyalty discount increased",
     "type": "Discount",
-    "currencyId": "<currency-guid>"
+    "currencyId": "<currency-id, e.g. COP.COL>"
   }'
 ```
 
@@ -500,7 +523,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/<invoice-guid>/A
 `surchargePercent`, `surchargeAmount`, `discountPercent`, `discountAmount`,
 `totalSurcharge`, `totalDiscount`, `type` (`Discount`|`Surcharge`).
 
-### Patch Adjustment (PATCH — JSON Patch)
+### Patch Adjustment (PATCH, JSON Patch)
 
 ```bash
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/<invoice-guid>/Adjustments/<invoice-adjustment-guid>?tenantId=<tenant-guid>" \
@@ -569,7 +592,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/<invoice-guid>/R
 
 `InvoiceReferenceUpdateDto` has a single field: `referencedInvoiceId`.
 
-### Patch Reference (PATCH — JSON Patch)
+### Patch Reference (PATCH, JSON Patch)
 
 ```bash
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/<invoice-guid>/References/<invoice-reference-guid>?tenantId=<tenant-guid>" \
@@ -606,12 +629,12 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/<invoice-guid>/P
 ## Aggregations
 
 Aggregate financial figures across a set of invoices. Each is a `POST` whose body is a
-**JSON array of invoice GUIDs**; an optional `?currencyId=<currency-guid>` converts the
+**JSON array of invoice GUIDs**; an optional `?currencyId=<currency-id>` converts the
 result into that currency.
 
 ```bash
 # Aggregate totals
-curl -X POST "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/TotalsAggregate?tenantId=<tenant-guid>&currencyId=<currency-guid>" \
+curl -X POST "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/TotalsAggregate?tenantId=<tenant-guid>&currencyId=<currency-id>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '["<invoice-guid-1>", "<invoice-guid-2>"]'
@@ -676,46 +699,70 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/<invoice-guid>/
 ```
 
 **`EmailDispatchRequest` fields** (`title`, `message`, `culture`, `uiCulture`, `recipients` are **required**):
-- `title` — email subject line *(required)*
-- `message` — email body text *(required)*
-- `culture` / `uiCulture` — email locale, e.g. `en-US` *(both required)*
-- `recipients` — array of email addresses *(required)*
-- `contactIds` — array of CRM contact GUIDs (sends to their email)
-- `tenantIds` — array of tenant GUIDs
-- `userIds` — array of user GUIDs
-- `buttonLink`, `buttonText` — optional CTA button
-- `alertMessage` — optional alert banner text
-- `alertType` — `None` | `Info` | `Error` | `Warning` | `Success` | `Action` | `Alert`
-- `templateUrl` — override the template by URL
-- `emailTemplateId` — use a specific email template
+- `title`: email subject line *(required)*
+- `message`: email body text *(required)*
+- `culture` / `uiCulture`: email locale, e.g. `en-US` *(both required)*
+- `recipients`: array of email addresses *(required)*
+- `contactIds`: array of CRM contact GUIDs (sends to their email)
+- `tenantIds`: array of tenant GUIDs
+- `userIds`: array of user GUIDs
+- `buttonLink`, `buttonText`: optional CTA button
+- `alertMessage`: optional alert banner text
+- `alertType`: `None` | `Info` | `Error` | `Warning` | `Success` | `Action` | `Alert`
+- `templateUrl`: override the template by URL
+- `emailTemplateId`: use a specific email template
 
-## Recipe: Issue a Credit Note
+## Credit and Debit Notes
+
+Correct an **issued** invoice with a note; never build a note by hand as a new invoice with negative
+lines. The server creates the note document, links it to the original invoice and keeps the totals
+consistent. Rules (all enforced server-side):
+
+- The original must be an issued, `Standard` invoice that is not closed.
+- `amount` must be greater than zero, in the original invoice's currency.
+- `reasonDescription` is required, 20 to 5000 characters.
+- Credit note `reason`: `Return`, `Annulment`, `Discount`, `PriceAdjustment` or `Other`. A credit note
+  can never exceed the creditable amount, and an `Annulment` must equal the full creditable amount.
+- Debit note `reason`: `Interest`, `Charges`, `ValueChange` or `Other`.
+- Permissions: creating a note needs `Invoices.Create`; reading the creditable amount needs `Invoices.Read`.
+
+### Get the Creditable Amount
+
+The most a new credit note can still credit, in the invoice's own currency.
 
 ```bash
-# 1. Create a credit note that references the original invoice (inline reference)
-curl -X POST "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices?tenantId=<tenant-guid>" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/<invoice-guid>/CreditableAmount?tenantId=<tenant-guid>" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+# -> result: { "invoiceId": "...", "amount": 1200.00, "currencyId": "COP.COL" }
+```
+
+### Create a Credit Note
+
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/<invoice-guid>/CreditNotes?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "title": "Credit Note for original invoice",
-    "currencyId": "<currency-guid>",
-    "individualId": "<contact-guid>",
-    "invoiceType": "CreditNote",
-    "documentType": "CreditNote",
-    "invoiceStatus": "Draft",
-    "invoiceReferences": [ { "referencedInvoiceId": "<original-invoice-guid>" } ]
+    "amount": 200.00,
+    "reason": "Return",
+    "reasonDescription": "Two licenses returned by the customer within the trial period."
   }'
-# Note the returned credit-note ID.
+```
 
-# 2. Add a credit line (negative quantity)
-curl -X POST "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/<credit-note-guid>/Lines?tenantId=<tenant-guid>" \
+Returns the note (`InvoiceNoteDto`): `id`, `parentInvoiceId`, `documentType`, `reason`,
+`reasonDescription`, `enumeration`, `amount`, `currencyId`, `issuedAtUtc`.
+
+### Create a Debit Note
+
+```bash
+curl -X POST "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/<invoice-guid>/DebitNotes?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{ "title": "License (Credit)", "itemId": "<item-guid>", "quantity": -2, "currencyId": "<currency-guid>", "itemPriceId": "<price-guid>" }'
-
-# 3. Calculate
-curl -X PUT "$ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices/<credit-note-guid>/Calculate?tenantId=<tenant-guid>" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
+  -d '{
+    "amount": 35.00,
+    "reason": "Interest",
+    "reasonDescription": "Late payment interest for 15 days past the due date."
+  }'
 ```
 
 ## End-to-End Workflow
@@ -729,7 +776,7 @@ curl -X POST "$BASE?tenantId=$TENANT" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
   -d '{
     "title": "Invoice - Q2 Enterprise License",
-    "currencyId": "<currency-guid>",
+    "currencyId": "<currency-id, e.g. COP.COL>",
     "individualId": "<contact-guid>",
     "billingEmail": "<billing-email>",
     "invoiceType": "SalesInvoice",
@@ -743,7 +790,7 @@ curl -X POST "$BASE?tenantId=$TENANT" \
 # 2. Add a line
 curl -X POST "$BASE/<invoice-guid>/Lines?tenantId=$TENANT" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
-  -d '{ "title": "Enterprise License", "itemId": "<item-guid>", "quantity": 10, "currencyId": "<currency-guid>", "itemPriceId": "<price-guid>" }'
+  -d '{ "title": "Enterprise License", "itemId": "<item-guid>", "quantity": 10, "currencyId": "<currency-id, e.g. COP.COL>", "itemPriceId": "<price-guid>" }'
 # -> capture result.id as LINE
 
 # 3. Apply a tax to the line
@@ -754,16 +801,15 @@ curl -X POST "$BASE/<invoice-guid>/Lines/<invoice-line-guid>/Taxes?tenantId=$TEN
 # 4. Add an invoice-level discount
 curl -X POST "$BASE/<invoice-guid>/Adjustments?tenantId=$TENANT" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
-  -d '{ "description": "Volume discount", "discountPercent": 10, "type": "Discount", "currencyId": "<currency-guid>" }'
+  -d '{ "description": "Volume discount", "discountPercent": 10, "type": "Discount", "currencyId": "<currency-id, e.g. COP.COL>" }'
 
 # 5. Calculate totals
 curl -X PUT "$BASE/<invoice-guid>/Calculate?tenantId=$TENANT" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# 6. Patch the status to Signed
-curl -X PATCH "$BASE/<invoice-guid>?tenantId=$TENANT" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
-  -d '[ { "op": "replace", "path": "/invoiceStatus", "value": "Signed" } ]'
+# 6. Issue it (numbers it and makes it payable)
+curl -X POST "$BASE/<invoice-guid>/Issue?tenantId=$TENANT" \
+  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # 7. Send the invoice email
 curl -X POST "$BASE/<invoice-guid>/Emails/Send?tenantId=$TENANT" \
@@ -792,6 +838,10 @@ All paths require `?tenantId=<tenant-guid>` (or the `X-TenantId` header).
 | Patch invoice | PATCH | `/api/v2/InvoicingService/Invoices/{invoiceId}` |
 | Delete invoice | DELETE | `/api/v2/InvoicingService/Invoices/{invoiceId}` |
 | Calculate invoice | PUT | `/api/v2/InvoicingService/Invoices/{invoiceId}/Calculate` |
+| Issue invoice | POST | `/api/v2/InvoicingService/Invoices/{invoiceId}/Issue` |
+| Get creditable amount | GET | `/api/v2/InvoicingService/Invoices/{invoiceId}/CreditableAmount` |
+| Create credit note | POST | `/api/v2/InvoicingService/Invoices/{invoiceId}/CreditNotes` |
+| Create debit note | POST | `/api/v2/InvoicingService/Invoices/{invoiceId}/DebitNotes` |
 | List lines | GET | `/api/v2/InvoicingService/Invoices/{invoiceId}/Lines` |
 | Count lines | GET | `/api/v2/InvoicingService/Invoices/{invoiceId}/Lines/Count` |
 | Create line | POST | `/api/v2/InvoicingService/Invoices/{invoiceId}/Lines` |

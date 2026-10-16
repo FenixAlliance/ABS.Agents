@@ -1,23 +1,25 @@
 ---
 name: absuite-tenants
+key: paperclip/skills/absuite-tenants/SKILL.md
+version: 1.0.0
 description: >
   Manage tenant configuration in the Alliance Business Suite (ABS) via the REST API.
-  The largest service — covers tenant CRUD, departments, enrollments (standard, extended,
+  The largest service, covers tenant CRUD, departments, enrollments (standard, extended,
   and employee), industries, invitations, options, positions, segments, sizes, teams,
   team records, team contact/project enrollments, territories, types, units, unit groups,
-  licenses, notifications, web portals, avatars, carts, wallets, and social profiles —
+  licenses, notifications, web portals, avatars, carts, wallets, and social profiles,
   including atomic PATCH (JSON Patch) updates. Most operations are tenant-scoped and
   require a bearer token (see the absuite-login skill to authenticate).
 ---
 
-# Alliance Business Suite — Tenants Skill (REST)
+# Alliance Business Suite: Tenants Skill (REST)
 
 Manage tenant configuration and all of its sub-resources through the ABS `TenantsService`
 REST API. This is the most comprehensive service in the platform. Almost every sub-resource
 is tenant-scoped via a required `?tenantId=` query parameter; a handful of tenant-level
 reads take the tenant in the **path** instead, and the invitation accept/decline flow and
-the `Tenants/Root` read are NOT tenant-scoped at all (read the scoping rules below carefully
-— they differ per endpoint).
+the `Tenants/Root` read are NOT tenant-scoped at all (read the scoping rules below carefully:
+they differ per endpoint).
 
 > For the CLI equivalent of these operations, see `absuite-tenants-cli`.
 > For general REST conventions (envelope, paging, errors), see `absuite-rest`.
@@ -27,9 +29,9 @@ the `Tenants/Root` read are NOT tenant-scoped at all (read the scoping rules bel
 
 > Full detail in `absuite-rest`; these rules apply across this skill's endpoints.
 
-- **Lists & counts are OData-enabled.** `GET` collection endpoints accept `$filter`, `$top`, `$skip`, `$orderby`, `$select` — page through results, don't fetch-all-and-filter. Each dedicated `.../Count` endpoint returns an integer and is **also** filterable (`?$filter=...` -> a filtered count). OData is a REST/HTTP-layer feature (the CLI does not expose it).
-- **`PUT` replaces the ENTIRE resource** — it overwrites, not merges, so any omitted field is reset to default/null. **GET the resource first, change the full object, then PUT it back**; sending a partial body to `PUT` (or an incomplete `POST` create) causes silent data loss.
-- **`PATCH`, where this service exposes it, is atomic and partial** (JSON Patch / RFC 6902) — it changes only the fields you name, needs no prior GET, and won't clobber the rest. Prefer it for small edits; use `PUT` only for a deliberate full replacement.
+- **Lists & counts are OData-enabled.** `GET` collection endpoints accept `$filter`, `$top`, `$skip`, `$orderby`, `$select`, page through results, don't fetch-all-and-filter. Each dedicated `.../Count` endpoint returns an integer and is **also** filterable (`?$filter=...` -> a filtered count). OData is a REST/HTTP-layer feature (the CLI does not expose it).
+- **`PUT` replaces the ENTIRE resource**: it overwrites, not merges, so any omitted field is reset to default/null. **GET the resource first, change the full object, then PUT it back**; sending a partial body to `PUT` (or an incomplete `POST` create) causes silent data loss.
+- **`PATCH`, where this service exposes it, is atomic and partial** (JSON Patch / RFC 6902), it changes only the fields you name, needs no prior GET, and won't clobber the rest. Prefer it for small edits; use `PUT` only for a deliberate full replacement.
 
 ## Authentication
 
@@ -51,7 +53,7 @@ Extract `accessToken` from the JSON response.
 
 3. **Base path:** `$ABSUITE_HOST_URL/api/v2/TenantsService/<Resource>`.
 
-4. **Response envelope** — every response is wrapped:
+4. **Response envelope**: every response is wrapped:
 
 ```json
 { "isSuccess": true, "errorMessage": null, "correlationId": "…", "timestamp": "…", "result": <data|array|int|null> }
@@ -65,7 +67,7 @@ Tenant scoping is **per-endpoint**. The platform binds the tenant from the `?ten
 query parameter **or** the `X-TenantId` request header interchangeably. The three patterns
 used in this service:
 
-- **`?tenantId=<tenant-guid>` query — REQUIRED.** Used by every flat sub-resource collection
+- **`?tenantId=<tenant-guid>` query, REQUIRED.** Used by every flat sub-resource collection
   (`Departments`, `Enrollments`, `EmployeeEnrollments`, `Industries`, `Invitations`,
   `Options`, `Positions`, `Segments`, `Sizes`, `Teams`, `TeamRecords`,
   `TeamContactEnrollments`, `TeamProjectEnrollments`, `Territories`, `Types`, `Units`,
@@ -75,7 +77,7 @@ used in this service:
   `/Tenants/{tenantId}/…` (Avatar, Cart, Enrollments, Invitations, Licenses, Notifications,
   Select, SocialProfile, Users, Wallet, WebPortals, Extended) and by
   `GET/PUT/PATCH /Tenants/{tenantId}`. Do NOT also add a `?tenantId=` query here.
-- **No tenant param at all.** `POST /Tenants` (create — no tenant yet),
+- **No tenant param at all.** `POST /Tenants` (create, no tenant yet),
   `GET /Tenants/Root` (platform-derived), `POST /Tenants/Deselect` (user-scoped), and the
   invitation `…/Accept` and `…/Decline` actions (scoped by the `{invitationId}` path param,
   acted on by the current user). Do NOT add a tenant param/header to these.
@@ -89,34 +91,34 @@ Every endpoint also accepts the optional API-version params `?api-version=` (que
 
 ## Key Concepts
 
-- **Tenant** — the multi-tenant business aggregate. Required create fields: `name`, `email`,
+- **Tenant**: the multi-tenant business aggregate. Required create fields: `name`, `email`,
   `currencyId`, `countryId`. Carries profile, social, locale, and taxonomy references
   (`businessTypeId`, `businessSegmentId`, `businessIndustryId`, `businessSizeId`).
-- **Enrollment** — how a *user* joins a tenant. `TenantEnrollmentCreateDto` carries `userId`;
+- **Enrollment**: how a *user* joins a tenant. `TenantEnrollmentCreateDto` carries `userId`;
   `TenantEnrollmentUpdateDto` toggles `isAdmin` / `isDisabled`. "Extended" variants return the
   enrollment plus related data. Tenant-scoped enrollment detail also exposes features,
   licenses, and permissions.
-- **EmployeeEnrollment** — links an employee profile to a business team
+- **EmployeeEnrollment**: links an employee profile to a business team
   (`businessTeamId` + `employeeProfileId`, both required).
-- **Invitation** — invite a user to a tenant by `userEmail` (the only required create field).
+- **Invitation**: invite a user to a tenant by `userEmail` (the only required create field).
   Lifecycle: send → accept / decline; revoke = delete. Status filters: pending / redeemed /
   revoked.
-- **Option** — a tenant-level key/value config entry (`key` + `value` required), optionally
+- **Option**: a tenant-level key/value config entry (`key` + `value` required), optionally
   scoped to a `portalId`, with flags `frozen` / `autoload` / `transient` and an `expiration`.
   Upsert by key for idempotent writes.
-- **Taxonomy** — `Industries`, `Segments`, `Sizes`, `Types` classify the tenant.
+- **Taxonomy**: `Industries`, `Segments`, `Sizes`, `Types` classify the tenant.
   `Segments` use `minEmployees`/`maxEmployees`; `Sizes` use
   `employeeLowRangeValue`/`employeeHighRangeValue`.
-- **Org structure** — `Departments`, `Positions`, `Teams`, `Territories`, `Units`,
+- **Org structure**: `Departments`, `Positions`, `Teams`, `Territories`, `Units`,
   `UnitGroups`. Several support a `parent…Id` for hierarchy.
-- **Unit / UnitGroup** — units of measure. Units live inside a unit group
+- **Unit / UnitGroup**: units of measure. Units live inside a unit group
   (`/UnitGroups/{unitGroupId}/Units`) and reference a `baseUnitId` + `baseUnitAmount`. There is
   also a flat top-level `Units` collection.
 
 ## Tenant CRUD
 
 ```bash
-# Create a tenant (NO tenant scoping — there is no tenant yet)
+# Create a tenant (NO tenant scoping: there is no tenant yet)
 curl -X POST "$ABSUITE_HOST_URL/api/v2/TenantsService/Tenants" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
@@ -147,7 +149,7 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/TenantsService/Tenants/<tenant-guid>" \
 curl -X GET "$ABSUITE_HOST_URL/api/v2/TenantsService/Tenants/<tenant-guid>/Extended" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Update a tenant (PUT — full replace; tenant in the PATH)
+# Update a tenant (PUT: full replace; tenant in the PATH)
 curl -X PUT "$ABSUITE_HOST_URL/api/v2/TenantsService/Tenants/<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
@@ -161,7 +163,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/TenantsService/Tenants/<tenant-guid>" \
     "supportPhoneNumber": "+1-555-0199"
   }'
 
-# Delete a tenant (NOTE: no path id — uses the ?tenantId= QUERY param)
+# Delete a tenant (NOTE: no path id: uses the ?tenantId= QUERY param)
 curl -X DELETE "$ABSUITE_HOST_URL/api/v2/TenantsService/Tenants?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
@@ -177,7 +179,7 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/TenantsService/Tenants?tenantId=<tenant
 `youTubeUrl`, `whatsAppNumber`, `supportPhoneNumber`, `countryId` (REQ), `timezoneId`,
 `languageId`, `stateId`, `cityId`.
 
-### Patch a tenant (JSON Patch — tenant in the PATH)
+### Patch a tenant (JSON Patch: tenant in the PATH)
 
 ```bash
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/TenantsService/Tenants/<tenant-guid>" \
@@ -192,7 +194,7 @@ curl -X PATCH "$ABSUITE_HOST_URL/api/v2/TenantsService/Tenants/<tenant-guid>" \
 ## Current / Root / Select / Deselect
 
 ```bash
-# Current default tenant (REQUIRES ?tenantId= — returns that tenant's profile)
+# Current default tenant (REQUIRES ?tenantId=: returns that tenant's profile)
 curl -X GET "$ABSUITE_HOST_URL/api/v2/TenantsService/Tenants/Current?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
@@ -216,7 +218,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/TenantsService/Tenants/Deselect" \
 curl -X GET "$ABSUITE_HOST_URL/api/v2/TenantsService/Tenants/<tenant-guid>/Avatar" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Avatar (update — multipart upload)
+# Avatar (update: multipart upload)
 curl -X POST "$ABSUITE_HOST_URL/api/v2/TenantsService/Tenants/<tenant-guid>/Avatar" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -F "file=@avatar.png"
@@ -390,7 +392,7 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/TenantsService/EmployeeEnrollments/<ee-
 ## Invitations
 
 The flat `/Invitations` collection is scoped by `?tenantId=`. **Accept and Decline are NOT
-tenant-scoped** — they are scoped by the `{invitationId}` path param and act on behalf of the
+tenant-scoped**, they are scoped by the `{invitationId}` path param and act on behalf of the
 invited (current) user. The tenant-path invitation reads (issued / pending / redeemed /
 revoked) take the tenant in the path.
 
@@ -419,11 +421,11 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/TenantsService/Invitations/<invitation-
 ### Accept / Decline an invitation (NO tenant scoping)
 
 ```bash
-# Accept — scoped by the invitationId path param only
+# Accept: scoped by the invitationId path param only
 curl -X POST "$ABSUITE_HOST_URL/api/v2/TenantsService/Invitations/<invitation-guid>/Accept" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Decline — scoped by the invitationId path param only
+# Decline: scoped by the invitationId path param only
 curl -X POST "$ABSUITE_HOST_URL/api/v2/TenantsService/Invitations/<invitation-guid>/Decline" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
@@ -596,7 +598,7 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/TenantsService/Teams/<team-guid>?tenant
 ### Team records, contact enrollments, project enrollments
 
 All three are flat collections scoped by `?tenantId=` with full
-list/count/get/create/update/patch/delete (records and the two enrollment kinds) — note
+list/count/get/create/update/patch/delete (records and the two enrollment kinds), note
 contact/project enrollments expose **no count gap**: they each have a `/Count`.
 
 ```bash
@@ -638,7 +640,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/TenantsService/TeamProjectEnrollments?ten
 
 > Each of `TeamRecords`, `TeamContactEnrollments`, `TeamProjectEnrollments` also has
 > `GET …/Count` and `GET …/<id>` (get by ID), `PATCH …/<id>`, `PUT …/<id>`,
-> `DELETE …/<id>` — same shape as the examples above.
+> `DELETE …/<id>`, same shape as the examples above.
 
 ## Territories (`?tenantId=` required)
 
@@ -782,7 +784,7 @@ DTO fields:
 
 ## PATCH (JSON Patch, RFC 6902)
 
-PATCH lets you change a couple of fields atomically without resending the whole object — safer
+PATCH lets you change a couple of fields atomically without resending the whole object, safer
 than PUT under concurrent edits. The body is a JSON **array** of operations; `op` ∈
 `add | remove | replace | move | copy | test`; `path`/`from` are JSON-Pointers (leading `/`,
 camelCase field names matching the create/update DTOs).
@@ -833,7 +835,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/TenantsService/Invitations?tenantId=<tena
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
   -d '{"userEmail": "newmember@example.com"}'
 
-# 6. The invited user accepts (scoped by invitationId only — NO tenant param)
+# 6. The invited user accepts (scoped by invitationId only: NO tenant param)
 curl -X POST "$ABSUITE_HOST_URL/api/v2/TenantsService/Invitations/<invitation-guid>/Accept" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
@@ -1023,18 +1025,18 @@ Scoping legend: **Q** = `?tenantId=` query (required), **P** = tenant in the pat
 
 ## Critical Rules
 
-- **Authenticate first** — bearer token on every call (see `absuite-login`).
-- **Scope per endpoint** — `?tenantId=` query for the flat sub-resource collections and
+- **Authenticate first**: bearer token on every call (see `absuite-login`).
+- **Scope per endpoint**: `?tenantId=` query for the flat sub-resource collections and
   `Tenants/Current`/`DELETE Tenants`; tenant in the **path** for `/Tenants/{tenantId}/…`;
   **no** tenant param for `POST /Tenants`, `Tenants/Root`, `Tenants/Deselect`, and the
   invitation `Accept`/`Decline`. Omitting `?tenantId=` on a write that requires it returns 400.
-- **Required create fields** — Tenant: `name`, `email`, `currencyId`, `countryId`. Invitation:
+- **Required create fields**: Tenant: `name`, `email`, `currencyId`, `countryId`. Invitation:
   `userEmail`. Employee enrollment: `businessTeamId`, `employeeProfileId`. Team contact
   enrollment: `businessTeamId`, `contactId`. Team project enrollment: `businessTeamId`,
   `projectId`. Option: `key`, `value` (and `?key=` query on create). Unit group / in-group
   unit: `name`.
 - **Enrollment get-by-ID** (`/Enrollments/{enrollmentId}`) additionally requires `?userId=`.
-- **Use PATCH for partial atomic edits** — JSON-Patch array; PUT requires the full DTO
+- **Use PATCH for partial atomic edits**: JSON-Patch array; PUT requires the full DTO
   (including its required fields) and replaces the resource.
-- **Invitation lifecycle** — send (by `userEmail`) → accept / decline (by invitationId, no
+- **Invitation lifecycle**: send (by `userEmail`) → accept / decline (by invitationId, no
   tenant scope); revoke = `DELETE /Invitations/{invitationId}`.

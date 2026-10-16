@@ -1,19 +1,22 @@
 ---
 name: absuite-catalog
+key: paperclip/skills/absuite-catalog/SKILL.md
+version: 1.0.0
 description: >
   Manage the product catalog in the Alliance Business Suite (ABS) via the REST API.
   Covers stock items (products), categories, types, families, brands, tags, images,
   attachments, attributes & options, bundles, reviews, questions, policy
   relationships (tax / shipping / return / refund / warranty), price-rule
-  relationships, Google categories, and merchants — including atomic PATCH (JSON
-  Patch) updates. Catalog reads are public by default and scope to a tenant when a
-  tenantId is supplied; writes require a tenantId and a bearer token (see the
-  absuite-login skill to authenticate).
+  relationships, Google categories, and merchants, including atomic PATCH (JSON
+  Patch) updates. Stock-item reads are anonymous (published items only) without a
+  tenantId and a stock_items_read management read with one; writes require a tenantId,
+  a stock_items_* permission and a bearer token (see the absuite-login skill to
+  authenticate).
 ---
 
-# Alliance Business Suite — Catalog Skill (REST)
+# Alliance Business Suite: Catalog Skill (REST)
 
-Manage the product catalog through the `CatalogService` REST API. In ABS, **Items = Catalog Items = Stock Items = Products** — they are the same aggregate. Most catalog **read** endpoints are public/global (tenant is **optional** — omit it for the global/public catalog, supply it to scope to a tenant), while every **write** endpoint **requires** a tenant.
+Manage the product catalog through the `CatalogService` REST API. In ABS, **Items = Catalog Items = Stock Items = Products**: they are the same aggregate. Read scoping differs per resource (see [Tenant scoping](#tenant-scoping)), while every **write** endpoint **requires** a tenant and a `stock_items_*` permission.
 
 > For the CLI equivalent see `absuite-catalog-cli`; for general REST conventions see `absuite-rest`.
 
@@ -21,9 +24,9 @@ Manage the product catalog through the `CatalogService` REST API. In ABS, **Item
 
 > Full detail in `absuite-rest`; these rules apply across this skill's endpoints.
 
-- **Lists & counts are OData-enabled.** `GET` collection endpoints accept `$filter`, `$top`, `$skip`, `$orderby`, `$select` — page through results, don't fetch-all-and-filter. Each dedicated `.../Count` endpoint returns an integer and is **also** filterable (`?$filter=...` -> a filtered count). OData is a REST/HTTP-layer feature (the CLI does not expose it).
-- **`PUT` replaces the ENTIRE resource** — it overwrites, not merges, so any omitted field is reset to default/null. **GET the resource first, change the full object, then PUT it back**; sending a partial body to `PUT` (or an incomplete `POST` create) causes silent data loss.
-- **`PATCH`, where this service exposes it, is atomic and partial** (JSON Patch / RFC 6902) — it changes only the fields you name, needs no prior GET, and won't clobber the rest. Prefer it for small edits; use `PUT` only for a deliberate full replacement.
+- **Lists & counts are OData-enabled.** `GET` collection endpoints accept `$filter`, `$top`, `$skip`, `$orderby`, `$select`: page through results, don't fetch-all-and-filter. Each dedicated `.../Count` endpoint returns an integer and is **also** filterable (`?$filter=...` -> a filtered count). OData is a REST/HTTP-layer feature (the CLI does not expose it).
+- **`PUT` replaces the ENTIRE resource**: it overwrites, not merges, so any omitted field is reset to default/null. **GET the resource first, change the full object, then PUT it back**; sending a partial body to `PUT` (or an incomplete `POST` create) causes silent data loss.
+- **`PATCH`, where this service exposes it, is atomic and partial** (JSON Patch / RFC 6902): it changes only the fields you name, needs no prior GET, and won't clobber the rest. Prefer it for small edits; use `PUT` only for a deliberate full replacement.
 
 ## Authentication
 
@@ -49,7 +52,7 @@ export ABSUITE_ACCESS_TOKEN="<access-token>"
 
 3. **Base path:** `$ABSUITE_HOST_URL/api/v2/CatalogService/<Resource>`
 
-4. **Response envelope** — every response is wrapped:
+4. **Response envelope**: every response is wrapped:
 
 ```json
 {
@@ -65,24 +68,43 @@ Always check `isSuccess`; read the payload from `result`.
 
 ## Tenant scoping
 
-Tenant binding is **per endpoint** — follow each operation below:
+Tenant binding is **per endpoint**. Follow each operation below:
 
-- **Reads** (`GET`) on the primary catalog resources accept `tenantId` as **optional**. Omit it to query the global/public catalog; add `?tenantId=<tenant-guid>` to scope to a tenant.
+- **Stock-item reads** (`Items`, `Items/Count`, `Items/MinPrice`, `Items/MaxPrice`, `Items/{itemId}`, `Items/{itemId}/Extended`): `tenantId` is **optional**. Without it the read is anonymous and returns only the public scope (published, non-deleted items). With it the read is a management read: the caller must be a member of that tenant holding `stock_items_read`, and drafts are included.
+- **Public storefront reads** (`Items/Public`, `Items/Public/Count`, `Items/Public/{itemId}`): anonymous, no tenantId, published and non-deleted items only.
+- **Get-by-ID reads** on `ItemCategories`, `ItemTypes`, `ItemFamilies`, `ItemBrands`, `ItemTags`, `ItemImages`, `ItemAttachments`, `ItemAttributes`, `ItemAttributeOptions`, `ItemBundles`, `ItemQuestions`, and the item sub-resource reads for `Brands`, `Types`, `Tags` (incl. `Count`), `Images` (incl. `Images/Primary`), `Attachments`, `Questions` and `Categories/{itemCategoryId}`: `tenantId` **optional**, same rule (with a tenant: `stock_items_read`; without: anonymous public read).
+- **Collection lists and counts** of those taxonomy resources (`ItemCategories`, `ItemTypes`, `ItemFamilies`, `ItemBrands`, `ItemTags`, `ItemImages`, `ItemAttachments`, `ItemAttributes`, `ItemAttributeOptions`, `ItemBundles`, `ItemQuestions`): **send `tenantId`**; without it the call fails.
+- **No tenant at all**: `ItemReviews` reads, `Items/{itemId}/Reviews`, `Items/{itemId}/Categories` (list), every policy read (item-scoped and standalone), `ItemGoogleCategories` reads and `Merchants`. These run anonymously. Do not add a tenantId where it is not listed.
 - **Writes** (`POST` / `PUT` / `PATCH` / `DELETE`) **require** `?tenantId=<tenant-guid>`. Omitting it on a write returns `400`.
-- A few read groups are **not** tenant-scoped at all — `ItemGoogleCategories` (all reads), `Merchants` (all), and several `Items/{itemId}/...` sub-resource reads take **no** tenantId. Do not add one where it is not listed.
-- The platform binds tenant from `?tenantId=` **or** the `X-TenantId` request header interchangeably; examples below prefer the query param.
+- The platform binds tenant from `?tenantId=` **or** the `X-TenantId` request header on all `Items` routes, all reads and `ItemAttachments` writes; the other writes read only `?tenantId=`. Examples below use the query param, which works everywhere.
+
+### Permissions (writes)
+
+| Operation | Permission |
+|---|---|
+| Create (`POST`) a stock item, category, type, family, brand, tag, attribute, attribute option, bundle, question or review | `stock_items_create` |
+| Create (`POST`) an `ItemImages` or `ItemAttachments` record | `stock_items_update` |
+| Update / patch, `Items/Batch`, `Items/BulkUpsert`, `Items/RecalculatePrices`, `Items/{itemId}/Images/Primary` (set), `ItemGoogleCategories/tree` (map) | `stock_items_update` |
+| Relate (`POST Items/{itemId}/...`, `POST Item<Kind>Policies`) | `stock_items_update` |
+| Delete a resource; remove a relation (`DELETE Items/{itemId}/...`, `DELETE Item<Kind>Policies/{id}`) | `stock_items_delete` |
+| Remove an image or attachment relation (`DELETE Items/{itemId}/Images/...`, `.../Attachments/...`) | `stock_items_update` |
+
+> **Unimplemented stubs:** `Items/{itemId}/AttributeOptions[/{itemAttributeOptionId}]` and
+> `Items/{itemId}/PriceRules[/{itemPriceRuleId}]` (all verbs) exist as routes but are not
+> implemented: they return `200` with no body and change nothing. Link attribute options and
+> pricing rules through `selectedAttributesOptions` / `selectedPricingRules` on the item instead.
 
 ## Key Concepts
 
-- **Stock Item (Product)** — the central aggregate (`CatalogItemCreateDto` / `CatalogItemUpdateDto`). Carries identifiers (`sku`, `upc`, `ean`, `gtin`, `mpn`, `isbn`, `asin`, `unspsc`), pricing (`regularPrice`, `discountPrice`, `currencyId`), inventory (`currentStock`, `manageInventory`, `inStock`), and merchandising flags (`featured`, `onSale`, `hot`, `published`, `taxable`).
-- **Taxonomy** — `ItemCategories` (hierarchical, `parentItemCategoryId`), `ItemTypes` (linked to a category via `itemCategoryId`), `ItemFamilies`, `ItemBrands`, `ItemTags`, and `ItemGoogleCategories` (read-only Google product taxonomy).
-- **Attributes** — `ItemAttributes` (e.g. "Color") own `ItemAttributeOptions` (e.g. "Red") via `itemAttributeId`.
-- **Media & docs** — `ItemImages`, `ItemAttachments`.
-- **Engagement** — `ItemReviews` (`reviewScore`, `reviewMessage`), `ItemQuestions` (`question`, `needsRevision`).
-- **Bundles** — `ItemBundles` group items.
-- **Policy relationships** — items are related to tax / shipping / return / refund / warranty policies, and to price rules. These relationships live both under `/Items/{itemId}/...` paths and as standalone `Item<Kind>Policies` query-scoped resources.
-- **Merchants** — read-only merchant directory.
-- **Selected* arrays** — on create/update, link sub-resources in one shot via `selectedCategories`, `selectedTags`, `selectedBrands`, `selectedTypes`, `selectedTaxPolicies`, `selectedShipmentPolicies`, `selectedReturnPolicies`, `selectedRefundPolicies`, `selectedWarrantyPolicies`, `selectedPricingRules`, `selectedGoogleCategories`, `selectedAttributesOptions`, `selectedSellingMarginPolicies`, `selectedPricingPolicies` (all `array<string>` of IDs).
+- **Stock Item (Product)**: the central aggregate (`CatalogItemCreateDto` / `CatalogItemUpdateDto`). Carries identifiers (`sku`, `upc`, `ean`, `gtin`, `mpn`, `isbn`, `asin`, `unspsc`), pricing (`regularPrice`, `discountPrice`, `currencyId`), inventory (`currentStock`, `manageInventory`, `inStock`), and merchandising flags (`featured`, `onSale`, `hot`, `published`, `taxable`).
+- **Taxonomy**: `ItemCategories` (hierarchical, `parentItemCategoryId`), `ItemTypes` (linked to a category via `itemCategoryId`), `ItemFamilies`, `ItemBrands`, `ItemTags`, and `ItemGoogleCategories` (read-only Google product taxonomy).
+- **Attributes**: `ItemAttributes` (e.g. "Color") own `ItemAttributeOptions` (e.g. "Red") via `itemAttributeId`.
+- **Media & docs**: `ItemImages`, `ItemAttachments`.
+- **Engagement**: `ItemReviews` (`reviewScore`, `reviewMessage`), `ItemQuestions` (`question`, `needsRevision`).
+- **Bundles**: `ItemBundles` group items.
+- **Policy relationships**: items are related to tax / shipping / return / refund / warranty policies, and to price rules. These relationships live both under `/Items/{itemId}/...` paths and as standalone `Item<Kind>Policies` query-scoped resources.
+- **Merchants**: read-only merchant directory.
+- **Selected* arrays**: on create/update, link sub-resources in one shot via `selectedCategories`, `selectedTags`, `selectedBrands`, `selectedTypes`, `selectedTaxPolicies`, `selectedShipmentPolicies`, `selectedReturnPolicies`, `selectedRefundPolicies`, `selectedWarrantyPolicies`, `selectedPricingRules`, `selectedGoogleCategories`, `selectedAttributesOptions`, `selectedSellingMarginPolicies`, `selectedPricingPolicies` (all `array<string>` of IDs).
 
 ---
 
@@ -90,19 +112,19 @@ Tenant binding is **per endpoint** — follow each operation below:
 
 ### List stock items
 
-`tenantId` optional — omit for the global/public catalog, supply to scope.
+`tenantId` optional. Without it you get the anonymous public scope (published, non-deleted items); with it you get the tenant's full catalog including drafts (requires `stock_items_read`).
 
 ```bash
-# Global / public catalog
+# Public scope (anonymous)
 curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/Items" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Scoped to a tenant
+# Tenant management read (stock_items_read)
 curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/Items?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Count stock items
+### Count stock items (`tenantId` optional, same rule as list)
 
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/Items/Count?tenantId=<tenant-guid>" \
@@ -119,21 +141,21 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/Items/MaxPrice?tenantId=<te
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Get stock item by ID (no tenantId param)
+### Get stock item by ID (`tenantId` optional, same rule as list)
 
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/Items/<item-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Get extended stock item (with related data; no tenantId param)
+### Get extended stock item (with related data; `tenantId` optional, same rule as list)
 
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/Items/<item-guid>/Extended" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Create stock item — `CatalogItemCreateDto` (tenantId required)
+### Create stock item: `CatalogItemCreateDto` (tenantId required)
 
 ```bash
 curl -X POST "$ABSUITE_HOST_URL/api/v2/CatalogService/Items?tenantId=<tenant-guid>" \
@@ -170,7 +192,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/CatalogService/Items?tenantId=<tenant-gui
   }'
 ```
 
-**Key `CatalogItemCreateDto` fields** (full list in the manifest — all optional unless noted):
+**Key `CatalogItemCreateDto` fields** (full list in the manifest, all optional unless noted):
 
 | Field | Type | Description |
 |---|---|---|
@@ -196,7 +218,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/CatalogService/Items?tenantId=<tenant-gui
 | `selectedTaxPolicies` / `selectedShipmentPolicies` / `selectedReturnPolicies` / `selectedRefundPolicies` / `selectedWarrantyPolicies` | array&lt;string&gt; | Linked policy IDs |
 | `selectedPricingRules` / `selectedGoogleCategories` / `selectedAttributesOptions` | array&lt;string&gt; | Linked rule / taxonomy / attribute-option IDs |
 
-### Update stock item (PUT) — `CatalogItemUpdateDto` (tenantId required)
+### Update stock item (PUT): `CatalogItemUpdateDto` (tenantId required)
 
 ```bash
 curl -X PUT "$ABSUITE_HOST_URL/api/v2/CatalogService/Items/<item-guid>?tenantId=<tenant-guid>" \
@@ -211,7 +233,17 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/CatalogService/Items/<item-guid>?tenantId=
   }'
 ```
 
-### Patch stock item (PATCH, JSON Patch) — tenantId required
+### Public storefront reads (anonymous, no tenantId)
+
+Published, non-deleted items only; an unpublished or deleted item reads as not found.
+
+```bash
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/Items/Public"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/Items/Public/Count"
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/Items/Public/<item-guid>"
+```
+
+### Patch stock item (PATCH, JSON Patch): tenantId required
 
 ```bash
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/CatalogService/Items/<item-guid>?tenantId=<tenant-guid>" \
@@ -233,7 +265,7 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CatalogService/Items/<item-guid>?tenant
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Batch update stock items — `BatchStockItemUpdateRequest` (tenantId required)
+### Batch update stock items: `BatchStockItemUpdateRequest` (tenantId required)
 
 Bulk-toggle flags and add/remove tax policies across many items.
 
@@ -250,7 +282,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/CatalogService/Items/Batch?tenantId=<tena
   }'
 ```
 
-### Bulk upsert stock items — array of `BulkProduct` (tenantId required)
+### Bulk upsert stock items: array of `BulkProduct` (tenantId required)
 
 Import/upsert products from flat rows (string-keyed brand / currency / supplier etc., resolved server-side).
 
@@ -279,7 +311,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/CatalogService/Items/BulkUpsert?tenantId=
   ]'
 ```
 
-### Recalculate prices — array of item IDs (tenantId required)
+### Recalculate prices: array of item IDs (tenantId required)
 
 ```bash
 curl -X POST "$ABSUITE_HOST_URL/api/v2/CatalogService/Items/RecalculatePrices?tenantId=<tenant-guid>" \
@@ -291,30 +323,29 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/CatalogService/Items/RecalculatePrices?te
 ### Primary image (sub-resource)
 
 ```bash
-# Get primary image (no tenantId param)
+# Get primary image (tenantId optional: with it, a stock_items_read management read)
 curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/Items/<item-guid>/Images/Primary" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Set primary image (tenantId optional)
+# Set primary image (tenantId required, stock_items_update): multipart/form-data, file in the `data` field
 curl -X POST "$ABSUITE_HOST_URL/api/v2/CatalogService/Items/<item-guid>/Images/Primary?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{}'
+  -F "data=@<image-file-path>"
 ```
 
 ---
 
 ## Item Categories
 
-`ItemCategoryCreateDto` requires `title`; reads take `tenantId` optional, writes required.
+`ItemCategoryCreateDto` requires `title`. List and count need `tenantId`; get-by-ID takes it optionally; writes require it.
 
 ```bash
-# List (tenantId optional)
-curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemCategories" \
+# List (tenantId required)
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemCategories?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Count (tenantId optional)
-curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemCategories/Count" \
+# Count (tenantId required)
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemCategories/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Get by ID (tenantId optional)
@@ -364,12 +395,12 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemCategories/<category
 `ItemTypeCreateDto` requires `itemCategoryId`; `ItemTypeUpdateDto` requires `singularTitle`. (Types use `singularTitle` / `pluralTitle`, **not** `name`.)
 
 ```bash
-# List (tenantId optional)
-curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemTypes" \
+# List (tenantId required)
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemTypes?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Count (tenantId optional)
-curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemTypes/Count" \
+# Count (tenantId required)
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemTypes/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Get by ID (tenantId optional)
@@ -389,7 +420,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemTypes?tenantId=<tenant
     "googleCategoryTaxonomy": "<taxonomy-path>"
   }'
 
-# Update (PUT, tenantId required) — singularTitle required
+# Update (PUT, tenantId required): singularTitle required
 curl -X PUT "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemTypes/<type-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
@@ -415,10 +446,10 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemTypes/<type-guid>?te
 `ItemFamilyCreateDto` / `ItemFamilyUpdateDto` require `name`.
 
 ```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemFamilies" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemFamilies?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemFamilies/Count" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemFamilies/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemFamilies/<family-guid>" \
@@ -450,7 +481,7 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemFamilies/<family-gui
 `ItemBrandCreateDto` / `ItemBrandUpdateDto` require `name`.
 
 ```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemBrands" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemBrands?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemBrands/<brand-guid>" \
@@ -484,7 +515,7 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemBrands/<brand-guid>?
 `ItemTagCreateDto` / `ItemTagUpdateDto` require `title` (tags use `title`, **not** `name`).
 
 ```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemTags" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemTags?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemTags/<tag-guid>" \
@@ -509,7 +540,7 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemTags/<tag-guid>?tena
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-> Note: `ItemTags` has **no** standalone `Count` endpoint — to count tags on an item use `/Items/{itemId}/Tags/Count`.
+> Note: `ItemTags` has **no** standalone `Count` endpoint; to count tags on an item use `/Items/{itemId}/Tags/Count`.
 
 ---
 
@@ -518,7 +549,7 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemTags/<tag-guid>?tena
 `ItemImageCreateDto` requires `fileName`; `ItemImageUpdateDto` requires `itemId`, `mD5Hash`, `fileUploadURL`, `fileName`, `contentType`.
 
 ```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemImages" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemImages?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemImages/<image-guid>" \
@@ -563,7 +594,7 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemImages/<image-guid>?
 `ItemAttachmentCreateDto` / `ItemAttachmentUpdateDto` have no required fields beyond what you choose to set.
 
 ```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemAttachments" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemAttachments?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemAttachments/<attachment-guid>" \
@@ -597,10 +628,10 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemAttachments/<attachm
 `ItemAttributeCreateDto` / `ItemAttributeUpdateDto` require `name`.
 
 ```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemAttributes" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemAttributes?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemAttributes/Count" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemAttributes/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemAttributes/<attr-guid>" \
@@ -632,10 +663,10 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemAttributes/<attr-gui
 `ItemAttributeOptionCreateDto` requires `name` and `itemAttributeId`; `ItemAttributeOptionUpdateDto` requires `name`.
 
 ```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemAttributeOptions" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemAttributeOptions?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemAttributeOptions/Count" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemAttributeOptions/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemAttributeOptions/<option-guid>" \
@@ -667,10 +698,10 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemAttributeOptions/<op
 `ItemBundleCreateDto` / `ItemBundleUpdateDto` require `name`.
 
 ```bash
-curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemBundles" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemBundles?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemBundles/Count" \
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemBundles/Count?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemBundles/<bundle-guid>" \
@@ -706,7 +737,7 @@ List reviews requires `itemId` (query, required); create requires `tenantId`. `I
 curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemReviews?itemId=<item-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Get by ID (tenantId optional)
+# Get by ID (no tenant needed; anonymous read)
 curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemReviews/<review-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
@@ -740,8 +771,8 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemReviews/<review-guid
 `ItemQuestionCreateDto` requires `title`, `needsRevision`, `question`, `itemId`; `ItemQuestionUpdateDto` requires `needsRevision`.
 
 ```bash
-# List (tenantId optional)
-curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemQuestions" \
+# List (tenantId required)
+curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemQuestions?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
 # Get by ID (tenantId optional)
@@ -754,7 +785,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemQuestions?tenantId=<te
   -H "Content-Type: application/json" \
   -d '{ "title": "<title>", "needsRevision": true, "question": "<question>", "itemId": "<item-guid>" }'
 
-# Update (PUT, tenantId required) — needsRevision required
+# Update (PUT, tenantId required): needsRevision required
 curl -X PUT "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemQuestions/<question-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
@@ -775,7 +806,7 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemQuestions/<question-
 
 ## Stock-item sub-resources (relate / list / get / remove)
 
-Each of these collections hangs off `/Items/{itemId}/...`. **List** and **get-by-ID** of a sub-resource take **no** tenantId param; **relate** (`POST`) and **remove** (`DELETE`) require `tenantId` (a few exceptions noted below).
+Each of these collections hangs off `/Items/{itemId}/...`. **Relate** (`POST`) and **remove** (`DELETE`) require `tenantId`. **Reads**: `Brands`, `Types`, `Tags`, `Images`, `Attachments`, `Questions` and `Categories/{itemCategoryId}` take `tenantId` optionally (with it: `stock_items_read` management read; without: anonymous public read); `Categories` (list), `Reviews`, `GoogleCategories` and the policy reads take none.
 
 ### Brands
 
@@ -805,7 +836,7 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CatalogService/Items/<item-guid>/Catego
 
 ### Types (relate existing item types to an item)
 
-`Types` list / get / relate / remove all require `tenantId`.
+`Types` list / get take `tenantId` optionally; relate / remove require it.
 
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/Items/<item-guid>/Types?tenantId=<tenant-guid>" \
@@ -818,7 +849,7 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CatalogService/Items/<item-guid>/Types/
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Tags (list / get / relate / remove + count all require `tenantId`)
+### Tags (list / get / count take `tenantId` optionally; relate / remove require it)
 
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/Items/<item-guid>/Tags?tenantId=<tenant-guid>" \
@@ -863,7 +894,9 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CatalogService/Items/<item-guid>/Attach
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Attribute Options (relate/remove take **no** tenantId)
+### Attribute Options (unimplemented stub)
+
+All four routes return `200` with no body and change nothing (no tenantId is bound).
 
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/Items/<item-guid>/AttributeOptions" \
@@ -889,7 +922,9 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CatalogService/Items/<item-guid>/Google
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Price Rules (item-scoped relate/get/remove take **no** tenantId)
+### Price Rules (unimplemented stub)
+
+All four routes return `200` with no body and change nothing (no tenantId is bound).
 
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/Items/<item-guid>/PriceRules" \
@@ -902,7 +937,7 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CatalogService/Items/<item-guid>/PriceR
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Questions (sub-resource — relate `POST` takes `ItemQuestionRecordCreateDto`)
+### Questions (sub-resource, relate `POST` takes `ItemQuestionRecordCreateDto`)
 
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/Items/<item-guid>/Questions" \
@@ -917,7 +952,7 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/CatalogService/Items/<item-guid>/Questi
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Reviews (sub-resource — relate `POST` takes `ItemReviewRecordCreateDto`)
+### Reviews (sub-resource, relate `POST` takes `ItemReviewRecordCreateDto`)
 
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/Items/<item-guid>/Reviews" \
@@ -968,7 +1003,7 @@ In addition to the item-scoped paths above, each policy kind has a top-level res
 Resources: `ItemTaxPolicies`, `ItemShippingPolicies`, `ItemReturnPolicies`, `ItemRefundPolicies`, `ItemWarrantyPolicies`.
 
 ```bash
-# List (filter by tenantId and/or itemId — both optional)
+# List (filter by tenantId and/or itemId, both optional)
 curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemTaxPolicies?tenantId=<tenant-guid>&itemId=<item-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
@@ -993,7 +1028,7 @@ The relate query-param name differs per kind: `taxPolicyId`, `shippingPolicyId`,
 
 ---
 
-## Google Categories (read-only taxonomy — no tenantId)
+## Google Categories (read-only taxonomy, no tenantId)
 
 All `ItemGoogleCategories` reads are public (no tenantId). Only the `tree` map operation (`POST`) is a tenant-scoped write.
 
@@ -1019,14 +1054,14 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemGoogleCategories/<googl
 # Children
 curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemGoogleCategories/<google-category-id>/Children" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-# Map the tree (tenantId required)
+# Map the tree (tenantId required, stock_items_update)
 curl -X POST "$ABSUITE_HOST_URL/api/v2/CatalogService/ItemGoogleCategories/tree?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
 ---
 
-## Merchants (read-only — no tenantId)
+## Merchants (read-only, no tenantId)
 
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/Merchants" \
@@ -1041,7 +1076,7 @@ curl -X GET "$ABSUITE_HOST_URL/api/v2/CatalogService/Merchants/<merchant-guid>" 
 
 ## PATCH (JSON Patch)
 
-PATCH endpoints accept a JSON **array** of [RFC 6902](https://datatracker.ietf.org/doc/html/rfc6902) operations and **require** `?tenantId=<tenant-guid>`. Use PATCH for atomic partial updates — change a couple of fields without resending the whole object (safer than PUT under concurrent edits).
+PATCH endpoints accept a JSON **array** of [RFC 6902](https://datatracker.ietf.org/doc/html/rfc6902) operations and **require** `?tenantId=<tenant-guid>`. Use PATCH for atomic partial updates: change a couple of fields without resending the whole object (safer than PUT under concurrent edits).
 
 - `op` ∈ `add` | `remove` | `replace` | `move` | `copy` | `test`
 - `path` / `from` are JSON Pointers (leading `/`, camelCase field name)
@@ -1129,6 +1164,9 @@ curl -X PATCH "$ABSUITE_HOST_URL/api/v2/CatalogService/Items/<item-guid>?tenantI
 | Action | Method | Path |
 |---|---|---|
 | List stock items | GET | `/api/v2/CatalogService/Items` |
+| List public stock items | GET | `/api/v2/CatalogService/Items/Public` |
+| Count public stock items | GET | `/api/v2/CatalogService/Items/Public/Count` |
+| Get public stock item | GET | `/api/v2/CatalogService/Items/Public/{itemId}` |
 | Count stock items | GET | `/api/v2/CatalogService/Items/Count` |
 | Min price | GET | `/api/v2/CatalogService/Items/MinPrice` |
 | Max price | GET | `/api/v2/CatalogService/Items/MaxPrice` |

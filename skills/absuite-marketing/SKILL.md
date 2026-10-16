@@ -6,17 +6,19 @@ description: >
   areas, marketing lists, marketing leads, newsletters, email groups, email signatures,
   email templates, social media posts, social post buckets, and tracking-pixel
   retrieval, including atomic PATCH (JSON Patch) updates. All operations are tenant-scoped
-  (except the public tracking pixel) and require a bearer token (see the absuite-login
+  (except the tracking pixel read) and require a bearer token (see the absuite-login
   skill to authenticate).
+key: paperclip/skills/absuite-marketing/SKILL.md
+version: 1.0.0
 ---
 
-# Alliance Business Suite — Marketing Skill (REST)
+# Alliance Business Suite: Marketing Skill (REST)
 
-Manage marketing assets through the ABS Marketing Service REST API. Every Marketing
-Service endpoint is tenant-scoped: pass `?tenantId=<tenant-guid>` (or the equivalent
-`X-TenantId: <tenant-guid>` header) on **every** request — GET, POST, PUT, PATCH, and
-DELETE alike. The single exception is the public **tracking pixel** read, which takes
-no tenant.
+Manage marketing assets through the ABS Marketing Service REST API. Every endpoint this
+skill documents is tenant-scoped: pass `?tenantId=<tenant-guid>` (or the equivalent
+`X-TenantId: <tenant-guid>` header) on **every** request (GET, POST, PUT, PATCH, and
+DELETE alike). The single exception is the **tracking pixel** read, which takes no
+tenant.
 
 > For the CLI equivalent see `absuite-marketing-cli`; for general REST conventions
 > (envelope, tenant scoping, JSON Patch) see `absuite-rest`.
@@ -25,9 +27,9 @@ no tenant.
 
 > Full detail in `absuite-rest`; these rules apply across this skill's endpoints.
 
-- **Lists & counts are OData-enabled.** `GET` collection endpoints accept `$filter`, `$top`, `$skip`, `$orderby`, `$select` — page through results, don't fetch-all-and-filter. Each dedicated `.../Count` endpoint returns an integer and is **also** filterable (`?$filter=...` -> a filtered count). OData is a REST/HTTP-layer feature (the CLI does not expose it).
-- **`PUT` replaces the ENTIRE resource** — it overwrites, not merges, so any omitted field is reset to default/null. **GET the resource first, change the full object, then PUT it back**; sending a partial body to `PUT` (or an incomplete `POST` create) causes silent data loss.
-- **`PATCH`, where this service exposes it, is atomic and partial** (JSON Patch / RFC 6902) — it changes only the fields you name, needs no prior GET, and won't clobber the rest. Prefer it for small edits; use `PUT` only for a deliberate full replacement.
+- **Lists & counts are OData-enabled.** `GET` collection endpoints accept `$filter`, `$top`, `$skip`, `$orderby`, `$select`: page through results, don't fetch-all-and-filter. Each dedicated `.../Count` endpoint returns an integer and is **also** filterable (`?$filter=...` -> a filtered count). OData is a REST/HTTP-layer feature (the CLI does not expose it).
+- **`PUT` replaces the ENTIRE resource**: it overwrites, not merges, so any omitted field is reset to default/null. **GET the resource first, change the full object, then PUT it back**; sending a partial body to `PUT` (or an incomplete `POST` create) causes silent data loss.
+- **`PATCH`, where this service exposes it, is atomic and partial** (JSON Patch / RFC 6902): it changes only the fields you name, needs no prior GET, and won't clobber the rest. Prefer it for small edits; use `PUT` only for a deliberate full replacement.
 
 ## Authentication
 
@@ -49,7 +51,7 @@ export ABSUITE_ACCESS_TOKEN="<accessToken-from-response>"
 
 3. **Base path:** `$ABSUITE_HOST_URL/api/v2/MarketingService/<Resource>`
 
-4. **Response envelope** — every response is wrapped:
+4. **Response envelope**: every response is wrapped:
 ```json
 {
   "isSuccess": true,
@@ -60,54 +62,58 @@ export ABSUITE_ACCESS_TOKEN="<accessToken-from-response>"
 }
 ```
 Always check `isSuccess`; read the payload from `result` (an object, an array, an int
-for `Count`, or `null`).
+for `Count`, or `null`). A successful create returns `201 Created` with a `Location`
+header, and `result` holds the route values of the new record, for example
+`{ "tenantId": "…", "marketingAreaId": "…" }`. The new record's id is the `Id` you sent
+in the create body (it defaults to a server-generated GUID when omitted), so send your
+own `Id` when you need to reference the record right away.
 
-5. **Tenant scoping** — every Marketing Service operation here requires
+5. **Tenant scoping**: every Marketing Service operation here requires
 `?tenantId=<tenant-guid>` on the query string (the platform also accepts the
 `X-TenantId: <tenant-guid>` header equivalently). The only endpoint with **no** tenant
-param is `GET /TrackingPixels/{pixelId}` — do not add a tenant to it.
+param is `GET /TrackingPixels/{pixelId}`; do not add a tenant to it.
 
 ## Key Concepts
 
-- **Marketing Campaign** — a planned promotional effort with an offer, budget, costs,
+- **Marketing Campaign**: a planned promotional effort with an offer, budget, costs,
   proposed/actual date windows, an expected-response rate, and an optional marketing
   area and budget currency.
-- **Marketing Area** — a named market region/segment used to scope campaigns.
-- **Marketing List** — a static or dynamic audience list targeting individuals,
+- **Marketing Area**: a named market region/segment used to scope campaigns.
+- **Marketing List**: a static or dynamic audience list targeting individuals,
   organizations, or leads, with purpose/source/cost metadata.
-- **Marketing Lead** — a prospective contact (name, email, phone, company, job title,
+- **Marketing Lead**: a prospective contact (name, email, phone, company, job title,
   source, score, status).
-- **Newsletter** — a named, titled, coded newsletter publication.
-- **Email Group** — a named, optionally-described group used to organize email
+- **Newsletter**: a named, titled, coded newsletter publication.
+- **Email Group**: a named, optionally-described group used to organize email
   recipients (enabled/disabled).
-- **Email Signature** / **Email Template** — content assets with a title, body content,
+- **Email Signature** / **Email Template**: content assets with a title, body content,
   markup, and a `codeType` rendering mode; templates can be tied to a campaign.
-- **Social Media Post** — a titled post with content and an optional featured image,
+- **Social Media Post**: a titled post with content and an optional featured image,
   filed into a social post bucket.
-- **Social Post Bucket** — a named container that groups social media posts.
-- **Tracking Pixel** — a public read returning a pixel by its `pixelId` (no tenant).
+- **Social Post Bucket**: a named container that groups social media posts.
+- **Tracking Pixel**: a read by `pixelId` with no tenant (currently a placeholder that returns no pixel data).
 
-### Enumerations (authoritative — from the OpenAPI spec)
+### Enumerations (authoritative, from the domain enums)
 
-- **`marketingListType`** — `Static` | `Dynamic`.
-- **`marketingListTarget`** — `Individual` | `Organization` | `Lead`.
-- **`codeType`** (email signatures & templates) — `Razor` | `CSharp` | `CSHtml` |
+- **`marketingListType`**: `Static` | `Dynamic`.
+- **`marketingListTarget`**: `Individual` | `Organization` | `Lead`.
+- **`codeType`** (email signatures & templates): `Razor` | `CSharp` | `CSHtml` |
   `Liquid` | `Html5` | `Markdown` | `Markup`.
 
 ### Field-name conventions
 
 Request bodies use **PascalCase** keys (e.g. `"Name"`, `"Title"`, `"CurrencyId"`,
 `"MarketingAreaId"`). JSON-Patch `path` pointers use **camelCase** (e.g. `/name`,
-`/active`, `/allocatedBudget`) — these mirror the response/DTO property names.
+`/active`, `/allocatedBudget`); these mirror the response/DTO property names.
 
 ## Marketing Campaigns
 
 ```bash
-# List (OData) — supports $filter/$top/$orderby query options
+# List (OData), supports $filter/$top/$orderby query options
 curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingCampaigns?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
-# Search — OData $filter (this is how "search" is expressed; no separate search endpoint)
+# Search: OData $filter (this is how "search" is expressed; no separate search endpoint)
 curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingCampaigns?tenantId=<tenant-guid>&\$filter=contains(name,'Spring')&\$top=25" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 
@@ -129,8 +135,8 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingCampaigns?tenan
     "Active": true,
     "ProposedStart": "2026-03-01T00:00:00Z",
     "ProposedEnd": "2026-04-30T23:59:59Z",
-    "ActualStart": null,
-    "ActualEnd": null,
+    "ActualStart": "2026-03-01T00:00:00Z",
+    "ActualEnd": "2026-04-30T23:59:59Z",
     "Code": "SPRING26",
     "AllocatedBudget": 10000.00,
     "ActivityCost": 0,
@@ -140,7 +146,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingCampaigns?tenan
     "CurrencyId": "<currency-guid>"
   }'
 
-# Update (PUT — full replace)
+# Update (PUT, full replace)
 curl -X PUT "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingCampaigns/<campaign-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
@@ -150,14 +156,18 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingCampaigns/<campa
     "Active": true,
     "ProposedStart": "2026-03-01T00:00:00Z",
     "ProposedEnd": "2026-05-15T23:59:59Z",
+    "ActualStart": "2026-03-01T00:00:00Z",
+    "ActualEnd": "2026-05-15T23:59:59Z",
     "Code": "SPRING26",
     "AllocatedBudget": 12000.00,
+    "ActivityCost": 0,
+    "MiscCost": 0,
     "ExpectedResponsePercent": 6,
     "MarketingAreaId": "<area-guid>",
     "CurrencyId": "<currency-guid>"
   }'
 
-# Patch (PATCH — JSON Patch, partial update)
+# Patch (PATCH, JSON Patch, partial update)
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingCampaigns/<campaign-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
@@ -172,7 +182,8 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingCampaigns/<ca
 ```
 
 **`MarketingCampaignCreateDto` fields:** `Id`, `Timestamp`, `Name`, `Offer`, `Active`
-(boolean), `ProposedStart`, `ProposedEnd`, `ActualStart`, `ActualEnd` (date-times),
+(boolean), `ProposedStart`, `ProposedEnd`, `ActualStart`, `ActualEnd` (non-nullable
+date-times: send a value, never `null`),
 `Code`, `AllocatedBudget`, `ActivityCost`, `MiscCost`, `ExpectedResponsePercent`
 (numbers), `MarketingAreaId`, `CurrencyId`.
 **`MarketingCampaignUpdateDto`** has the same fields minus `Id`/`Timestamp`.
@@ -210,7 +221,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingAreas/<area-guid
     "Description": "Updated region description"
   }'
 
-# Patch (PATCH — JSON Patch)
+# Patch (PATCH, JSON Patch)
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingAreas/<area-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
@@ -265,11 +276,15 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingLists/<list-guid
     "Description": "Refreshed segment",
     "Source": "CRM export",
     "Locked": true,
+    "Cost": 0,
+    "ModifiedOn": "2026-04-01T00:00:00Z",
+    "LastUsedOn": "2026-04-01T00:00:00Z",
+    "CurrencyId": "<currency-guid>",
     "MarketingListType": "Dynamic",
     "MarketingListTarget": "Individual"
   }'
 
-# Patch (PATCH — JSON Patch)
+# Patch (PATCH, JSON Patch)
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingLists/<list-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
@@ -337,7 +352,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingLeads/<lead-guid
     "Score": 80
   }'
 
-# Patch (PATCH — JSON Patch)
+# Patch (PATCH, JSON Patch)
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingLeads/<lead-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
@@ -379,7 +394,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/MarketingService/Newsletters?tenantId=<te
   -d '{
     "Name": "Monthly Digest",
     "Code": "DIGEST-2026-04",
-    "Title": "Monthly Digest — April 2026"
+    "Title": "Monthly Digest, April 2026"
   }'
 
 # Update (PUT)
@@ -389,14 +404,14 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/MarketingService/Newsletters/<newsletter-g
   -d '{
     "Name": "Monthly Digest",
     "Code": "DIGEST-2026-05",
-    "Title": "Monthly Digest — May 2026"
+    "Title": "Monthly Digest, May 2026"
   }'
 
-# Patch (PATCH — JSON Patch)
+# Patch (PATCH, JSON Patch)
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/MarketingService/Newsletters/<newsletter-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '[ { "op": "replace", "path": "/title", "value": "Monthly Digest — May 2026" } ]'
+  -d '[ { "op": "replace", "path": "/title", "value": "Monthly Digest, May 2026" } ]'
 
 # Delete
 curl -X DELETE "$ABSUITE_HOST_URL/api/v2/MarketingService/Newsletters/<newsletter-guid>?tenantId=<tenant-guid>" \
@@ -441,7 +456,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailGroups/<group-guid>?
     "Enabled": false
   }'
 
-# Patch (PATCH — JSON Patch)
+# Patch (PATCH, JSON Patch)
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailGroups/<group-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
@@ -496,7 +511,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailSignatures/<signatur
     "Default": true
   }'
 
-# Patch (PATCH — JSON Patch)
+# Patch (PATCH, JSON Patch)
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailSignatures/<signature-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
@@ -513,12 +528,12 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailSignatures/<signa
 **`EmailSignatureCreateDto` fields:** `Id`, `Timestamp`, `Title` (**required**),
 `Published` (boolean), `Description`, `Code`, `Markup`, `FeaturedImageUrl`, `CodeType`
 (`Razor|CSharp|CSHtml|Liquid|Html5|Markdown|Markup`). **`EmailSignatureUpdateDto`** is a
-large content DTO (the same shape as email templates) — its notable fields include
+large content DTO (the same shape as email templates); its notable fields include
 `Order`, `Slug`, `Name`, `Title`, `Excerpt`, `Description`, `CanonicalUrl`, SEO fields
 (`SeoTitle`, `SeoKeyWords`, `SeoKeyPhrases`, `MetaDescription`), social-card fields
 (`TwitterImage/Title/Description`, `FacebookImage/Title/Description`),
 `FeaturedImageUrl`, `Content`, `Code`, `HtmlContent`, `CodeType`, `CSharpContent`,
-`RazorContent`, `CssContent`, `JsContent`, and boolean flags such as `Template`,
+`RazorContent`, `CSSContent`, `JSContent`, and boolean flags such as `Template`,
 `Default`, `Enable`, `Published`, `InTrashCan`, `SystemLocked`. Use PATCH for small edits
 rather than resending the full body.
 
@@ -564,7 +579,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailTemplates/<template-
     "MarketingCampaignId": "<campaign-guid>"
   }'
 
-# Patch (PATCH — JSON Patch)
+# Patch (PATCH, JSON Patch)
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailTemplates/<template-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
@@ -584,7 +599,7 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailTemplates/<templa
 **`EmailTemplateUpdateDto`** is the same large content DTO as email signatures plus a
 `MarketingCampaignId` field (notable fields: `Order`, `Slug`, `Name`, `Title`,
 `Excerpt`, `Description`, SEO/social fields, `Content`, `Code`, `HtmlContent`,
-`CodeType`, `CSharpContent`, `RazorContent`, `CssContent`, `JsContent`, and boolean
+`CodeType`, `CSharpContent`, `RazorContent`, `CSSContent`, `JSContent`, and boolean
 flags `Template`, `Default`, `Enable`, `Published`, `InTrashCan`, `SystemLocked`).
 
 ## Social Media Posts
@@ -618,13 +633,13 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/MarketingService/SocialMediaPosts/<post-gu
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "Title": "Spring Sale — Final Days",
+    "Title": "Spring Sale: Final Days",
     "Content": "Last chance: 20% off ends Sunday. Code SPRING26",
     "FeaturedImageUrl": "https://cdn.example/spring-final.png",
     "SocialPostBucketId": "<bucket-guid>"
   }'
 
-# Patch (PATCH — JSON Patch)
+# Patch (PATCH, JSON Patch)
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/MarketingService/SocialMediaPosts/<post-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
@@ -670,7 +685,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/MarketingService/SocialPostBuckets/<bucket
     "Name": "Spring Campaign Bucket (2026)"
   }'
 
-# Patch (PATCH — JSON Patch)
+# Patch (PATCH, JSON Patch)
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/MarketingService/SocialPostBuckets/<bucket-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
@@ -686,8 +701,10 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/MarketingService/SocialPostBuckets/<buc
 
 ## Tracking Pixel
 
-A **public** read — fetched by `pixelId` with **no** tenant param. Do not append
-`?tenantId=`.
+A read fetched by `pixelId` (a GUID) with **no** tenant param. Do not append
+`?tenantId=`. The action carries no `[AllowAnonymous]`, so send the bearer token. In
+the current code it is a placeholder: it returns an empty success envelope
+(`result: null`), not pixel data.
 
 ```bash
 curl -X GET "$ABSUITE_HOST_URL/api/v2/MarketingService/TrackingPixels/<pixel-id>" \
@@ -715,7 +732,7 @@ curl -X PATCH "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingCampaigns/<cam
   ]'
 ```
 
-**PATCH is available on every Marketing Service aggregate:** Marketing Campaigns,
+**PATCH is available on every aggregate this skill covers:** Marketing Campaigns,
 Marketing Areas, Marketing Lists, Marketing Leads, Newsletters, Email Groups, Email
 Signatures, Email Templates, Social Media Posts, and Social Post Buckets. (The tracking
 pixel is read-only and has no PATCH.)
@@ -729,16 +746,16 @@ social post:
 # 1) Create a marketing area
 curl -X POST "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingAreas?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
-  -d '{ "Name": "North America", "Description": "NA region" }'
-# → result.id = <area-guid>
+  -d '{ "Id": "<area-guid>", "Name": "North America", "Description": "NA region" }'
+# 201 Created; result = { "tenantId": ..., "marketingAreaId": "<area-guid>" }
 
 # 2) Create the campaign (referencing the area)
 curl -X POST "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingCampaigns?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
-  -d '{ "Name": "Spring Sale 2026", "Offer": "20% off", "Active": true,
+  -d '{ "Id": "<campaign-guid>", "Name": "Spring Sale 2026", "Offer": "20% off", "Active": true,
         "Code": "SPRING26", "AllocatedBudget": 10000, "MarketingAreaId": "<area-guid>",
         "CurrencyId": "<currency-guid>" }'
-# → result.id = <campaign-guid>
+# result.marketingcampaignId = <campaign-guid>
 
 # 3) Create a target list
 curl -X POST "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingLists?tenantId=<tenant-guid>" \
@@ -754,11 +771,11 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/MarketingService/EmailTemplates?tenantId=
 # 5) Create a social bucket, then a post in it
 curl -X POST "$ABSUITE_HOST_URL/api/v2/MarketingService/SocialPostBuckets?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
-  -d '{ "Name": "Spring Campaign Bucket" }'
-# → result.id = <bucket-guid>
+  -d '{ "Id": "<bucket-guid>", "Name": "Spring Campaign Bucket" }'
+# result.socialpostbucketId = <bucket-guid>
 curl -X POST "$ABSUITE_HOST_URL/api/v2/MarketingService/SocialMediaPosts?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" \
-  -d '{ "Title": "Spring Sale!", "Content": "20% off — code SPRING26", "SocialPostBucketId": "<bucket-guid>" }'
+  -d '{ "Title": "Spring Sale!", "Content": "20% off, code SPRING26", "SocialPostBucketId": "<bucket-guid>" }'
 
 # 6) Close the campaign with a PATCH when it ends
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingCampaigns/<campaign-guid>?tenantId=<tenant-guid>" \
@@ -841,16 +858,16 @@ curl -X PATCH "$ABSUITE_HOST_URL/api/v2/MarketingService/MarketingCampaigns/<cam
 | Update social bucket | PUT | `/api/v2/MarketingService/SocialPostBuckets/{socialpostbucketId}` |
 | Patch social bucket | PATCH | `/api/v2/MarketingService/SocialPostBuckets/{socialpostbucketId}` |
 | Delete social bucket | DELETE | `/api/v2/MarketingService/SocialPostBuckets/{socialpostbucketId}` |
-| Get tracking pixel (public, no tenant) | GET | `/api/v2/MarketingService/TrackingPixels/{pixelId}` |
+| Get tracking pixel (no tenant; placeholder) | GET | `/api/v2/MarketingService/TrackingPixels/{pixelId}` |
 
 ## Critical Rules
 
 - **Authenticate first**, then send `Authorization: Bearer …` on every call.
-- **Pass `?tenantId=<tenant-guid>` on every Marketing Service request** — including
-  POST, PUT, PATCH, and DELETE. Omitting it on writes returns `400`. The only exception
-  is `GET /TrackingPixels/{pixelId}` (public, no tenant).
+- **Pass `?tenantId=<tenant-guid>` on every Marketing Service request covered here**,
+  including POST, PUT, PATCH, and DELETE. Omitting it returns `400`. The only exception
+  is `GET /TrackingPixels/{pixelId}` (no tenant; placeholder).
 - **List = OData.** The list endpoints accept OData query options (`$filter`, `$top`,
-  `$orderby`, …); there is no separate "search" endpoint — express search via `$filter`.
+  `$orderby`, …); there is no separate "search" endpoint; express search via `$filter`.
 - **PATCH bodies are JSON-Patch arrays** with camelCase `path` pointers; PUT bodies are
   full PascalCase objects.
 - Always check `isSuccess` and read data from `result`.

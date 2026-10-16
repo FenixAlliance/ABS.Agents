@@ -123,9 +123,9 @@
       "key": "fenixalliance.content.blog-authoring",
       "path": "skills/fenixalliance.content.blog-authoring/SKILL.md",
       "name": "Blog Authoring",
-      "version": "1.0.0",
-      "description": "Author and revise tenant blog posts through governed ABS Business Capabilities. Surveys existing posts to avoid duplication, drafts an article, and submits it for human approval — never bypassing the approval gate, never resubmitting a suspended write.",
-      "contentHash": "a5cd929ccb5e4f7ef0a1a208905573aaf4fd659e52bf2335861203cfd6038b39"
+      "version": "1.0.1",
+      "description": "Author and revise tenant blog posts through governed ABS Business Capabilities. Surveys existing posts to avoid duplication, drafts an article, and submits it for human approval: never bypassing the approval gate, never resubmitting a suspended write.",
+      "contentHash": "98ee0a29920cfeb83402c106f5dbfd5097646ca83f3cee8b7471a49a8f27fe8e"
     },
     {
       "kind": "Skill",
@@ -141,9 +141,9 @@
       "key": "paperclip/skills/absuite-accounting/SKILL.md",
       "path": "skills/absuite-accounting/SKILL.md",
       "name": "absuite-accounting",
-      "version": null,
+      "version": "1.0.0",
       "description": "Manage the full accounting system in the Alliance Business Suite (ABS) via the REST API. Covers chart of accounts, account entries (debits/credits), account groups/types/relations, journals and journal entries, ledgers, financial books, tax classes/policies/rates, fiscal authorities/years/periods/regimes/responsibilities/identification-types, billing profiles, banks/bank-accounts/guarantees/transactions, budgets, cost centres, commissions, receipts, grants, loans, shares, expense claims/types, accounting periods, and invoice enumeration ranges, including atomic PATCH (JSON Patch) updates. All operations are tenant-scoped and require a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "9fd6b5e0fe8d3cd9e8df56c3593b8e4e3a47ec7b8253064024a2695af0ebeb75"
+      "contentHash": "8cb839c0d7577ecd7b28dfa3d427155bdde4a9fce4fbf9eb059eaedf076cb0db"
     },
     {
       "kind": "Skill",
@@ -159,9 +159,9 @@
       "key": "paperclip/skills/absuite-assets/SKILL.md",
       "path": "skills/absuite-assets/SKILL.md",
       "name": "absuite-assets",
-      "version": null,
+      "version": "1.0.0",
       "description": "Manage fixed and moveable assets in the Alliance Business Suite (ABS) via the REST API. Covers assets, asset categories, asset types, depreciation records, repairs, value amendments, and asset transfers, including atomic PATCH (JSON Patch) updates. All operations are tenant-scoped and require a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "02efac242dc4c70c5c85b4ab92009fb84b7e2e31501458fd0ca2b4d24d8014ad"
+      "contentHash": "941f8fac19d6ea60f4c759fabf7fb0b38c1d240abac050c1cb07d342cab72cce"
     },
     {
       "kind": "Skill",
@@ -177,9 +177,9 @@
       "key": "paperclip/skills/absuite-blog/SKILL.md",
       "path": "skills/absuite-blog/SKILL.md",
       "name": "absuite-blog",
-      "version": null,
-      "description": "Manage blog content in the Alliance Business Suite (ABS) Content Service via the REST API (curl). Covers blog posts, categories, tags, comments, and authors, including atomic PATCH (JSON Patch) updates. Tenant scoping is per-endpoint — blog reads are public/optional-tenant; writes are tenant-scoped. Requires a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "1ae985b27edf87e3a447603cb0df49af62c1a4ef60e3ad78004e3e8500a040e3"
+      "version": "1.0.0",
+      "description": "Manage blog content in the Alliance Business Suite (ABS) Content Service via the REST API (curl). Covers blog posts, categories, tags, comments, and authors, including atomic PATCH (JSON Patch) updates. Tenant scoping is per-endpoint: blog reads are public/optional-tenant; writes are tenant-scoped. Requires a bearer token (see the absuite-login skill to authenticate).",
+      "contentHash": "897ca85cd2ba1bfa494d654d470659dc0483a17004ca72b1829acf8c72e3b257"
     },
     {
       "kind": "Skill",
@@ -195,9 +195,9 @@
       "key": "paperclip/skills/absuite-cart/SKILL.md",
       "path": "skills/absuite-cart/SKILL.md",
       "name": "absuite-cart",
-      "version": null,
-      "description": "Manage shopping carts, cart records/lines, wish lists, and compare tables in the Alliance Business Suite (ABS) Cart Service via the REST API. Covers reading ambient carts (guest/user/acting/business), adding/removing items, updating quantities, submitting carts, wish lists, and product comparison — including atomic PATCH (JSON Patch) updates. CartService is HYBRID-scoped: most endpoints are anonymous, user-, or cart-id-scoped; only a few take a tenant. Requires a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "cfe4d75e9da3233d2ed57ee571412334effac0e9082f0eec5aca502ccdf408de"
+      "version": "1.0.0",
+      "description": "Manage shopping carts, cart records/lines, wish lists, and compare tables in the Alliance Business Suite (ABS) Cart Service via the REST API. Covers reading ambient carts (guest/user/acting/business), adding/removing items, updating quantities, submitting carts, wish lists, and product comparison, including atomic PATCH (JSON Patch) updates. CartService is HYBRID-scoped: most endpoints are anonymous, user-, or cart-id-scoped; only a few take a tenant. A bearer token is needed for the user cart and for submitting (see the absuite-login skill to authenticate).",
+      "contentHash": "fb814fa546dda44ebb6655831ee6b2d0d21d3a152b2afd961b06f95e25b7592a"
     },
     {
       "kind": "Skill",
@@ -213,9 +213,9 @@
       "key": "paperclip/skills/absuite-catalog/SKILL.md",
       "path": "skills/absuite-catalog/SKILL.md",
       "name": "absuite-catalog",
-      "version": null,
-      "description": "Manage the product catalog in the Alliance Business Suite (ABS) via the REST API. Covers stock items (products), categories, types, families, brands, tags, images, attachments, attributes & options, bundles, reviews, questions, policy relationships (tax / shipping / return / refund / warranty), price-rule relationships, Google categories, and merchants — including atomic PATCH (JSON Patch) updates. Catalog reads are public by default and scope to a tenant when a tenantId is supplied; writes require a tenantId and a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "b7ab931a6a1c0ef9b2d51672217187f0dfa0a440a69b3e74082e372ba559acce"
+      "version": "1.0.0",
+      "description": "Manage the product catalog in the Alliance Business Suite (ABS) via the REST API. Covers stock items (products), categories, types, families, brands, tags, images, attachments, attributes & options, bundles, reviews, questions, policy relationships (tax / shipping / return / refund / warranty), price-rule relationships, Google categories, and merchants, including atomic PATCH (JSON Patch) updates. Stock-item reads are anonymous (published items only) without a tenantId and a stock_items_read management read with one; writes require a tenantId, a stock_items_* permission and a bearer token (see the absuite-login skill to authenticate).",
+      "contentHash": "fc878c7b8c1dad58bc7f202599c16610e6999eb559521526ea4cd326d39d6993"
     },
     {
       "kind": "Skill",
@@ -240,9 +240,9 @@
       "key": "paperclip/skills/absuite-contacts/SKILL.md",
       "path": "skills/absuite-contacts/SKILL.md",
       "name": "absuite-contacts",
-      "version": null,
-      "description": "Create, read, update, patch, delete, and manage contacts in the Alliance Business Suite (ABS) CRM Service via the REST API. Covers contacts (individuals & organizations), extended views, relationship graphs, avatars, wallets, carts, social profiles, contact options (key-value metadata), contact emails, contact groups, contact profiles, contact relations, contact relation types, contact sources, and user/tenant sync — including atomic PATCH (JSON Patch) updates. All operations are tenant-scoped and require a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "151694b2bd97566751751da3980f5778a2fcfe2deefc861a13e335f4ec7874d3"
+      "version": "1.0.0",
+      "description": "Create, read, update, patch, delete, and manage contacts in the Alliance Business Suite (ABS) CRM Service via the REST API. Covers contacts (individuals & organizations), extended views, relationship graphs, avatars, wallets, carts, social profiles, contact options (key-value metadata), contact emails, contact groups, contact profiles, contact relations, contact relation types, contact sources, and user/tenant sync, including atomic PATCH (JSON Patch) updates. All operations are tenant-scoped and require a bearer token (see the absuite-login skill to authenticate).",
+      "contentHash": "11085f8984e847f34f9a7e03e5acaa21f43dc98892d06839b9ca43dbaeba077d"
     },
     {
       "kind": "Skill",
@@ -258,9 +258,9 @@
       "key": "paperclip/skills/absuite-content/SKILL.md",
       "path": "skills/absuite-content/SKILL.md",
       "name": "absuite-content",
-      "version": null,
-      "description": "Manage web content in the Alliance Business Suite (ABS) via the REST API — web portals, web pages, web-page categories/tags, web content blocks, web templates, website themes, web components, menu contexts, localization strings, business domains, and the full blog system (posts, authors, categories, tags, comments). Includes atomic PATCH (JSON Patch RFC 6902) updates. Most operations are tenant-scoped and require a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "d420f4b848512a757ad09df73dbd87ffd31bcc600508ca65f0f83d289dd8e43a"
+      "version": "1.0.0",
+      "description": "Manage web content in the Alliance Business Suite (ABS) via the REST API: web portals, web pages, web-page categories/tags, web content blocks, web templates, website themes, web components, menu contexts, localization strings, business domains, and the full blog system (posts, authors, categories, tags, comments). Includes atomic PATCH (JSON Patch RFC 6902) updates. Most operations are tenant-scoped and require a bearer token (see the absuite-login skill to authenticate).",
+      "contentHash": "420734d7912415e97cce7867a0ade3da5ac14c5c407f0d654a11f777008c7aaa"
     },
     {
       "kind": "Skill",
@@ -276,9 +276,9 @@
       "key": "paperclip/skills/absuite-deals/SKILL.md",
       "path": "skills/absuite-deals/SKILL.md",
       "name": "absuite-deals",
-      "version": null,
-      "description": "Create, read, update, delete, calculate, and partially patch deal units (sales opportunities), deal unit lines, and deal unit flows (sales pipelines) with their stages, via the Alliance Business Suite (ABS) Deals REST API (DealsService). Covers list / count / get / create / update (PUT) / atomic PATCH (JSON Patch, RFC 6902) / delete / calculate operations. All operations are tenant-scoped and require a bearer token (see the `absuite-login` skill to authenticate first).",
-      "contentHash": "bebf4fd64980365c2a59c2e1f3ce756178a0c0768a6c01501bf1c93feec9ddb9"
+      "version": "1.0.0",
+      "description": "Create, read, update, delete, calculate, close, and partially patch deal units (sales opportunities), deal unit lines, and deal unit flows (sales pipelines) with their stages, via the Alliance Business Suite (ABS) Deals REST API (DealsService). Covers list / count / get / create / update (PUT) / atomic PATCH (JSON Patch, RFC 6902) / delete / calculate / close operations. All operations are tenant-scoped and require a bearer token (see the `absuite-login` skill to authenticate first).",
+      "contentHash": "e4d7d0205d8f0042fca2eaa0e89ab6dcb1aac6f6803b23efbf689d90551e4799"
     },
     {
       "kind": "Skill",
@@ -294,9 +294,9 @@
       "key": "paperclip/skills/absuite-emails/SKILL.md",
       "path": "skills/absuite-emails/SKILL.md",
       "name": "absuite-emails",
-      "version": null,
-      "description": "Manage email templates and dispatch transactional emails via the Alliance Business Suite (ABS) REST API. Covers marketing email templates / groups / signatures / newsletters (MarketingService), and admin email sending & previewing to recipients, tenants, and users (SystemService) — including atomic PATCH (JSON Patch) updates of email resources. All operations are tenant-scoped (per endpoint) and require a bearer token (see the absuite-login skill to authenticate). For the CLI equivalent, see `absuite-emails-cli`; for raw HTTP helpers see `absuite-rest`; for broad marketing campaigns/lists see `absuite-marketing`.",
-      "contentHash": "5e06962bc18c35c38c9e7c2ec7e5f571ecacc41671136f8f7b116a2e3140c663"
+      "version": "1.0.0",
+      "description": "Manage email templates and dispatch transactional emails via the Alliance Business Suite (ABS) REST API. Covers marketing email templates / groups / signatures / newsletters (MarketingService), and email sending & previewing to recipients, tenants, and users (SystemService), including atomic PATCH (JSON Patch) updates of email resources. All operations are tenant-scoped (per endpoint) and require a bearer token (see the absuite-login skill to authenticate). For the CLI equivalent, see `absuite-emails-cli`; for raw HTTP helpers see `absuite-rest`; for broad marketing campaigns/lists see `absuite-marketing`.",
+      "contentHash": "0b5ec6b0e4977ec4299aff7dafb76d77ef1341b0c376f332a34290098e12aca5"
     },
     {
       "kind": "Skill",
@@ -312,9 +312,9 @@
       "key": "paperclip/skills/absuite-forex/SKILL.md",
       "path": "skills/absuite-forex/SKILL.md",
       "name": "absuite-forex",
-      "version": null,
-      "description": "Retrieve foreign-exchange rates and perform currency conversions via the Alliance Business Suite (ABS) REST API. Covers latest and historical rate lookups (all currencies or a single currency) and currency-amount exchange at latest or historical rates, on both the v2 and v3 endpoints. ForexService is PUBLIC reference data — operations are NOT tenant-scoped. A bearer token is still recommended (see the absuite-login skill to authenticate).",
-      "contentHash": "fff30d2d6b30b0f75b3259d48c40c17920e0884bf267e69c54282bc7e3a3fb2f"
+      "version": "1.0.0",
+      "description": "Retrieve foreign-exchange rates and perform currency conversions via the Alliance Business Suite (ABS) REST API. Covers latest and historical rate lookups (all currencies or a single currency) and currency-amount exchange at latest or historical rates, on both the v2 and v3 endpoints. ForexService is PUBLIC reference data: operations are NOT tenant-scoped. A bearer token is still recommended (see the absuite-login skill to authenticate).",
+      "contentHash": "544cd80649504a6a3c090b99f05a90ed5d47c8d589934e7151825018031e2861"
     },
     {
       "kind": "Skill",
@@ -330,9 +330,9 @@
       "key": "paperclip/skills/absuite-globe/SKILL.md",
       "path": "skills/absuite-globe/SKILL.md",
       "name": "absuite-globe",
-      "version": null,
-      "description": "Look up global reference data — countries, states, cities, currencies, languages, timezones, calling codes, and top-level domains — via the Alliance Business Suite (ABS) REST API. This is PUBLIC, read-only reference data: endpoints are NOT tenant-scoped and take no tenantId. Send a bearer token for consistency (see the absuite-login skill).",
-      "contentHash": "d4d0332e49e978f0a17a967ce1334d09b1b4bd241c1e116105290defeed9f7d2"
+      "version": "1.0.0",
+      "description": "Look up global reference data (countries, states, cities, currencies, languages, timezones, calling codes, and top-level domains) via the Alliance Business Suite (ABS) REST API. This is PUBLIC, read-only reference data: endpoints are NOT tenant-scoped and take no tenantId. Send a bearer token for consistency (see the absuite-login skill).",
+      "contentHash": "765aeba4a2cc3161964212d3879b9066efb0513cf77a372792acf916a66d2ce7"
     },
     {
       "kind": "Skill",
@@ -348,9 +348,9 @@
       "key": "paperclip/skills/absuite-hrms/SKILL.md",
       "path": "skills/absuite-hrms/SKILL.md",
       "name": "absuite-hrms",
-      "version": null,
-      "description": "Manage human resources in the Alliance Business Suite (ABS) via the REST API. Covers employees, employers, employee types, job titles, salaries, payrolls, payroll periods, gigs, job offers, shifts, schedules, time intervals, leave management, training programs, and performance appraisals — including atomic PATCH (JSON Patch) updates. All operations are tenant-scoped and require a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "b88d54bf5997b027e6b6b48077c5cdc16f61827010115813264a234bdd04970b"
+      "version": "1.0.0",
+      "description": "Manage human resources in the Alliance Business Suite (ABS) via the REST API. Covers employees, employers, employee types, job titles, salaries, payrolls, payroll periods, gigs, gig applications, job offers, job applicants, job applications, job fields, required skills, shifts, schedules, time intervals, leave management, training programs, performance appraisals, and position seats, including atomic PATCH (JSON Patch) updates. All operations are tenant-scoped and require a bearer token (see the absuite-login skill to authenticate).",
+      "contentHash": "17b7a7bcfb0e8e4e899dc1bca47bbe61f8b87a44b37efe233b9b616de5d278ed"
     },
     {
       "kind": "Skill",
@@ -366,9 +366,9 @@
       "key": "paperclip/skills/absuite-identity/SKILL.md",
       "path": "skills/absuite-identity/SKILL.md",
       "name": "absuite-identity",
-      "version": null,
+      "version": "1.0.0",
       "description": "Manage OAuth, OpenID Connect, and user identity in the Alliance Business Suite (ABS) via the REST API. Covers password sign-in, OAuth tokens, WhoAmI, user permissions, OIDC discovery/JWKS, and application permission/role grants. Most identity/auth flows are NOT tenant-scoped; a few reads are. Requires a bearer token for protected reads (see the absuite-login skill to authenticate). The identity service exposes NO PATCH endpoints.",
-      "contentHash": "ccea939e6c16da7d86591c27f62e4c6e13404fc7ea237e51cad5dfa768768866"
+      "contentHash": "3dbf2fa62d6b23613068f7e48cda01f5f02786cc6b9328a9baf33f84b1dd6046"
     },
     {
       "kind": "Skill",
@@ -384,9 +384,9 @@
       "key": "paperclip/skills/absuite-invoicing/SKILL.md",
       "path": "skills/absuite-invoicing/SKILL.md",
       "name": "absuite-invoicing",
-      "version": null,
+      "version": "1.0.0",
       "description": "Create, read, update, patch, delete, and manage invoices in the Alliance Business Suite (ABS) Invoicing Service via the REST API. Covers invoices, invoice lines, line taxes, adjustments (discounts/surcharges), references (credit/debit notes), payments, calculations, aggregations, and transactional email notifications, including atomic PATCH (JSON Patch) updates. All operations are tenant-scoped and require a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "53300e94208504b17a9764d27c7cca822ac26547a7f8272e7e69e6086c5132f4"
+      "contentHash": "e18bec0632bf1fdaec797342239942317c1493b0d340d35cb28c4fccbcc0668d"
     },
     {
       "kind": "Skill",
@@ -402,9 +402,9 @@
       "key": "paperclip/skills/absuite-learning/SKILL.md",
       "path": "skills/absuite-learning/SKILL.md",
       "name": "absuite-learning",
-      "version": null,
-      "description": "Manage learning and e-learning in the Alliance Business Suite (ABS) via the REST API. Covers courses and their full content tree (sections, units, unit components, content groups), assignments, problem sets, grading rubrics, cohorts, enrollments, certificates and templates, forums, wikis, articles, pages, updates, handouts, files, libraries, team memberships, instructor/student profiles, and per-user \"Me\" reads — including atomic PATCH (JSON Patch) updates. Tenant scoping is per-endpoint and most operations require a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "acea1f4fc5efa8cd4a05e273b95992d44eae7eae9b04e645c7dc4ede80d69f41"
+      "version": "1.0.0",
+      "description": "Manage learning and e-learning in the Alliance Business Suite (ABS) via the REST API. Covers courses and their full content tree (sections, units, unit components, content groups), assignments, problem sets, grading rubrics, cohorts, enrollments, certificates and templates, forums, wikis, articles, pages, updates, handouts, files, libraries, team memberships, instructor/student profiles, the public course catalog, and per-user \"Me\" reads, including atomic PATCH (JSON Patch) updates. Tenant scoping is per-endpoint and most operations require a bearer token (see the absuite-login skill to authenticate).",
+      "contentHash": "df649d0d09645adb0d114f3c8bbc37763fae5544b011c637050a61868b2d17a7"
     },
     {
       "kind": "Skill",
@@ -420,9 +420,9 @@
       "key": "paperclip/skills/absuite-locations/SKILL.md",
       "path": "skills/absuite-locations/SKILL.md",
       "name": "absuite-locations",
-      "version": null,
-      "description": "Manage business locations and addresses in the Alliance Business Suite (ABS) via the REST API. Covers tenant-scoped Locations and wallet-scoped Locations, including atomic PATCH (JSON Patch) updates. Location reads/writes are tenant-scoped and require a bearer token; wallet-location endpoints are scoped by walletId. See the absuite-login skill to authenticate.",
-      "contentHash": "5cd95cd79e3c5cef5bb605ee1a59c0ca39dc7889225ed3ee78d7881d1341427f"
+      "version": "1.0.0",
+      "description": "Manage business locations and addresses in the Alliance Business Suite (ABS) via the REST API. Covers tenant-scoped Locations and wallet-scoped Locations, including atomic PATCH (JSON Patch) updates. Tenant Location calls require a tenantId and a Locations permission; wallet-location calls are gated on the caller owning the wallet and take an optional tenantId that selects the permission-checked business-wallet path. All calls require a bearer token; see the absuite-login skill to authenticate.",
+      "contentHash": "aeb3afad4ecf58ee072c1edcff990ef00243ddc84bffebec7790318794bdcc5f"
     },
     {
       "kind": "Skill",
@@ -438,9 +438,9 @@
       "key": "paperclip/skills/absuite-login/SKILL.md",
       "path": "skills/absuite-login/SKILL.md",
       "name": "absuite-login",
-      "version": null,
-      "description": "Authenticate with the Alliance Business Suite (ABS) over the REST API and verify your identity. Use when you need to log in with user credentials, obtain a bearer token, refresh it, or confirm your ABS identity via the WhoAmI endpoint using direct HTTP (curl). Do NOT use for domain-specific ABS operations (tenants, invoices, contacts, etc.) — only for authentication and identity verification. For CLI-based login, see absuite-login-cli.",
-      "contentHash": "f44d6cdff720ea45b9ee024c34dd2d0437701ba4dad14e2e282b7114b1fef9fe"
+      "version": "1.0.0",
+      "description": "Authenticate with the Alliance Business Suite (ABS) over the REST API and verify your identity. Use when you need to log in with user credentials, obtain a bearer token, refresh it, or confirm your ABS identity via the WhoAmI endpoint using direct HTTP (curl). Do NOT use for domain-specific ABS operations (tenants, invoices, contacts, etc.), only for authentication and identity verification. For CLI-based login, see absuite-login-cli.",
+      "contentHash": "b5ad4eeb89021dc5fcd4dade42b7c77a63b1b87a941ab71b81440986b5111ce6"
     },
     {
       "kind": "Skill",
@@ -456,9 +456,9 @@
       "key": "paperclip/skills/absuite-marketing/SKILL.md",
       "path": "skills/absuite-marketing/SKILL.md",
       "name": "absuite-marketing",
-      "version": null,
-      "description": "Create, read, update, patch, and delete marketing records in the Alliance Business Suite (ABS) Marketing Service via the REST API. Covers marketing campaigns, marketing areas, marketing lists, marketing leads, newsletters, email groups, email signatures, email templates, social media posts, social post buckets, and tracking-pixel retrieval, including atomic PATCH (JSON Patch) updates. All operations are tenant-scoped (except the public tracking pixel) and require a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "11ec2c9db9dfd35ebed077c17d19211d7235b54dd913cae6ee8e28d262849485"
+      "version": "1.0.0",
+      "description": "Create, read, update, patch, and delete marketing records in the Alliance Business Suite (ABS) Marketing Service via the REST API. Covers marketing campaigns, marketing areas, marketing lists, marketing leads, newsletters, email groups, email signatures, email templates, social media posts, social post buckets, and tracking-pixel retrieval, including atomic PATCH (JSON Patch) updates. All operations are tenant-scoped (except the tracking pixel read) and require a bearer token (see the absuite-login skill to authenticate).",
+      "contentHash": "5bfbfd7f4124a3c71f3a97260c51a2398ae5084db36737828d08c8e96dac281c"
     },
     {
       "kind": "Skill",
@@ -474,9 +474,9 @@
       "key": "paperclip/skills/absuite-misc/SKILL.md",
       "path": "skills/absuite-misc/SKILL.md",
       "name": "absuite-misc",
-      "version": null,
-      "description": "Manage inventory, logistics, shipments, and sales resources via the Alliance Business Suite (ABS) REST API. Covers warehouses, ports, vessels, voyages, waybills (air/road/rail/sea), trucks, proofs of delivery, packing/pick/restock documents, shipments, bills of lading, shipping methods/couriers/zones/classes, stores, point-of-sales, loyalty programs and sales literature — including atomic PATCH (JSON Patch) updates. All operations are tenant-scoped and require a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "89fa66e5fc82d587d11cb326346e8fe2ef3b6063776b52ddafe11879a6f170ca"
+      "version": "1.0.0",
+      "description": "Manage logistics, shipments, and sales resources via the Alliance Business Suite (ABS) REST API. Covers warehouses, ports, vessels, voyages, waybills (air/road/rail/sea), trucks, proofs of delivery, packing/pick/restock documents, shipments, bills of lading, shipping methods/couriers/zones/classes, stores, point-of-sales, loyalty programs and sales literature, including atomic PATCH (JSON Patch) updates. All working operations are tenant-scoped and require a bearer token (see the absuite-login skill to authenticate).",
+      "contentHash": "31b7b49c2e4d9317ea7d32dcb68b687b87f7becb2d23179f81603cf281be53e3"
     },
     {
       "kind": "Skill",
@@ -492,9 +492,9 @@
       "key": "paperclip/skills/absuite-onboarding/SKILL.md",
       "path": "skills/absuite-onboarding/SKILL.md",
       "name": "absuite-onboarding",
-      "version": null,
+      "version": "1.0.0",
       "description": "Onboard a user into an Alliance Business Suite (ABS) tenant over the REST API: authenticate, initialize the portal (which surfaces/stages the tenant invitation), accept the invitation, and verify enrollment. Use when an agent or user needs to join a tenant and initialize their portal for the first time. Encodes the correct Initialize-FIRST order and the domain-based auto-invitation rule. For the CLI version, see absuite-onboarding-cli.",
-      "contentHash": "0391fdb5d1033c37682428c7cf34231e3a332ceb077cf98277248ac57fab0e68"
+      "contentHash": "6d891bc3333d67af28ca509708b44f939ccca674147592f9918f22be161f0bf7"
     },
     {
       "kind": "Skill",
@@ -510,9 +510,9 @@
       "key": "paperclip/skills/absuite-orders/SKILL.md",
       "path": "skills/absuite-orders/SKILL.md",
       "name": "absuite-orders",
-      "version": null,
-      "description": "Create, read, update, patch, delete, and calculate orders and order lines in the Alliance Business Suite (ABS) Orders Service via the REST API. Covers direct order creation, cart-to-order submission, line items, totals calculation, transactional email, and atomic PATCH (JSON Patch) updates. All operations are tenant-scoped and require a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "73ef5578c9cb09ab270b01f9c0b7c529e0b9484b955cb4a0db20c0462ecd8bf0"
+      "version": "1.0.0",
+      "description": "Create, read, update, patch, delete, and calculate orders and order lines in the Alliance Business Suite (ABS) Orders Service via the REST API. Covers direct order creation, cart-to-order submission, line items, totals calculation, received orders, transactional email, and atomic PATCH (JSON Patch) updates. Workspace operations are tenant-scoped and every call requires a bearer token (see the absuite-login skill to authenticate).",
+      "contentHash": "4d39f492acb2dd92f2f497add71bc6aabedecd6b06bef17424bf85bbc2cd1558"
     },
     {
       "kind": "Skill",
@@ -528,9 +528,9 @@
       "key": "paperclip/skills/absuite-payments/SKILL.md",
       "path": "skills/absuite-payments/SKILL.md",
       "name": "absuite-payments",
-      "version": null,
-      "description": "Create, read, update, patch, delete, and manage payments in the Alliance Business Suite (ABS) Payments Service via the REST API. Covers payments and their lifecycle (status transitions), plus the supporting configuration — payment methods, payment modes, and payment terms — including atomic PATCH (JSON Patch) updates. All operations are tenant-scoped and require a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "5c72b80ea5b1c3280a7b802fb5b0988c0b423331ae8f66537304a38dc596ea34"
+      "version": "1.0.0",
+      "description": "Create, read, update, patch, delete, and manage payments in the Alliance Business Suite (ABS) Payments Service via the REST API. Covers payment records (whose status is server-owned), the supporting configuration (payment methods, payment modes, and payment terms) with atomic PATCH (JSON Patch) updates, provider registrations, provider operation review/reconcile/refund, and public payment links and references. All operations are tenant-scoped and require a bearer token (see the absuite-login skill to authenticate).",
+      "contentHash": "c51c2567ce74fba142e6f3b11955b58d70d88d45f2a012c25c6f66728121c34b"
     },
     {
       "kind": "Skill",
@@ -546,9 +546,9 @@
       "key": "paperclip/skills/absuite-pricing/SKILL.md",
       "path": "skills/absuite-pricing/SKILL.md",
       "name": "absuite-pricing",
-      "version": null,
+      "version": "1.0.0",
       "description": "Create, read, update, patch, and delete pricing data in the Alliance Business Suite (ABS) Pricing Service via the REST API. Covers price lists and their price entries, discount lists and their discount entries, pricing rules, rounding policies, and item price calculations, including atomic PATCH (JSON Patch) updates. Most operations are tenant-scoped and require a bearer token (see the absuite-login skill); the price calculation reads are public/user-scoped.",
-      "contentHash": "a3a3d0fe84e43bbd41e1f711ca28079f96d5a9196c487d26d924d0e61ef1818b"
+      "contentHash": "8b0e5d4c824c8106ca6a3f61297dbbe0608f91a49d965b938e61337d18825fed"
     },
     {
       "kind": "Skill",
@@ -564,9 +564,9 @@
       "key": "paperclip/skills/absuite-projects/SKILL.md",
       "path": "skills/absuite-projects/SKILL.md",
       "name": "absuite-projects",
-      "version": null,
+      "version": "1.0.0",
       "description": "Manage projects, project tasks, task categories, task types, project periods, time logs, and time-log approvals in the Alliance Business Suite (ABS) via the ProjectsService REST API. Covers list/count/get/create/update (PUT)/delete plus atomic PATCH (JSON Patch) updates and approval workflow actions. All operations are tenant-scoped and require a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "bfac4d64b436f0af4faa84a9f47870f24f9bcef97a7cb38ad1f0f6270fd2196f"
+      "contentHash": "4bb0d650c63745352577aeabf4f7bd031a8ce5ecb7fcaf920980eeda9bfe7ed9"
     },
     {
       "kind": "Skill",
@@ -582,18 +582,18 @@
       "key": "paperclip/skills/absuite-quotes/SKILL.md",
       "path": "skills/absuite-quotes/SKILL.md",
       "name": "absuite-quotes",
-      "version": null,
-      "description": "Create, read, update, patch, delete, and manage sales quotes in the Alliance Business Suite (ABS) Quotes Service via the REST API. Covers quotes, quote lines, calculations, lifecycle actions (close, reopen, convert to order), and transactional email, including atomic PATCH (JSON Patch) updates. All operations are tenant-scoped and require a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "60a21247e6ef5a0772d05ef1bef292c73492c7210e143f1e2edbcddd7dafb1a7"
+      "version": "1.0.0",
+      "description": "Create, read, update, patch, delete, and manage sales quotes in the Alliance Business Suite (ABS) Quotes Service via the REST API. Covers quotes, quote lines, calculations, lifecycle actions (close, reopen, convert to order, place an order as the receiver), received quotes, and transactional email, including atomic PATCH (JSON Patch) updates. Workspace operations are tenant-scoped and every call requires a bearer token (see the absuite-login skill to authenticate).",
+      "contentHash": "1a454809c9479d9a0225b6b253b5daed5cfd5cff211dff56de621c47882e03b0"
     },
     {
       "kind": "Skill",
       "key": "paperclip/skills/absuite-rest/SKILL.md",
       "path": "skills/absuite-rest/SKILL.md",
       "name": "absuite-rest",
-      "version": null,
+      "version": "1.0.0",
       "description": "General-purpose usage of the Alliance Business Suite (ABS) REST API over HTTP (curl / any HTTP client). Covers authentication, the base URL pattern, the response envelope, per-endpoint tenant scoping (query param vs header vs user/public scope), OData list queries, and atomic PATCH (JSON Patch) updates. Use for any ABS domain operation (invoices, contacts, catalog, tenants, etc.) via direct REST. For authentication only, see absuite-login. For the `absuite` CLI wrapper instead of raw HTTP, see absuite-cli.",
-      "contentHash": "e25bf4ec657540f9dccc415c6a20f9a1de02dea526063112f7e6a8c8a33cea54"
+      "contentHash": "2f6a5248f413e12129af4e050f7a50eb959913180555ba27b4e3469581d1078b"
     },
     {
       "kind": "Skill",
@@ -609,9 +609,9 @@
       "key": "paperclip/skills/absuite-security/SKILL.md",
       "path": "skills/absuite-security/SKILL.md",
       "name": "absuite-security",
-      "version": null,
+      "version": "1.0.0",
       "description": "Manage security roles, permissions, business applications, OAuth applications, OAuth authorizations, certificates, security/tenant logs, and webhook requests via the Alliance Business Suite (ABS) REST API. Covers full RBAC assignment/revocation across roles, permissions, enrollments, and applications, including atomic PATCH (JSON Patch) updates. All operations are tenant-scoped and require a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "0b44735bf544b423e903701a9b32ce2e10a4567aca26d4dfebde65677fd802eb"
+      "contentHash": "d1b918001f18c1b4c186145780528c4f8d79a3c14aeb527346751309e8c923d6"
     },
     {
       "kind": "Skill",
@@ -627,9 +627,9 @@
       "key": "paperclip/skills/absuite-social/SKILL.md",
       "path": "skills/absuite-social/SKILL.md",
       "name": "absuite-social",
-      "version": null,
-      "description": "Manage the social network (profiles, posts, comments, reactions, attachments, groups, feeds, conversations, messages, notifications, and follow relationships) in the Alliance Business Suite (ABS) via the REST API. Covers full CRUD plus atomic PATCH (JSON Patch) updates and social actions (follow, message, post, feed). Social endpoints are scoped by `socialProfileId`, not by tenant. Requires a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "85c998fc4c68345cd9fec0d26760e24f6fdf2b30e202f91aadfc5da5df122c3a"
+      "version": "1.0.0",
+      "description": "Manage the social network (profiles, posts, comments, reactions, attachments, groups, feeds, conversations, messages, notifications, follow relationships, and workspace Team conversations) in the Alliance Business Suite (ABS) via the REST API. Covers full CRUD plus atomic PATCH (JSON Patch) updates and social actions (follow, message, post, feed). Social endpoints are scoped by `socialProfileId`; SocialGroups and TeamConversations also take `tenantId`. Requires a bearer token (see the absuite-login skill to authenticate).",
+      "contentHash": "820dc920d01c0ed680d4e437f69fca6e73ac3dc216b25cbefe18a84baa6c0947"
     },
     {
       "kind": "Skill",
@@ -645,9 +645,9 @@
       "key": "paperclip/skills/absuite-storage/SKILL.md",
       "path": "skills/absuite-storage/SKILL.md",
       "name": "absuite-storage",
-      "version": null,
-      "description": "Manage file storage, uploads, downloads, and avatars in the Alliance Business Suite (ABS) via the REST API (StorageService). Covers file records, raw downloads, blob browsing, RadzenEditor uploads, and avatars for social profiles, contacts, users, and tenants. PATCH is not available on this service. All operations require a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "2f92d455a2824ce350c8fb690e1164def4713c4a177403c9616c8a7cb2ea9a12"
+      "version": "1.0.0",
+      "description": "Manage file storage, uploads, downloads, and avatars in the Alliance Business Suite (ABS) via the REST API (StorageService). Covers file records, counts, thumbnails, raw downloads, blob browsing, rich-text editor uploads and editor assets, and avatars for social profiles, contacts, users, and tenants. PATCH is not available on this service. All operations require a bearer token (see the absuite-login skill to authenticate), except serving a published editor asset.",
+      "contentHash": "6bbe96fc928ee1a30f610b4eb088064e3d8ac95543ebaee319ffc089e9cc1b23"
     },
     {
       "kind": "Skill",
@@ -663,9 +663,9 @@
       "key": "paperclip/skills/absuite-subscriptions/SKILL.md",
       "path": "skills/absuite-subscriptions/SKILL.md",
       "name": "absuite-subscriptions",
-      "version": null,
+      "version": "1.0.0",
       "description": "Manage subscription plans and customer subscriptions via the Alliance Business Suite (ABS) REST API. Covers subscription plans and subscriptions, including atomic PATCH (JSON Patch) updates. All operations are tenant-scoped and require a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "f4d2ce4616d86efe07e7503c2f7369daf3c9e68b1f3766855497f91054af65d4"
+      "contentHash": "3b7919289eef3e9e9aa9ec26c281c13053f124c92406bdc5aba57aa108c3d1ac"
     },
     {
       "kind": "Skill",
@@ -681,9 +681,9 @@
       "key": "paperclip/skills/absuite-support/SKILL.md",
       "path": "skills/absuite-support/SKILL.md",
       "name": "absuite-support",
-      "version": null,
-      "description": "Manage customer support — tickets, support requests, request attachments, ticket conversations, ticket priorities, ticket types, entitlements, refund/return/warranty requests and policies, knowledge articles, inquiry requests, and maintenance visits — via the Alliance Business Suite (ABS) REST API, including atomic PATCH (JSON Patch) updates. All operations are tenant-scoped and require a bearer token (see the absuite-login skill to authenticate). For the CLI equivalent, see `absuite-support-cli`.",
-      "contentHash": "531cb9db948a234d6926938ef111a88d1de8b4b3123102b2fda186e95e0cba37"
+      "version": "1.0.0",
+      "description": "Manage customer support (tickets, support requests, request attachments, ticket conversations, ticket priorities, ticket types, entitlements, refund/return/warranty requests and policies, knowledge articles, inquiry requests, and maintenance visits) via the Alliance Business Suite (ABS) REST API, including atomic PATCH (JSON Patch) updates. All operations are tenant-scoped and require a bearer token (see the absuite-login skill to authenticate). For the CLI equivalent, see `absuite-support-cli`.",
+      "contentHash": "0a01511a028b00498ea1e61910f49004d3be559b896c3c4d19696f11625210bf"
     },
     {
       "kind": "Skill",
@@ -699,9 +699,9 @@
       "key": "paperclip/skills/absuite-system/SKILL.md",
       "path": "skills/absuite-system/SKILL.md",
       "name": "absuite-system",
-      "version": null,
-      "description": "Manage system administration in the Alliance Business Suite (ABS) via the REST API. Covers cross-tenant admin (tenants, users), system/tenant/user/contact options, licensing, system portals, overview, IP lookups, carts, business domains, system emails, migrations and antiforgery — including atomic PATCH (JSON Patch) updates. Most operations require an admin-level bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "c13378454d5bf7aefdf50faf7bd22b551ccc7ceab6df258569b683927aad8574"
+      "version": "1.0.0",
+      "description": "Manage system administration in the Alliance Business Suite (ABS) via the REST API. Covers cross-tenant admin (tenants, users), system/tenant/user/contact options, licensing, system portals, overview, IP lookups, carts, business domains, system emails, migrations and antiforgery, including atomic PATCH (JSON Patch) updates. Most operations require an instance-administrator bearer token (business_owner of the root tenant; see the absuite-login skill to authenticate).",
+      "contentHash": "34380968a02121b8d7e5ba631757a7bfc4d710b72235f8faac60511a3bb012cf"
     },
     {
       "kind": "Skill",
@@ -717,9 +717,9 @@
       "key": "paperclip/skills/absuite-tenants/SKILL.md",
       "path": "skills/absuite-tenants/SKILL.md",
       "name": "absuite-tenants",
-      "version": null,
-      "description": "Manage tenant configuration in the Alliance Business Suite (ABS) via the REST API. The largest service — covers tenant CRUD, departments, enrollments (standard, extended, and employee), industries, invitations, options, positions, segments, sizes, teams, team records, team contact/project enrollments, territories, types, units, unit groups, licenses, notifications, web portals, avatars, carts, wallets, and social profiles — including atomic PATCH (JSON Patch) updates. Most operations are tenant-scoped and require a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "983d85cc151f9ec65ec5dd251800821a674f2e49e5b65f58fb6a0bc1c1782d09"
+      "version": "1.0.0",
+      "description": "Manage tenant configuration in the Alliance Business Suite (ABS) via the REST API. The largest service, covers tenant CRUD, departments, enrollments (standard, extended, and employee), industries, invitations, options, positions, segments, sizes, teams, team records, team contact/project enrollments, territories, types, units, unit groups, licenses, notifications, web portals, avatars, carts, wallets, and social profiles, including atomic PATCH (JSON Patch) updates. Most operations are tenant-scoped and require a bearer token (see the absuite-login skill to authenticate).",
+      "contentHash": "0b7bad3f91b0572a4c4c0b1b51561b89416ee02c1e039a90eea90bb82a9096f6"
     },
     {
       "kind": "Skill",
@@ -735,9 +735,9 @@
       "key": "paperclip/skills/absuite-users/SKILL.md",
       "path": "skills/absuite-users/SKILL.md",
       "name": "absuite-users",
-      "version": null,
-      "description": "Read and manage the current user's account in the Alliance Business Suite (ABS) via the REST API. Covers the `/api/v2/Me` surface — profile, extended profile, avatar, settings, addresses, cart, wallet, social profile, followers/follows, notifications, tenant memberships, enrollments, invitations, and user options (key-value metadata) — including atomic PATCH (JSON Patch) updates. These endpoints are USER-scoped (resolved from the bearer token); they take NO tenantId. Requires a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "d0d4eb4310bc398a83dfe30d8f2b6f05b68fb4e47e3e90ccf4c47599a4fd017a"
+      "version": "1.0.0",
+      "description": "Read and manage the current user's account in the Alliance Business Suite (ABS) via the REST API. Covers the `/api/v2/Me` surface, profile, extended profile, avatar, settings, addresses, cart, wallet, social profile, followers/follows, notifications, tenant memberships, enrollments, invitations, and user options (key-value metadata), including atomic PATCH (JSON Patch) updates. These endpoints are USER-scoped (resolved from the bearer token); they take NO tenantId. Requires a bearer token (see the absuite-login skill to authenticate).",
+      "contentHash": "30665d21ce116b7e6964c092a64b4df1ba88117ae37b7dd05a784f6be13d5e25"
     },
     {
       "kind": "Skill",
@@ -753,9 +753,9 @@
       "key": "paperclip/skills/absuite-wallets/SKILL.md",
       "path": "skills/absuite-wallets/SKILL.md",
       "name": "absuite-wallets",
-      "version": null,
-      "description": "Manage wallets and their sub-resources — bank accounts, payments, payment tokens, locations, withdraws/withdraw-requests — plus read access to orders, invoices, quotes, refunds and chargebacks, via the Alliance Business Suite (ABS) REST API. Covers create / read / update (PUT) / delete and atomic PATCH (JSON Patch) updates. Wallets are scoped by walletId (ownership-keyed), not by tenant, and every call requires a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "a5e266141290f4085b1095099d028c88d9650ee66fe5d7d64513d7cdbab98f56"
+      "version": "1.0.0",
+      "description": "Manage wallets and their sub-resources (bank accounts, payments, payment tokens, locations, withdraws/withdraw-requests) plus read access to orders, invoices, quotes, refunds and chargebacks, via the Alliance Business Suite (ABS) REST API. Covers create / read / update (PUT) / delete and PATCH (JSON Patch) where exposed. Wallets are addressed by walletId and gated on the caller owning the wallet; only bank accounts, tokens and locations take an optional tenantId. Agents cannot move money or add payment instruments. Every call requires a bearer token (see the absuite-login skill to authenticate).",
+      "contentHash": "7521f378a590a52c40606862eb4b16071f375d469302a0e88a553234454bc6a8"
     },
     {
       "kind": "Workflow",

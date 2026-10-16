@@ -1,5 +1,7 @@
 ---
 name: absuite-assets
+key: paperclip/skills/absuite-assets/SKILL.md
+version: 1.0.0
 description: >
   Manage fixed and moveable assets in the Alliance Business Suite (ABS) via the REST API.
   Covers assets, asset categories, asset types, depreciation records, repairs, value
@@ -8,7 +10,7 @@ description: >
   to authenticate).
 ---
 
-# Alliance Business Suite — Assets (REST)
+# Alliance Business Suite: Assets (REST)
 
 The AssetsService manages a tenant's fixed and stock assets and everything that happens to
 them over their lifecycle: classification (categories and types), depreciation records,
@@ -21,9 +23,9 @@ REST conventions across services, see `absuite-rest`.
 
 > Full detail in `absuite-rest`; these rules apply across this skill's endpoints.
 
-- **Lists & counts are OData-enabled.** `GET` collection endpoints accept `$filter`, `$top`, `$skip`, `$orderby`, `$select` — page through results, don't fetch-all-and-filter. Each dedicated `.../Count` endpoint returns an integer and is **also** filterable (`?$filter=...` -> a filtered count). OData is a REST/HTTP-layer feature (the CLI does not expose it).
-- **`PUT` replaces the ENTIRE resource** — it overwrites, not merges, so any omitted field is reset to default/null. **GET the resource first, change the full object, then PUT it back**; sending a partial body to `PUT` (or an incomplete `POST` create) causes silent data loss.
-- **`PATCH`, where this service exposes it, is atomic and partial** (JSON Patch / RFC 6902) — it changes only the fields you name, needs no prior GET, and won't clobber the rest. Prefer it for small edits; use `PUT` only for a deliberate full replacement.
+- **Lists & counts are OData-enabled.** `GET` collection endpoints accept `$filter`, `$top`, `$skip`, `$orderby`, `$select`, so page through results instead of fetching everything and filtering. Each dedicated `.../Count` endpoint returns an integer and is **also** filterable (`?$filter=...` -> a filtered count). OData is a REST/HTTP-layer feature (the CLI does not expose it).
+- **`PUT` replaces the ENTIRE resource**: it overwrites, not merges, so any omitted field is reset to default/null. **GET the resource first, change the full object, then PUT it back**; sending a partial body to `PUT` (or an incomplete `POST` create) causes silent data loss.
+- **`PATCH`, where this service exposes it, is atomic and partial** (JSON Patch / RFC 6902): it changes only the fields you name, needs no prior GET, and won't clobber the rest. Prefer it for small edits; use `PUT` only for a deliberate full replacement.
 
 ## Authentication
 
@@ -45,7 +47,7 @@ Extract `accessToken` from the response.
 
 3. **Base path:** `$ABSUITE_HOST_URL/api/v2/AssetsService/<Resource>`
 
-4. **Response envelope** — every response is wrapped:
+4. **Response envelope.** Every response is wrapped:
 
 ```json
 {
@@ -61,39 +63,40 @@ Always check `isSuccess`; read the payload from `result`.
 
 ## Tenant scoping
 
-**Every AssetsService endpoint requires a tenant.** The manifest marks `tenantId` as
-`query, required` on all routes — including POST / PUT / PATCH / DELETE. Pass
+**Every AssetsService endpoint requires a tenant.** Every controller action binds `tenantId` as
+a required parameter (`[BindTenantId] [BindRequired]`), including POST, PUT, PATCH and DELETE. Pass
 `?tenantId=<tenant-guid>` on **every** verb (omitting it on writes returns `400`).
 The header form `X-TenantId: <tenant-guid>` is equivalent; examples below use the query
 param.
 
 ## Key Concepts
 
-- **Asset** — the core aggregate. Classified by:
-  - `assetClass` — one of `Fixed | Stock` (verbatim from the spec; there are no other values).
-  - `assetOwner` — one of `Business | Organization | Contact | Supplier`.
+- **Asset**: the core aggregate. Classified by:
+  - `assetClass`: one of `Fixed | Stock` (verbatim from the spec; there are no other values).
+  - `assetOwner`: one of `Business | Organization | Contact | Supplier`.
   - Optional links: `assetCategoryId`, `assetTypeId`, `itemId` (catalog stock item),
     `currencyId`, `purchaseInvoiceId`, `purchaseReceiptId`, `assetLocationId`,
     `contactId`, `organizationDepartmentId`.
   - Depreciation flags: `calculateDepreciation`, `allowMonthlyDepreciation`,
     `openingDepreciation`. `isExistingAsset` marks an asset already in service at import.
-- **Asset Category** — grouping (`name`, `description`). Exposed at **two** paths that
+- **Asset Category**: grouping (`name`, `description`). Exposed at **two** paths that
   back the same data: `/AssetCategories` (top-level) and `/Assets/Categories` (nested).
-- **Asset Type** — `name` + `description` classification at `/AssetTypes`.
-- **Depreciation Record** — a posted depreciation entry for one asset
+- **Asset Type**: `name` + `description` classification at `/AssetTypes`.
+- **Depreciation Record**: a posted depreciation entry for one asset
   (`depreciationAmount`, `accumulatedDepreciation`, `bookValue`, `depreciationDate`,
   `year`, `month`, optional `assetDepreciationPolicyId`).
-- **Repair** — maintenance event for one asset. `repairStatus` is one of
+- **Repair**: maintenance event for one asset. `repairStatus` is one of
   `Scheduled | InProgress | Completed | Cancelled`. Carries scheduling/cost fields and an
   optional `assetMaintenanceTeamId`.
-- **Value Amend** — a revaluation/impairment entry (`previousValue`, `newValue`, `reason`,
+- **Value Amend**: a revaluation/impairment entry (`previousValue`, `newValue`, `reason`,
   `amendmentDate`, `currencyId`).
-- **Asset Transfer** — moves an asset between locations / contacts / departments. Exposed
+- **Asset Transfer**: moves an asset between locations / contacts / departments. Exposed
   at **two** paths: top-level `/AssetTransfers` and nested `/Assets/{assetId}/Transfers`.
 
 > Dates are ISO-8601 strings. Monetary amounts are numbers; pair them with `currencyId`
-> where the DTO provides one. `id` and `timestamp` are accepted on create DTOs but are
-> normally server-assigned — omit them unless you are importing.
+> where the DTO provides one. `currencyId` is a currency code id such as `USD.USA` (the
+> `AssetCreateDto` default), not a GUID. `id` and `timestamp` are accepted on create DTOs but are
+> normally assigned for you (a new id is generated when omitted), so omit them unless you are importing.
 
 ---
 
@@ -137,7 +140,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets?tenantId=<tenant-gui
     "openingDepreciation": 0,
     "purchaseDate": "<iso-8601>",
     "purchasePrice": 0,
-    "currencyId": "<currency-guid>",
+    "currencyId": "<currency-id>",
     "itemId": "<item-guid>",
     "assetTypeId": "<type-guid>",
     "assetCategoryId": "<category-guid>",
@@ -156,7 +159,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets?tenantId=<tenant-gui
 (number), `currencyId`, `itemId`, `assetTypeId`, `assetCategoryId`, `purchaseInvoiceId`,
 `purchaseReceiptId`, `assetLocationId`, `contactId`, `organizationDepartmentId`.
 
-### Update an asset (PUT — full replace)
+### Update an asset (PUT, full replace)
 
 ```bash
 curl -X PUT "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/<asset-guid>?tenantId=<tenant-guid>" \
@@ -172,7 +175,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/<asset-guid>?tenantId
     "openingDepreciation": 0,
     "purchaseDate": "<iso-8601>",
     "purchasePrice": 0,
-    "currencyId": "<currency-guid>",
+    "currencyId": "<currency-id>",
     "itemId": "<item-guid>",
     "assetTypeId": "<type-guid>",
     "assetCategoryId": "<category-guid>",
@@ -186,7 +189,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/<asset-guid>?tenantId
 
 **`AssetUpdateDto`** is the create DTO minus `id`, `timestamp`, and `isExistingAsset`.
 
-### Patch an asset (PATCH — JSON Patch)
+### Patch an asset (PATCH, JSON Patch)
 
 ```bash
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/<asset-guid>?tenantId=<tenant-guid>" \
@@ -213,7 +216,7 @@ Asset categories are exposed at two equivalent paths. The top-level `/AssetCateg
 the primary surface; `/Assets/Categories` backs the same data. Both support full CRUD +
 count + PATCH.
 
-### Primary path — `/AssetCategories`
+### Primary path: `/AssetCategories`
 
 ```bash
 # List
@@ -251,7 +254,7 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AssetsService/AssetCategories/<category
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Alternate path — `/Assets/Categories` (same data, same DTOs)
+### Alternate path: `/Assets/Categories` (same data, same DTOs)
 
 ```bash
 curl -X GET    "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/Categories?tenantId=<tenant-guid>"                  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
@@ -417,7 +420,7 @@ curl -X PUT "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/<asset-guid>/Repairs/
     "assetMaintenanceTeamId": "<team-guid>"
   }'
 
-# Patch (PATCH) — e.g. mark a repair completed
+# Patch (PATCH), for example to mark a repair completed
 curl -X PATCH "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/<asset-guid>/Repairs/<repair-guid>?tenantId=<tenant-guid>" \
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
@@ -462,7 +465,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/<asset-guid>/ValueAm
     "newValue": 0,
     "reason": "<reason>",
     "amendmentDate": "<iso-8601>",
-    "currencyId": "<currency-guid>"
+    "currencyId": "<currency-id>"
   }'
 
 # Update (PUT)  (AssetValueAmendUpdateDto: newValue, reason, amendmentDate)
@@ -501,7 +504,7 @@ use the same `AssetTransferCreateDto` / `AssetTransferUpdateDto`.
 `AssetTransferUpdateDto` fields: `serialList`, `quantity`, `serial`,
 `destinationLocationId`, `destinationContactId`, `destinationDepartmentId`.
 
-### Top-level — `/AssetTransfers`
+### Top-level: `/AssetTransfers`
 
 ```bash
 # List
@@ -559,14 +562,14 @@ curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AssetsService/AssetTransfers/<transfer-
   -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
 
-### Nested — `/Assets/{assetId}/Transfers`
+### Nested: `/Assets/{assetId}/Transfers`
 
 ```bash
 curl -X GET    "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/<asset-guid>/Transfers?tenantId=<tenant-guid>"                  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 curl -X GET    "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/<asset-guid>/Transfers/Count?tenantId=<tenant-guid>"            -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 curl -X GET    "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/<asset-guid>/Transfers/<transfer-guid>?tenantId=<tenant-guid>" -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 curl -X POST   "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/<asset-guid>/Transfers?tenantId=<tenant-guid>"                  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" -d '{ "assetId": "<asset-guid>", "isRootTransfer": false, "destinationLocationId": "<location-guid>" }'
-curl -X PUT    "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/<asset-guid>/Transfers/<transfer-guid>?tenantId=<tenant-guid>" -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" -d '{ "destinationLocationId": "<location-guid>" }'
+curl -X PUT    "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/<asset-guid>/Transfers/<transfer-guid>?tenantId=<tenant-guid>" -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" -d '{ "serialList": "<serial-list>", "quantity": "<quantity>", "serial": "<serial>", "destinationLocationId": "<location-guid>", "destinationContactId": "<contact-guid>", "destinationDepartmentId": "<department-guid>" }'
 curl -X PATCH  "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/<asset-guid>/Transfers/<transfer-guid>?tenantId=<tenant-guid>" -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" -H "Content-Type: application/json" -d '[ { "op": "replace", "path": "/destinationContactId", "value": "<contact-guid>" } ]'
 curl -X DELETE "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets/<asset-guid>/Transfers/<transfer-guid>?tenantId=<tenant-guid>" -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
 ```
@@ -617,7 +620,7 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/AssetsService/Assets?tenantId=<tenant-gui
   -d '{
     "name": "<asset-name>", "assetClass": "Fixed", "assetOwner": "Business",
     "calculateDepreciation": true, "purchaseDate": "<iso-8601>", "purchasePrice": 0,
-    "currencyId": "<currency-guid>", "assetCategoryId": "<category-guid>",
+    "currencyId": "<currency-id>", "assetCategoryId": "<category-guid>",
     "assetTypeId": "<type-guid>"
   }'
 
@@ -723,13 +726,13 @@ curl -X POST "$ABSUITE_HOST_URL/api/v2/AssetsService/AssetTransfers?tenantId=<te
 ## Critical Rules
 
 - **Authenticate first.** Obtain a bearer token via `POST /login` (see `absuite-login`).
-- **`?tenantId=<tenant-guid>` is required on every verb** — including POST/PUT/PATCH/DELETE.
+- **`?tenantId=<tenant-guid>` is required on every verb**, including POST/PUT/PATCH/DELETE.
   Omitting it returns `400`. `X-TenantId: <tenant-guid>` is the header equivalent.
 - **Always check `isSuccess`** and read data from `result` in the envelope.
 - **Enums are fixed:** `assetClass` ∈ `Fixed|Stock`, `assetOwner` ∈
   `Business|Organization|Contact|Supplier`, `repairStatus` ∈
   `Scheduled|InProgress|Completed|Cancelled`. Anything else is rejected.
 - **Create categories and types first**, then reference their ids from the asset.
-- **There is no search endpoint** in this service — use list (optionally with count) and
-  filter client-side.
+- **There is no search endpoint** in this service. Use the OData-enabled list and count
+  endpoints with `$filter` instead of filtering client-side.
 - For the CLI equivalent (no PATCH, no curl), see `absuite-assets-cli`.

@@ -1,15 +1,17 @@
 ---
 name: absuite-login
+key: paperclip/skills/absuite-login/SKILL.md
+version: 1.0.0
 description: >
   Authenticate with the Alliance Business Suite (ABS) over the REST API and verify
   your identity. Use when you need to log in with user credentials, obtain a bearer
   token, refresh it, or confirm your ABS identity via the WhoAmI endpoint using
   direct HTTP (curl). Do NOT use for domain-specific ABS operations (tenants,
-  invoices, contacts, etc.) — only for authentication and identity verification.
+  invoices, contacts, etc.), only for authentication and identity verification.
   For CLI-based login, see absuite-login-cli.
 ---
 
-# Alliance Business Suite — Authentication Skill (REST)
+# Alliance Business Suite: Authentication Skill (REST)
 
 Use this skill to establish and verify an authenticated ABS session over the **REST API** with a bearer token. For the `absuite` CLI equivalent, see `absuite-login-cli`.
 
@@ -22,7 +24,7 @@ For domain operations, see `absuite-rest` (general) or the per-service `absuite-
 
 ## Environment variables
 
-Injected by the agent runtime — never hard-code these:
+Injected by the agent runtime, never hard-code these:
 
 | Variable | Description |
 |---|---|
@@ -30,7 +32,7 @@ Injected by the agent runtime — never hard-code these:
 | `ABSUITE_USER_PASSWORD` | Password for ABS login. |
 | `ABSUITE_HOST_URL` | Base URL of the ABS instance (e.g. `https://absuite.net`). No trailing slash. |
 
-## Step 1 — Log in
+## Step 1: Log in
 
 ```bash
 curl -s -X POST "$ABSUITE_HOST_URL/login" \
@@ -57,7 +59,7 @@ Capture `accessToken` (and `refreshToken`). Send the access token on every subse
 
 If login fails, verify `ABSUITE_USER_EMAIL`, `ABSUITE_USER_PASSWORD`, and `ABSUITE_HOST_URL`.
 
-## Step 2 — Verify identity (WhoAmI)
+## Step 2: Verify identity (WhoAmI)
 
 Confirm the token works and inspect your identity context:
 
@@ -88,7 +90,7 @@ curl -s -X GET "$ABSUITE_HOST_URL/api/v2/OAuth/WhoAmI" \
   -H "X-TenantId: <tenant-guid>"
 ```
 
-## Step 3 — Refresh the token
+## Step 3: Refresh the token
 
 When the access token expires (`401 Unauthorized`), exchange the refresh token for a new one:
 
@@ -102,7 +104,7 @@ Or simply re-run Step 1.
 
 ## Identity-adjacent reads (the `/Me` surface)
 
-These are **user-scoped** (resolved from your token — no `tenantId` needed):
+These are **user-scoped** (resolved from your token, no `tenantId` needed):
 
 ```bash
 # Current user profile
@@ -143,7 +145,7 @@ Use before any ABS-dependent workflow:
 
 - **Never hard-code credentials or host.** Use `ABSUITE_USER_EMAIL`, `ABSUITE_USER_PASSWORD`, `ABSUITE_HOST_URL`.
 - **Never log or print tokens** unless deliberately debugging auth.
-- **Always verify identity after login** — a token alone is not proof; call WhoAmI.
+- **Always verify identity after login**: a token alone is not proof; call WhoAmI.
 - **`/login` and `/refresh` are public** and return the raw token object, not the envelope. All `/api/v2/*` calls return the standard envelope.
-- **The `/Me` surface is user-scoped** — never attach a `tenantId` to it.
+- **The `/Me` surface is user-scoped**: never attach a `tenantId` to it.
 - This skill is for authentication only. For tenant onboarding (accepting an invitation, initializing a portal) see `absuite-onboarding`; for domain operations see `absuite-rest` and the `absuite-<domain>` skills.
