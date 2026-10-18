@@ -1,0 +1,6 @@
+# Gallery manifests are hashed byte for byte (gallery-index.json contentHash, authoritative for install since MCP M1 A2).
+# Store every text file with LF so the hash of the bytes served at a pinned commit never depends on a contributor's autocrlf.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.gif binary
