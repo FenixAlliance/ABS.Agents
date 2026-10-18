@@ -5,7 +5,7 @@
     agents/skills/workflows manifest tree. Single source of truth: the manifests on disk.
 
 .DESCRIPTION
-    Scans agents, skills and workflows for the three
+    Scans agents, skills, workflows and mcp-servers for the four
     manifest kinds, extracts kind/key/path/name/version/description, computes the
     SHA-256 content hash over the LF bytes github serves, and writes a deterministic
     .abs/gallery-index.json (stable ordinal ordering by kind then key).
@@ -14,6 +14,7 @@
       Agent     agents/<name>/AGENT.md  or  AGENTS.md
       Skill     skills/<name>/SKILL.md
       Workflow  workflows/<name>/WORKFLOW.json
+      McpServer mcp-servers/<name>/MCPSERVER.json  (MCP-Gallery section 3; a gallery entry must pass the M8 rules below)
 
     Field extraction:
       .md manifests  -> YAML frontmatter (key, name, version, description).
@@ -21,6 +22,9 @@
                         key  is REQUIRED: a manifest without an explicit key fails generation
                         (there is no path-derived fallback).
       WORKFLOW.json  -> top-level key, name, version, description.
+      MCPSERVER.json -> the same four fields, plus the gallery rules (generation fails on any miss): kind McpServer,
+                        reviewed true, transport streamableHttp or sse (never stdio), an https url whose host is in
+                        egressHosts, auth.type none/apiKey/oauth2, and every tool with a riskClass read/write/send.
 
     Content hash:
       SHA-256 (lowercase hex) over the file bytes with CRLF normalized to LF, so the
@@ -219,6 +223,29 @@ function Coerce-String {
     return $s
 }
 
+# The MCP gallery rules (MCP-Gallery sections 3 and 5): a gallery entry is reviewed, remote over HTTPS, and declares every
+# host it talks to, so install can allow-list exactly those hosts. A miss fails generation, never a silent skip.
+function Assert-McpServerManifest {
+    param($Obj, [string]$RelPath)
+    $fail = { param($m) throw "MCP server manifest '$RelPath': $m" }
+    if ((Get-JsonProp $Obj 'kind') -ne 'McpServer') { & $fail "kind must be 'McpServer'." }
+    if ((Get-JsonProp $Obj 'reviewed') -ne $true) { & $fail 'a gallery entry must be reviewed: true (custom servers never enter the gallery).' }
+    $transport = Get-JsonProp $Obj 'transport'
+    if ($transport -notin @('streamableHttp', 'sse')) { & $fail "transport must be streamableHttp or sse (stdio is refused on hosted ABS, G4), not '$transport'." }
+    $url = [string](Get-JsonProp $Obj 'url')
+    $uri = $null
+    if (-not [Uri]::TryCreate($url, [UriKind]::Absolute, [ref]$uri) -or $uri.Scheme -ne 'https') { & $fail "url must be an absolute https URL, not '$url'." }
+    $hosts = @(Get-JsonProp $Obj 'egressHosts')
+    if ($hosts.Count -eq 0 -or $hosts -notcontains $uri.Host) { & $fail "egressHosts must list every host, starting with the url host '$($uri.Host)'." }
+    $auth = Get-JsonProp $Obj 'auth'
+    if ($null -eq $auth -or (Get-JsonProp $auth 'type') -notin @('none', 'apiKey', 'oauth2')) { & $fail 'auth.type must be none, apiKey or oauth2.' }
+    $tools = @(Get-JsonProp $Obj 'tools')
+    if ($tools.Count -eq 0) { & $fail 'tools must list every tool the server may offer (a live tool absent from the manifest is never offered).' }
+    foreach ($tool in $tools) {
+        if ((Get-JsonProp $tool 'riskClass') -notin @('read', 'write', 'send')) { & $fail "tool '$(Get-JsonProp $tool 'name')' needs riskClass read, write or send." }
+    }
+}
+
 # ---------------------------------------------------------------------------
 # Build a single definition record from a manifest file.
 # ---------------------------------------------------------------------------
@@ -234,7 +261,14 @@ function New-Definition {
 
     $key = $null; $name = $null; $version = $null; $description = $null
 
-    if ($Kind -eq 'Workflow') {
+    if ($Kind -eq 'McpServer') {
+        $obj = Get-NormalizedText $FullPath | ConvertFrom-Json
+        Assert-McpServerManifest $obj (Get-RelativePath $FullPath)
+        $key         = Coerce-String (Get-JsonProp $obj 'key')
+        $name        = Coerce-String (Get-JsonProp $obj 'name')
+        $version     = Coerce-String (Get-JsonProp $obj 'version')
+        $description = Coerce-String (Get-JsonProp $obj 'description')
+    } elseif ($Kind -eq 'Workflow') {
         $obj = Get-NormalizedText $FullPath | ConvertFrom-Json
         $key         = Coerce-String (Get-JsonProp $obj 'key')
         $name        = Coerce-String (Get-JsonProp $obj 'name')
@@ -274,6 +308,7 @@ $defs = New-Object System.Collections.Generic.List[object]
 $agentsDir    = Join-Path $RepoRoot 'agents'
 $skillsDir    = Join-Path $RepoRoot 'skills'
 $workflowsDir = Join-Path $RepoRoot 'workflows'
+$mcpDir       = Join-Path $RepoRoot 'mcp-servers'
 
 if (Test-Path -LiteralPath $agentsDir) {
     Get-ChildItem -LiteralPath $agentsDir -Recurse -File |
@@ -289,6 +324,11 @@ if (Test-Path -LiteralPath $workflowsDir) {
     Get-ChildItem -LiteralPath $workflowsDir -Recurse -File |
         Where-Object { $_.Name -eq 'WORKFLOW.json' } |
         ForEach-Object { $defs.Add((New-Definition -Kind 'Workflow' -FullPath $_.FullName)) }
+}
+if (Test-Path -LiteralPath $mcpDir) {
+    Get-ChildItem -LiteralPath $mcpDir -Recurse -File |
+        Where-Object { $_.Name -eq 'MCPSERVER.json' } |
+        ForEach-Object { $defs.Add((New-Definition -Kind 'McpServer' -FullPath $_.FullName)) }
 }
 
 # ---------------------------------------------------------------------------
@@ -387,4 +427,5 @@ if ($Verify) {
 $agentCount    = @($defs | Where-Object { $_.kind -eq 'Agent' }).Count
 $skillCount    = @($defs | Where-Object { $_.kind -eq 'Skill' }).Count
 $workflowCount = @($defs | Where-Object { $_.kind -eq 'Workflow' }).Count
-Write-Host "Wrote $(Get-RelativePath $IndexPath): $($defs.Count) definitions (Agents=$agentCount, Skills=$skillCount, Workflows=$workflowCount)."
+$mcpCount      = @($defs | Where-Object { $_.kind -eq 'McpServer' }).Count
+Write-Host "Wrote $(Get-RelativePath $IndexPath): $($defs.Count) definitions (Agents=$agentCount, Skills=$skillCount, Workflows=$workflowCount, McpServers=$mcpCount)."
