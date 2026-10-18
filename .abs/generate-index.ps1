@@ -22,7 +22,8 @@
                         key  is REQUIRED: a manifest without an explicit key fails generation
                         (there is no path-derived fallback).
       WORKFLOW.json  -> top-level key, name, version, description.
-      MCPSERVER.json -> the same four fields, plus the gallery rules (generation fails on any miss): kind McpServer,
+      MCPSERVER.json -> the same four fields plus M6 card fields in the index entry (reviewed, transport,
+                        tools: { count, byRisk: { read, write, send } }, written after contentHash), and the gallery rules (generation fails on any miss): kind McpServer,
                         reviewed true, transport streamableHttp or sse (never stdio), an https url whose host is in
                         egressHosts, auth.type none/apiKey/oauth2, and every tool with a riskClass read/write/send.
 
@@ -260,6 +261,7 @@ function New-Definition {
     $contentHash = Get-ContentHash $FullPath
 
     $key = $null; $name = $null; $version = $null; $description = $null
+    $mcp = $null
 
     if ($Kind -eq 'McpServer') {
         $obj = Get-NormalizedText $FullPath | ConvertFrom-Json
@@ -268,6 +270,16 @@ function New-Definition {
         $name        = Coerce-String (Get-JsonProp $obj 'name')
         $version     = Coerce-String (Get-JsonProp $obj 'version')
         $description = Coerce-String (Get-JsonProp $obj 'description')
+        # Card fields for the gallery UI (M6): the manifest stays authoritative; these are a read-only summary of it.
+        $tools = @(Get-JsonProp $obj 'tools')
+        $mcp = [ordered]@{
+            reviewed  = [bool](Get-JsonProp $obj 'reviewed')
+            transport = [string](Get-JsonProp $obj 'transport')
+            count     = $tools.Count
+            read      = @($tools | Where-Object { (Get-JsonProp $_ 'riskClass') -eq 'read' }).Count
+            write     = @($tools | Where-Object { (Get-JsonProp $_ 'riskClass') -eq 'write' }).Count
+            send      = @($tools | Where-Object { (Get-JsonProp $_ 'riskClass') -eq 'send' }).Count
+        }
     } elseif ($Kind -eq 'Workflow') {
         $obj = Get-NormalizedText $FullPath | ConvertFrom-Json
         $key         = Coerce-String (Get-JsonProp $obj 'key')
@@ -297,6 +309,7 @@ function New-Definition {
         version     = $version
         description = $description
         contentHash = $contentHash
+        mcp         = $mcp
     }
 }
 
@@ -362,6 +375,19 @@ foreach ($d in $defs) {
     if ($null -eq $d.version) { $writer.WriteNull('version') } else { $writer.WriteString('version', [string]$d.version) }
     if ($null -eq $d.description) { $writer.WriteNull('description') } else { $writer.WriteString('description', [string]$d.description) }
     $writer.WriteString('contentHash', [string]$d.contentHash)
+    if ($null -ne $d.mcp) {
+        # McpServer only, after contentHash so every other kind's entry stays byte-identical.
+        $writer.WriteBoolean('reviewed', [bool]$d.mcp.reviewed)
+        $writer.WriteString('transport', [string]$d.mcp.transport)
+        $writer.WriteStartObject('tools')
+        $writer.WriteNumber('count', [int]$d.mcp.count)
+        $writer.WriteStartObject('byRisk')
+        $writer.WriteNumber('read', [int]$d.mcp.read)
+        $writer.WriteNumber('write', [int]$d.mcp.write)
+        $writer.WriteNumber('send', [int]$d.mcp.send)
+        $writer.WriteEndObject()
+        $writer.WriteEndObject()
+    }
     $writer.WriteEndObject()
 }
 $writer.WriteEndArray()
