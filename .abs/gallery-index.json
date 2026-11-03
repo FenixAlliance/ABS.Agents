@@ -196,6 +196,25 @@
     },
     {
       "kind": "McpServer",
+      "key": "huggingface.hub",
+      "path": "mcp-servers/huggingface.hub/MCPSERVER.json",
+      "name": "Hugging Face",
+      "version": "1.0.0",
+      "description": "Search and read models, datasets, Spaces, papers and docs on the Hugging Face Hub. Read only; no sign-in.",
+      "contentHash": "77c75760514e9bda885f1cc1409b33c65dfc1b6b59974ef36eaa8105f36e8f72",
+      "reviewed": true,
+      "transport": "streamableHttp",
+      "tools": {
+        "count": 4,
+        "byRisk": {
+          "read": 4,
+          "write": 0,
+          "send": 0
+        }
+      }
+    },
+    {
+      "kind": "McpServer",
       "key": "microsoft.learn",
       "path": "mcp-servers/microsoft.learn/MCPSERVER.json",
       "name": "Microsoft Learn",
@@ -227,6 +246,25 @@
         "count": 2,
         "byRisk": {
           "read": 2,
+          "write": 0,
+          "send": 0
+        }
+      }
+    },
+    {
+      "kind": "McpServer",
+      "key": "webflow.docs",
+      "path": "mcp-servers/webflow.docs/MCPSERVER.json",
+      "name": "Webflow Developer Docs",
+      "version": "1.0.0",
+      "description": "Search Webflow developer documentation. Read only; no sign-in.",
+      "contentHash": "abe241c1195e9d68a7e0882339790088136d186d997ff7a783ab6d0fec2268ed",
+      "reviewed": true,
+      "transport": "streamableHttp",
+      "tools": {
+        "count": 1,
+        "byRisk": {
+          "read": 1,
           "write": 0,
           "send": 0
         }
