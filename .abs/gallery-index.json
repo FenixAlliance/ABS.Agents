@@ -119,6 +119,25 @@
       "contentHash": "74c32297dbfc7f6f4543b70284623f0321f312148ea328e083f623dbd3b061e5"
     },
     {
+      "kind": "McpServer",
+      "key": "microsoft.learn",
+      "path": "mcp-servers/microsoft.learn/MCPSERVER.json",
+      "name": "Microsoft Learn",
+      "version": "1.0.0",
+      "description": "Search and read official Microsoft and Azure documentation and code samples from Microsoft Learn. Read only; no sign-in.",
+      "contentHash": "548ce98ed3c98afa516192f00adeb7c7aae72dec62962c65eea8f9eb526edf7b",
+      "reviewed": true,
+      "transport": "streamableHttp",
+      "tools": {
+        "count": 3,
+        "byRisk": {
+          "read": 3,
+          "write": 0,
+          "send": 0
+        }
+      }
+    },
+    {
       "kind": "Skill",
       "key": "fenixalliance.absuite.accounting",
       "path": "skills/absuite-accounting/SKILL.md",
