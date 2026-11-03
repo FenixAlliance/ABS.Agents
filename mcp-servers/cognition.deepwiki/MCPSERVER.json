@@ -1,0 +1,47 @@
+{
+  "apiVersion": "abs.fenixalliance.com/v1alpha1",
+  "kind": "McpServer",
+  "key": "cognition.deepwiki",
+  "version": "1.0.0",
+  "name": "DeepWiki",
+  "description": "Read AI-generated wikis and ask questions about public GitHub repositories. Read only; no sign-in.",
+  "publisher": "Cognition",
+  "homepage": "https://docs.devin.ai/work-with-devin/deepwiki-mcp",
+  "reviewed": true,
+  "transport": "streamableHttp",
+  "url": "https://mcp.deepwiki.com/mcp",
+  "auth": {
+    "type": "none"
+  },
+  "egressHosts": [
+    "mcp.deepwiki.com"
+  ],
+  "limits": {
+    "maxResultBytes": 262144,
+    "timeoutSeconds": 30,
+    "callsPerMinute": 60
+  },
+  "tools": [
+    {
+      "name": "ask_wiki_question",
+      "key": "ask_wiki_question",
+      "riskClass": "read",
+      "descriptionHash": "96abed03143e97098c8fb1f17357a190b48bf62c9d015666618780ec7da0ec57",
+      "inputSchemaHash": "e7d60622a55ba4dedbb79aa0cbba77f095af2deafde2130327d46acc866b8826"
+    },
+    {
+      "name": "read_wiki_contents",
+      "key": "read_wiki_contents",
+      "riskClass": "read",
+      "descriptionHash": "7bfcb9ac7618c84e5003646bcece6cab16e1cfd00a52282ba4b6cd4dd94f1c06",
+      "inputSchemaHash": "b846ec4c42d9874426d6ac96821fdf85d8c835ed0f0423d5257405711decb24e"
+    },
+    {
+      "name": "read_wiki_structure",
+      "key": "read_wiki_structure",
+      "riskClass": "read",
+      "descriptionHash": "43db0d8427db5230a52fcf487f66603473f624ae170293fa23059552d3e9a21a",
+      "inputSchemaHash": "b846ec4c42d9874426d6ac96821fdf85d8c835ed0f0423d5257405711decb24e"
+    }
+  ]
+}

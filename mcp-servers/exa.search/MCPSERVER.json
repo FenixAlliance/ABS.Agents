@@ -1,0 +1,40 @@
+{
+  "apiVersion": "abs.fenixalliance.com/v1alpha1",
+  "kind": "McpServer",
+  "key": "exa.search",
+  "version": "1.0.0",
+  "name": "Exa Search",
+  "description": "Search the web and read pages through Exa. Read only; no sign-in, at Exa's free rate limit.",
+  "publisher": "Exa",
+  "homepage": "https://docs.exa.ai/reference/exa-mcp",
+  "reviewed": true,
+  "transport": "streamableHttp",
+  "url": "https://mcp.exa.ai/mcp",
+  "auth": {
+    "type": "none"
+  },
+  "egressHosts": [
+    "mcp.exa.ai"
+  ],
+  "limits": {
+    "maxResultBytes": 262144,
+    "timeoutSeconds": 30,
+    "callsPerMinute": 60
+  },
+  "tools": [
+    {
+      "name": "web_search_exa",
+      "key": "web_search_exa",
+      "riskClass": "read",
+      "descriptionHash": "8b1c7b1269529fdbfc6816787e4e50c710d4f48c061973f8814407bad16c5e75",
+      "inputSchemaHash": "ea70b6dbd4ca5363f0ac82944520016e45d810ecfa332c39aa1c6ece65f2e4df"
+    },
+    {
+      "name": "web_fetch_exa",
+      "key": "web_fetch_exa",
+      "riskClass": "read",
+      "descriptionHash": "fe273c0aa03af31b5bf4fdb20a6b1e01b6661a4bd241f24c297dd27ed66e8fb3",
+      "inputSchemaHash": "d72ee7687517df49ee4374713985811b9a87c252590b2ef26c9218786b0f805b"
+    }
+  ]
+}

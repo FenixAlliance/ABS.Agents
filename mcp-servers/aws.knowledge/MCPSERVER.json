@@ -1,0 +1,61 @@
+{
+  "apiVersion": "abs.fenixalliance.com/v1alpha1",
+  "kind": "McpServer",
+  "key": "aws.knowledge",
+  "version": "1.0.0",
+  "name": "AWS Knowledge",
+  "description": "Search and read official AWS documentation, regional availability and guidance. Read only; no sign-in.",
+  "publisher": "Amazon Web Services",
+  "homepage": "https://awslabs.github.io/mcp/servers/aws-knowledge-mcp-server",
+  "reviewed": true,
+  "transport": "streamableHttp",
+  "url": "https://knowledge-mcp.global.api.aws",
+  "auth": {
+    "type": "none"
+  },
+  "egressHosts": [
+    "knowledge-mcp.global.api.aws"
+  ],
+  "limits": {
+    "maxResultBytes": 262144,
+    "timeoutSeconds": 30,
+    "callsPerMinute": 60
+  },
+  "tools": [
+    {
+      "name": "aws___read_documentation",
+      "key": "aws___read_documentation",
+      "riskClass": "read",
+      "descriptionHash": "9f2460faf6b8ea935f58b7916876d87b555011bb11d8c49f9c81277c04ddd13f",
+      "inputSchemaHash": "6b43b22e22fb999a21695778db69266a35357ef45bf8e1b928b15aa6357d58dd"
+    },
+    {
+      "name": "aws___search_documentation",
+      "key": "aws___search_documentation",
+      "riskClass": "read",
+      "descriptionHash": "33d90c813a27c7ad5c16702437c443ec3c3362a80d2916eba05f891056d55434",
+      "inputSchemaHash": "bb2d734d8976143f6a1a6d922ee4c78f3338f2517de99ae9027369c4802981ec"
+    },
+    {
+      "name": "aws___list_regions",
+      "key": "aws___list_regions",
+      "riskClass": "read",
+      "descriptionHash": "523a6521eb3fbca0a30eeff118311be914ae7cd2b2be717f704b32ec81282fb9",
+      "inputSchemaHash": "c8a1ac469a826ea3547ac220c7bbfdcd6b58080d4ec596ff2a0149c5ccb9b699"
+    },
+    {
+      "name": "aws___get_regional_availability",
+      "key": "aws___get_regional_availability",
+      "riskClass": "read",
+      "descriptionHash": "9c48c08f4e42faf62a95f535e498ebb0993db0b679ddc01ebf6d4ad6c5061e8d",
+      "inputSchemaHash": "793e131e7f204feb9d7f478f9b53bb10ba166c4c9a93ab3dc6a3610d5d24cfc9"
+    },
+    {
+      "name": "aws___retrieve_skill",
+      "key": "aws___retrieve_skill",
+      "riskClass": "read",
+      "descriptionHash": "98d0d6e8e7b0077e42fe55400f10f8600650e8ea7473ef583c401d6b531f9a39",
+      "inputSchemaHash": "e00d8509b879c00835123ecaaae1141636bc77e649a9fc13855c0aff21c13638"
+    }
+  ]
+}

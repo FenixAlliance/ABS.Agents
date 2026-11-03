@@ -120,6 +120,82 @@
     },
     {
       "kind": "McpServer",
+      "key": "aws.knowledge",
+      "path": "mcp-servers/aws.knowledge/MCPSERVER.json",
+      "name": "AWS Knowledge",
+      "version": "1.0.0",
+      "description": "Search and read official AWS documentation, regional availability and guidance. Read only; no sign-in.",
+      "contentHash": "2127b5265d14461f9e8fb80ca5d9b4022386f9093c482e558e3a43beb7013a9b",
+      "reviewed": true,
+      "transport": "streamableHttp",
+      "tools": {
+        "count": 5,
+        "byRisk": {
+          "read": 5,
+          "write": 0,
+          "send": 0
+        }
+      }
+    },
+    {
+      "kind": "McpServer",
+      "key": "cloudflare.docs",
+      "path": "mcp-servers/cloudflare.docs/MCPSERVER.json",
+      "name": "Cloudflare Docs",
+      "version": "1.0.0",
+      "description": "Search official Cloudflare developer documentation. Read only; no sign-in.",
+      "contentHash": "d7ed07362ab3a0e28a307d065bd3300da52f246102c98d530a8fc8ed78aa5568",
+      "reviewed": true,
+      "transport": "streamableHttp",
+      "tools": {
+        "count": 2,
+        "byRisk": {
+          "read": 2,
+          "write": 0,
+          "send": 0
+        }
+      }
+    },
+    {
+      "kind": "McpServer",
+      "key": "cognition.deepwiki",
+      "path": "mcp-servers/cognition.deepwiki/MCPSERVER.json",
+      "name": "DeepWiki",
+      "version": "1.0.0",
+      "description": "Read AI-generated wikis and ask questions about public GitHub repositories. Read only; no sign-in.",
+      "contentHash": "6f06916742edc1d950148df8f28aab2654033494bb2e5abab55076de73b7a66c",
+      "reviewed": true,
+      "transport": "streamableHttp",
+      "tools": {
+        "count": 3,
+        "byRisk": {
+          "read": 3,
+          "write": 0,
+          "send": 0
+        }
+      }
+    },
+    {
+      "kind": "McpServer",
+      "key": "exa.search",
+      "path": "mcp-servers/exa.search/MCPSERVER.json",
+      "name": "Exa Search",
+      "version": "1.0.0",
+      "description": "Search the web and read pages through Exa. Read only; no sign-in, at Exa's free rate limit.",
+      "contentHash": "09303c3e0f45e47bc7ba8e08fcc55046c8f1cf9358cd7e2e7a22d1652655830e",
+      "reviewed": true,
+      "transport": "streamableHttp",
+      "tools": {
+        "count": 2,
+        "byRisk": {
+          "read": 2,
+          "write": 0,
+          "send": 0
+        }
+      }
+    },
+    {
+      "kind": "McpServer",
       "key": "microsoft.learn",
       "path": "mcp-servers/microsoft.learn/MCPSERVER.json",
       "name": "Microsoft Learn",
@@ -132,6 +208,25 @@
         "count": 3,
         "byRisk": {
           "read": 3,
+          "write": 0,
+          "send": 0
+        }
+      }
+    },
+    {
+      "kind": "McpServer",
+      "key": "upstash.context7",
+      "path": "mcp-servers/upstash.context7/MCPSERVER.json",
+      "name": "Context7",
+      "version": "1.0.0",
+      "description": "Look up current documentation and code examples for programming libraries and frameworks. Read only; no sign-in.",
+      "contentHash": "524182e37d1eedb24cc2a24f7e0555bb5597ceb1bd7eb55b309462564d53cc53",
+      "reviewed": true,
+      "transport": "streamableHttp",
+      "tools": {
+        "count": 2,
+        "byRisk": {
+          "read": 2,
           "write": 0,
           "send": 0
         }
