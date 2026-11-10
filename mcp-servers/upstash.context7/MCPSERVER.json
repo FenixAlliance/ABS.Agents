@@ -1,0 +1,40 @@
+{
+  "apiVersion": "abs.fenixalliance.com/v1alpha1",
+  "kind": "McpServer",
+  "key": "upstash.context7",
+  "version": "1.0.0",
+  "name": "Context7",
+  "description": "Look up current documentation and code examples for programming libraries and frameworks. Read only; no sign-in.",
+  "publisher": "Upstash",
+  "homepage": "https://context7.com/docs/resources/all-clients",
+  "reviewed": true,
+  "transport": "streamableHttp",
+  "url": "https://mcp.context7.com/mcp",
+  "auth": {
+    "type": "none"
+  },
+  "egressHosts": [
+    "mcp.context7.com"
+  ],
+  "limits": {
+    "maxResultBytes": 262144,
+    "timeoutSeconds": 30,
+    "callsPerMinute": 60
+  },
+  "tools": [
+    {
+      "name": "resolve-library-id",
+      "key": "resolve_library_id",
+      "riskClass": "read",
+      "descriptionHash": "1ed313b9c2c5767a1b5411a9b8f2cbfc2ef20751d9559a187664c4bbe15cf3db",
+      "inputSchemaHash": "ff2f303df2072ada223b45bd44955411763b5b6513f9a680400872732fe976b6"
+    },
+    {
+      "name": "query-docs",
+      "key": "query_docs",
+      "riskClass": "read",
+      "descriptionHash": "c1615e15176621eced05b78cd0e6dd39127f9dc3e0b03eeedb2ff7c518b97690",
+      "inputSchemaHash": "6de42261733299e7ae8815e320222feeb3a2e91e0f25f32728af5ad13b2452c1"
+    }
+  ]
+}

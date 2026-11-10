@@ -1,0 +1,33 @@
+{
+  "apiVersion": "abs.fenixalliance.com/v1alpha1",
+  "kind": "McpServer",
+  "key": "webflow.docs",
+  "version": "1.0.0",
+  "name": "Webflow Developer Docs",
+  "description": "Search Webflow developer documentation. Read only; no sign-in.",
+  "publisher": "Webflow",
+  "homepage": "https://developers.webflow.com/mcp/reference/overview",
+  "reviewed": true,
+  "transport": "streamableHttp",
+  "url": "https://developers.webflow.com/_mcp/server",
+  "auth": {
+    "type": "none"
+  },
+  "egressHosts": [
+    "developers.webflow.com"
+  ],
+  "limits": {
+    "maxResultBytes": 262144,
+    "timeoutSeconds": 30,
+    "callsPerMinute": 60
+  },
+  "tools": [
+    {
+      "name": "searchDocs",
+      "key": "searchdocs",
+      "riskClass": "read",
+      "descriptionHash": "d7eca8a86c5ba7de37aac83d8d234a81697349dbf5af8a91c9284675ad5ff75a",
+      "inputSchemaHash": "b536d861e64684d616606c1825ebc76e64661d8eb84a06b01f48d68ae79c2e10"
+    }
+  ]
+}

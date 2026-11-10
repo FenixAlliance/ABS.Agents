@@ -1,0 +1,54 @@
+{
+  "apiVersion": "abs.fenixalliance.com/v1alpha1",
+  "kind": "McpServer",
+  "key": "huggingface.hub",
+  "version": "1.0.0",
+  "name": "Hugging Face",
+  "description": "Search and read models, datasets, Spaces, papers and docs on the Hugging Face Hub. Read only; no sign-in.",
+  "publisher": "Hugging Face",
+  "homepage": "https://huggingface.co/docs/hub/en/hf-mcp-server",
+  "reviewed": true,
+  "transport": "streamableHttp",
+  "url": "https://huggingface.co/mcp",
+  "auth": {
+    "type": "none"
+  },
+  "egressHosts": [
+    "huggingface.co"
+  ],
+  "limits": {
+    "maxResultBytes": 262144,
+    "timeoutSeconds": 30,
+    "callsPerMinute": 60
+  },
+  "tools": [
+    {
+      "name": "hf_whoami",
+      "key": "hf_whoami",
+      "riskClass": "read",
+      "descriptionHash": "240c62bdf8da40e43bc9e54ebbeca9afbc317a0b7e6d258a0b2e8aca3e95abf1",
+      "inputSchemaHash": "93ab7499dc3c616f8db8780fed0d9f69270803cda913882ad2ef3943db8d7225"
+    },
+    {
+      "name": "hub_repo_search",
+      "key": "hub_repo_search",
+      "riskClass": "read",
+      "descriptionHash": "ebd3d366daf85b3ac0bf18516ea7b62ca38cec09fa5807a865bfacd15dd3e6e0",
+      "inputSchemaHash": "9b1a1fac0f0e371525bdcd410ca168751f81a6fa8a25325c7c3af98bf46e9a88"
+    },
+    {
+      "name": "hub_repo_details",
+      "key": "hub_repo_details",
+      "riskClass": "read",
+      "descriptionHash": "775d15cb4250bbe94e45bf3d6b992ecfd7ebfad640b337902addda42e6949af6",
+      "inputSchemaHash": "58acdfab09402eb4bca20993abbe6a1987ff2b3c1e69d9f36780e3de921bcfe0"
+    },
+    {
+      "name": "hf_fs",
+      "key": "hf_fs",
+      "riskClass": "read",
+      "descriptionHash": "7170db1843c09d8ee1506984c56c1aa965869631cd7804ae709b023dbefcb032",
+      "inputSchemaHash": "298fafd65458bb3129f3f0c64de06bd3f7fb90cfb3805cf1d80f635fcbb19425"
+    }
+  ]
+}

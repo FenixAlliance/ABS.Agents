@@ -1,0 +1,27 @@
+{
+  "apiVersion": "abs.fenixalliance.com/v1alpha1",
+  "kind": "McpServer",
+  "key": "microsoft.learn",
+  "version": "1.0.0",
+  "name": "Microsoft Learn",
+  "description": "Search and read official Microsoft and Azure documentation and code samples from Microsoft Learn. Read only; no sign-in.",
+  "publisher": "Microsoft",
+  "homepage": "https://learn.microsoft.com/training/support/mcp",
+  "reviewed": true,
+  "transport": "streamableHttp",
+  "url": "https://learn.microsoft.com/api/mcp",
+  "auth": { "type": "none" },
+  "egressHosts": ["learn.microsoft.com"],
+  "limits": { "maxResultBytes": 262144, "timeoutSeconds": 30, "callsPerMinute": 60 },
+  "tools": [
+    { "name": "microsoft_docs_search", "key": "docs_search", "riskClass": "read",
+      "descriptionHash": "6fe947bf4015e809f82f8e4e5d51bc033592da2efc017aad4dfe593a78b87338",
+      "inputSchemaHash": "b1d7589b4a6d00139f51ad373b19ce472452ff5a5f36fffa3af2217656600cc8" },
+    { "name": "microsoft_code_sample_search", "key": "code_sample_search", "riskClass": "read",
+      "descriptionHash": "21fecefccc14cdc63c90c7f3c7ce78479f6009aee52e34582e10168fd35e0d70",
+      "inputSchemaHash": "7b01397130c2c7cafae609f058610edfe60b8a7fe1aeb890d3abf3ed17a3db7f" },
+    { "name": "microsoft_docs_fetch", "key": "docs_fetch", "riskClass": "read",
+      "descriptionHash": "a28753a3a17af636720d0a858e9a58dd831a51c6ad77a12570637ee63b8fe05f",
+      "inputSchemaHash": "20ade5748d27d072f1e0fa2103530d92e74562e76ef5f4395a6c296275d6252e" }
+  ]
+}

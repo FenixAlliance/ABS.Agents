@@ -1,0 +1,40 @@
+{
+  "apiVersion": "abs.fenixalliance.com/v1alpha1",
+  "kind": "McpServer",
+  "key": "cloudflare.docs",
+  "version": "1.0.0",
+  "name": "Cloudflare Docs",
+  "description": "Search official Cloudflare developer documentation. Read only; no sign-in.",
+  "publisher": "Cloudflare",
+  "homepage": "https://developers.cloudflare.com/agents/model-context-protocol/mcp-servers-for-cloudflare/",
+  "reviewed": true,
+  "transport": "streamableHttp",
+  "url": "https://docs.mcp.cloudflare.com/mcp",
+  "auth": {
+    "type": "none"
+  },
+  "egressHosts": [
+    "docs.mcp.cloudflare.com"
+  ],
+  "limits": {
+    "maxResultBytes": 262144,
+    "timeoutSeconds": 30,
+    "callsPerMinute": 60
+  },
+  "tools": [
+    {
+      "name": "search_cloudflare_documentation",
+      "key": "search_cloudflare_documentation",
+      "riskClass": "read",
+      "descriptionHash": "8e2c1f0ef32a17ff4054a55121079bda3f9bf75b88a21db7bc38c91be1aff41c",
+      "inputSchemaHash": "e31d79affd315385776b80806c03bfc7988472adb80a800bdd93f0aff7778b00"
+    },
+    {
+      "name": "migrate_pages_to_workers_guide",
+      "key": "migrate_pages_to_workers_guide",
+      "riskClass": "read",
+      "descriptionHash": "beeea7dc3ed39baf481b5dd34e831832a631b8e4fd39ca00908e02bd9ea57b4d",
+      "inputSchemaHash": "93ab7499dc3c616f8db8780fed0d9f69270803cda913882ad2ef3943db8d7225"
+    }
+  ]
+}
