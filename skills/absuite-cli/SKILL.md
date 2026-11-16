@@ -1,475 +1,129 @@
 ---
 name: absuite-cli
 key: fenixalliance.absuite.cli
-version: 1.0.0
+version: 1.1.0
 description: >
-  General-purpose usage of the `absuite` CLI for interacting with the Alliance
-  Business Suite (ABS) API. Covers service discovery, command discovery, calling
-  API functions, passing parameters and JSON bodies, reading help and output
-  schemas, OData queries, tenant scoping, and interpreting responses. Use for
-  any ABS domain operation (tenants, invoices, contacts, catalog, CRM, etc.)
-  after authentication. Do NOT use for login/authentication — use the
-  `absuite-login` skill instead.
+  The absuite command line for the Alliance Business Suite (ABS): install, sign in, pick a workspace,
+  find commands, shape output with -o and JMESPath --query, read exit codes, and run as an agent with
+  a run token. Start here; each area has its own absuite-<area>-cli skill.
 ---
 
-# Alliance Business Suite — CLI Usage Skill
+# Alliance Business Suite — absuite CLI
 
-## Purpose
+Generated from the absuite CLI at Platform 9b72a00a47 (`absuite commands -o json` and `absuite --help`). Re-run `absuite commands -o json` before relying on a command.
 
-Use this skill for any domain-specific ABS operation via the `absuite` CLI. This covers querying data, creating records, updating entities, and any other ABS API interaction.
+## Install
 
-For **authentication** (login, token management, identity verification), use the `absuite-login-cli` skill instead. For the same operations over raw HTTP instead of the CLI, see the `absuite-rest` skill. For tenant onboarding (joining a tenant, initializing a portal), see `absuite-onboarding-cli`.
+`npm install -g @fenixalliance/absuite` installs a self-contained binary for your platform. `absuite --version` prints its version; `absuite --help` lists the commands.
 
----
+## Shape of a command
 
-## Prerequisites
+`absuite <service> <resource> <verb> [arguments] [options]`, for example `absuite crm contacts list --top 10`. The service is the API's own `api/v2/<X>Service` name, so the CLI never invents a name the API does not have. Verbs: `list`, `count`, `get`, `show`, `create`, `update`, `delete`, and a few named ones.
 
-1. **CLI installed system-wide** — `absuite` must be on `PATH`. Verify with `absuite --version`.
-2. **Authenticated session** — Run `absuite login` first (see `absuite-login-cli` skill). The CLI caches the token in `~/.absuite/config.json` and uses it automatically for all subsequent calls.
-3. **Tenant context** — Most operations are tenant-scoped. Either set a default tenant (`absuite config set --tenant-id <guid>`) or pass `--TenantId <guid>` on each call.
+- `absuite commands -o json` lists every command (1717 in this build) with its arguments, options and whether it only reads. Agents should read it rather than guess.
+- `absuite <command> --help` shows one command. `absuite interactive` starts a session with Tab completion and history (a terminal only; `--plain` for screen readers). `absuite completion <bash|pwsh|zsh>` prints a shell completion script.
+- Writes take field flags or `--json '{...}'` / `--file <path>` with the same fields (flags win). `--dry-run` prints the request and sends nothing. `update` reads the record, applies your fields, then saves it whole. `delete` asks first unless `--yes`.
+- The CLI has no PATCH. Bulk, destructive and identity-bending operations, secrets, tokens, settings, and the Security, System, Trust and Licensing services are left out on purpose; use Studio or the REST skills for those.
 
----
+## Services
 
-## CLI Structure
-
-```
-absuite <service> <verb> <entity> [--param value ...]
-absuite <service> <FunctionName> [--param value ...]
-```
-
-The CLI supports two addressing styles:
-
-| Style | Example | Description |
-|---|---|---|
-| **Alias** (human-friendly) | `absuite crm list contacts` | Verb + entity shorthand |
-| **Function name** (canonical) | `absuite crm Get-ContactsAsync` | Original PowerShell function name |
-
-Both styles are interchangeable. Aliases are derived automatically from function names.
-
----
-
-## Service Discovery
-
-### List All Services
-
-```bash
-absuite services
-```
-
-### Available Services
-
-| Service | Domain |
+| Service | Commands |
 |---|---|
-| `accounting` | Chart of accounts, journal entries, ledgers, fiscal periods |
-| `assets` | Digital and physical asset management |
-| `cart` | Shopping cart operations |
-| `catalog` | Products, categories, product families, item groups |
-| `content` | CMS content, pages, blogs, media |
-| `crm` | Contacts, organizations, opportunities, pipelines |
-| `deals` | Deal flow, deal stages |
-| `email` | Email templates |
-| `forex` | Foreign exchange rates |
-| `globe` | Countries, currencies, languages, time zones |
-| `hrms` | Employees, departments, job titles |
-| `identity` | OAuth, WhoAmI, identity verification |
-| `inventory` | Inventory tracking |
-| `invoicing` | Invoices, credit notes, debit notes |
-| `learning` | Courses, lessons, enrollments, quizzes |
-| `locations` | Physical locations, addresses |
-| `logistics` | Shipping logistics |
-| `marketing` | Campaigns, email lists, social posts |
-| `marketplace` | Marketplace listings |
-| `orders` | Purchase orders, sales orders |
-| `payments` | Payment records, payment gateways |
-| `pricing` | Price lists, discount rules |
-| `projects` | Project management, tasks, milestones |
-| `quotes` | Quotes, quote lines |
-| `sales` | Sales pipelines |
-| `security` | Roles, permissions, API keys, entitlements |
-| `services` | Service tickets, SLAs |
-| `shipments` | Shipment tracking |
-| `social` | Social profiles, posts, notifications |
-| `storage` | File storage, blobs |
-| `subscriptions` | Subscription plans, billing cycles |
-| `support` | Support tickets, knowledge base |
-| `system` | System configuration, health checks |
-| `tenants` | Tenant management, enrollments, settings |
-| `timetracker` | Time entries, timesheets |
-| `users` | User profiles, user settings |
-| `wallets` | Wallets, balances, wallet payments |
-
----
-
-## Command Discovery
-
-### List All Commands for a Service
-
-```bash
-absuite <service> list-commands
-```
-
-Example:
-
-```bash
-absuite crm list-commands
-```
-
-Output shows each command with its alias and description:
-
-```
-  list contacts               List contacts for a tenant
-  count contacts              Count contacts for a tenant
-  get contact                 Get a contact by ID
-  create contact              Create a new contact
-  update contact              Update an existing contact
-  delete contact              Delete a contact
-  ...
-```
-
-### Get Detailed Help for a Command
-
-```bash
-absuite <service> <command> --help
-```
-
-Example:
-
-```bash
-absuite crm list contacts --help
-```
-
-The `--help` output includes:
-
-- **Usage** — both alias and canonical function name
-- **Description** — what the command does
-- **Parameters** — all parameters with types and whether they are required
-- **Object schemas** — for any parameter that accepts a complex DTO (shows all properties with types)
-- **Returns** — the output envelope type and its properties, plus the inner DTO schema if applicable
-- **Common options** — `--ReturnType` and `--WithHttpInfo`
-
----
-
-## Calling API Functions
-
-### Basic Syntax
-
-```bash
-absuite <service> <verb> <entity> --ParamName value
-```
-
-### Passing Simple Parameters
-
-```bash
-absuite crm get contact --TenantId my-tenant-guid --ContactId abc-123
-```
-
-### Passing JSON Object Parameters
-
-For parameters that accept a DTO (shown as `<SomeCreateDto>` in help), pass a JSON string:
-
-```bash
-absuite crm create contact --TenantId my-tenant-guid --ContactCreateDto '{"firstName":"John","lastName":"Doe","email":"john@example.com"}'
-```
-
-### Using the Canonical Function Name
-
-```bash
-absuite crm Get-ContactsAsync --TenantId my-tenant-guid
-```
-
----
-
-## Tenant Scoping
-
-Most ABS operations are tenant-scoped. There are two ways to provide the tenant context:
-
-### Option 1: Default Tenant (Recommended for Agents)
-
-Set once, used for all subsequent calls:
-
-```bash
-absuite config set --tenant-id <tenant-guid>
-```
-
-Then call without `--TenantId`:
-
-```bash
-absuite crm list contacts
-```
-
-### Option 2: Per-Call Tenant
-
-Pass explicitly on each call:
-
-```bash
-absuite crm list contacts --TenantId <tenant-guid>
-```
-
-### Discovering Available Tenants
-
-```bash
-absuite tenants list tenants
-```
-
----
-
-## Understanding Responses
-
-### Envelope Pattern
-
-All ABS API responses follow the envelope pattern:
-
-```json
-{
-  "isSuccess": true,
-  "errorMessage": null,
-  "correlationId": "<guid>",
-  "timestamp": "2026-04-18T12:00:00Z",
-  "activityId": "<guid>",
-  "result": <actual-data>
-}
-```
-
-- `isSuccess` — whether the operation succeeded
-- `errorMessage` — error details if `isSuccess` is `false`
-- `result` — the actual payload (a single object, an array, a count, or null)
-
-### List Responses
-
-For list operations, `result` is an array:
-
-```json
-{
-  "isSuccess": true,
-  "result": [
-    { "id": "...", "firstName": "John", ... },
-    { "id": "...", "firstName": "Jane", ... }
-  ]
-}
-```
-
-### Count Responses
-
-For count operations, `result` is an integer:
-
-```json
-{
-  "isSuccess": true,
-  "result": 42
-}
-```
-
-### Error Responses
-
-```json
-{
-  "isSuccess": false,
-  "errorMessage": "The requested resource was not found.",
-  "result": null
-}
-```
-
----
-
-## Common Verb Patterns
-
-The CLI uses consistent verb patterns across all services:
-
-| Alias Verb | HTTP Method | Meaning |
-|---|---|---|
-| `list` | GET | Retrieve a collection |
-| `count` | GET | Get the count of a collection |
-| `search` | GET | Filtered/typed search over a collection |
-| `get` | GET | Retrieve a single entity by ID |
-| `create` | POST | Create a new entity |
-| `update` | PUT | Full update of an entity |
-| `delete` | DELETE | Remove an entity |
-
-> **No `patch` verb.** The `absuite` CLI does **not** support PATCH (atomic JSON Patch) operations. For partial updates either fetch the entity, modify it, and `update` (full PUT), or use the REST API directly — see the `absuite-rest` skill (PATCH is REST-only).
-
----
-
-## API usage essentials
-
-- **`update` replaces the ENTIRE object** (it maps to HTTP `PUT`) — it is a full overwrite, not a merge. **Always `get` the entity first, change only what you need on the complete object, then `update` with the full body.** Sending a partial DTO to `update` (or an incomplete one to `create`) blanks the omitted fields → silent data loss.
-- **No atomic partial update in the CLI.** For a safe single-field change, use the REST `absuite-<domain>` skill's `PATCH` (JSON Patch) — the CLI cannot patch.
-- **Counting is a first-class operation:** use `count <entity>` (a dedicated endpoint that returns an integer) instead of `list`-ing everything to measure size.
-- **OData filtering/paging is a REST-layer feature.** List and count endpoints are OData-enabled over raw HTTP (`$filter`, `$top`, `$skip`, `$orderby`), but the CLI does **not** expose these as parameters. For filtered queries or a *filtered* count, use the `absuite-rest` skill (or check `--help` for any service-specific query options).
-
----
-
-## Advanced Options
-
-### Return Type Override
-
-Force a specific MIME type for the response:
-
-```bash
-absuite crm list contacts --TenantId <guid> --ReturnType application/xml
-```
-
-### Full HTTP Response
-
-Get the full response including status code and headers:
-
-```bash
-absuite crm list contacts --TenantId <guid> --WithHttpInfo
-```
-
----
-
-## Workflow Example: Full CRUD Cycle
-
-```bash
-# 1. Discover commands
-absuite crm list-commands
-
-# 2. Check parameter schema
-absuite crm create contact --help
-
-# 3. Create a contact
-absuite crm create contact --TenantId $TENANT_ID --ContactCreateDto '{"firstName":"Alice","lastName":"Smith","email":"alice@example.com"}'
-
-# 4. List contacts to find the new one
-absuite crm list contacts --TenantId $TENANT_ID
-
-# 5. Get a specific contact
-absuite crm get contact --TenantId $TENANT_ID --ContactId <contact-guid>
-
-# 6. Update the contact
-absuite crm update contact --TenantId $TENANT_ID --ContactId <contact-guid> --ContactUpdateDto '{"firstName":"Alice","lastName":"Johnson"}'
-
-# 7. Delete the contact
-absuite crm delete contact --TenantId $TENANT_ID --ContactId <contact-guid>
-```
-
----
-
-## REST API Alternative
-
-Everything the CLI does can also be accomplished via direct REST API calls. The CLI is a convenience wrapper around the same HTTP API. For a full REST reference (envelope, tenant scoping, OData, JSON Patch), see the `absuite-rest` skill; per-domain REST skills are `absuite-<domain>` (this CLI skill's per-domain counterparts are `absuite-<domain>-cli`).
-
-### Authentication
-
-To call the API directly via REST instead of the CLI:
-
-1. **Obtain a bearer token:**
-```bash
-curl -X POST "$ABSUITE_HOST_URL/login" \
-  -H "Content-Type: application/json" \
-  -d '{"email": "'$ABSUITE_USER_EMAIL'", "password": "'$ABSUITE_USER_PASSWORD'"}'
-```
-Extract the `accessToken` from the JSON response.
-
-2. **Use the token in all subsequent requests:**
-```bash
--H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN"
-```
-
-### URL Pattern
-
-All REST endpoints follow the pattern:
-
-```
-$ABSUITE_HOST_URL/api/v2/{ServiceName}/{Resource}
-```
-
-For example:
-- List contacts: `GET $ABSUITE_HOST_URL/api/v2/CrmService/Contacts`
-- Create invoice: `POST $ABSUITE_HOST_URL/api/v2/InvoicingService/Invoices`
-
-### Response Envelope
-
-The response envelope pattern is identical for both CLI and REST:
-
-```json
-{
-  "isSuccess": true,
-  "errorMessage": null,
-  "correlationId": "<guid>",
-  "timestamp": "2026-04-18T12:00:00Z",
-  "activityId": "<guid>",
-  "result": <actual-data>
-}
-```
-
-### CLI Verb → HTTP Method Mapping
-
-| CLI Verb | HTTP Method | REST Example |
-|---|---|---|
-| `list` | GET | `GET /api/v2/CrmService/Contacts` |
-| `count` | GET | `GET /api/v2/CrmService/Contacts/Count` |
-| `get` | GET | `GET /api/v2/CrmService/Contacts/:contactId` |
-| `create` | POST | `POST /api/v2/CrmService/Contacts` |
-| `update` | PUT | `PUT /api/v2/CrmService/Contacts/:contactId` |
-| `delete` | DELETE | `DELETE /api/v2/CrmService/Contacts/:contactId` |
-
-### CLI Service → REST Service Name Mapping
-
-| CLI Service | REST Service Name |
+| `absuite accounting` | 237 |
+| `absuite activities` | 16 |
+| `absuite analytics` | 7 |
+| `absuite approvals` | 3 |
+| `absuite assets` | 39 |
+| `absuite blockchains` | 10 |
+| `absuite catalog` | 85 |
+| `absuite cloud` | 3 |
+| `absuite communications` | 13 |
+| `absuite content` | 74 |
+| `absuite crm` | 58 |
+| `absuite deals` | 25 |
+| `absuite hrms` | 152 |
+| `absuite intelligence` | 37 |
+| `absuite invoicing` | 37 |
+| `absuite learning` | 198 |
+| `absuite locations` | 6 |
+| `absuite logistics` | 151 |
+| `absuite manufacturing` | 24 |
+| `absuite marketing` | 76 |
+| `absuite orders` | 17 |
+| `absuite payments` | 18 |
+| `absuite pricing` | 35 |
+| `absuite projects` | 8 |
+| `absuite quotes` | 18 |
+| `absuite reach` | 2 |
+| `absuite sales` | 22 |
+| `absuite search` | 1 |
+| `absuite services` | 36 |
+| `absuite shipments` | 60 |
+| `absuite social` | 26 |
+| `absuite storage` | 4 |
+| `absuite subscriptions` | 9 |
+| `absuite support` | 82 |
+| `absuite tasks` | 9 |
+| `absuite tenants` | 74 |
+| `absuite wallets` | 6 |
+| `absuite workflows` | 21 |
+
+## Sign-in, workspace and settings
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite login` | Writes |  | `--device`, `--with-password`, `--email`, `--password-stdin`, `--timeout` | Sign in to the ABS server. |
+| `absuite logout` | Writes |  | `--all` | Sign out: revoke the session on the server and remove it from this computer. |
+| `absuite me` | Reads |  |  | Show who you are signed in as. |
+| `absuite account show` | Reads |  |  | Show the profile, the server, who you are signed in as and the workspace you act in. |
+| `absuite account list` | Reads |  |  | List the workspaces (tenants) you can use on this server. |
+| `absuite account set` | Writes |  |  | Act in this workspace from now on (saved in the profile): absuite account set --tenant <id\|name>. |
+| `absuite account use` | Writes | `<workspace>` |  | Act in this workspace from now on (same as absuite account set --tenant). |
+| `absuite account clear` | Writes |  |  | Forget the profile's saved workspace. |
+| `absuite tenants list` | Reads |  |  | List the workspaces (tenants) you can use (same as absuite account list). |
+| `absuite tenants use` | Writes | `<workspace>` |  | Act in this workspace from now on (same as absuite account set --tenant). |
+| `absuite config get` | Reads | `<key>` |  | Show one setting of the profile. |
+| `absuite config set` | Writes | `<key>` `<value>` |  | Change one setting of the profile (creates the profile if it is new). |
+| `absuite config unset` | Writes | `<key>` |  | Clear one setting of the profile. |
+| `absuite config list` | Reads |  |  | Show the profile's settings and where they come from. |
+| `absuite config profiles` | Reads |  |  | List the profiles: server host, workspace, and whether this computer holds a sign-in. |
+| `absuite config use` | Writes | `<profile>` |  | Make this profile the current one. |
+| `absuite config delete` | Writes | `<profile>` |  | Remove a profile. Refused while it holds a sign-in (run absuite logout first). |
+| `absuite interactive` | Writes |  | `--plain` | Start an interactive session: run absuite commands one after another, with Tab completion of commands, options and record ids, history, and inline help. Needs a terminal: it does not start under CI, ABS_NO_TUI, --no-input, redirected input or output, or a non-human output format. --plain (or ABS_TUI_PLAIN=1) gives a plain mode for screen readers: no redraws, no colors. NO_COLOR turns colors off. |
+| `absuite completion` | Reads | `<shell>` |  | Print the shell completion script for pwsh, bash or zsh. It asks absuite for suggestions as you type. Record ids are completed only when ABS_COMPLETE_IDS=1 is set, and never workspaces. |
+| `absuite commands` | Reads |  |  | List every command, with its options and whether it only reads (-o json for scripts and agents). |
+
+Settings: `--profile`, `--url` and `--tenant` on any command, or `ABS_PROFILE`, `ABS_URL`, `ABS_TENANT`, `ABS_OUTPUT`. `absuite config list` shows each setting and where it comes from. No secret is ever stored in the settings.
+
+## Output and queries
+
+- `-o table` (the default; `human` also works), `json`, `jsonc`, `tsv`, `yaml` or `none`. `ABS_OUTPUT` sets the default.
+- `--query "<JMESPath>"` is applied to the result before it is printed, in every format: `absuite crm contacts list -o json --query "[].name"`. A bad expression is a usage error (exit 2).
+- `--columns a,b,c` picks the fields of the human table. `--only-show-errors` hides warnings and notices; `--verbose` says what the command runs with; `--debug` traces each HTTP call (method, address without its query, status, time; never headers, tokens or bodies).
+- Errors always print on standard error, whatever `-o` or `--only-show-errors` say. With `-o json` or `-o jsonc` they are one JSON document: `{"error":{"message","code","correlation","validation","exitCode"}}`. The API's error code and correlation id are always shown; quote them to support.
+
+## Exit codes
+
+Scripts can rely on these: a number never changes meaning.
+
+| Code | Meaning |
 |---|---|
-| `accounting` | AccountingService |
-| `assets` | AssetsService |
-| `cart` | CartService |
-| `catalog` | CatalogService |
-| `content` | ContentService |
-| `crm` | CrmService |
-| `deals` | DealsService |
-| `forex` | ForexService |
-| `globe` | GlobeService |
-| `hrms` | HrmsService |
-| `identity` | OAuth |
-| `inventory` | InventoryService |
-| `invoicing` | InvoicingService |
-| `learning` | LearningService |
-| `locations` | LocationsService |
-| `logistics` | LogisticsService |
-| `marketing` | MarketingService |
-| `orders` | OrdersService |
-| `payments` | PaymentsService |
-| `pricing` | PricingService |
-| `projects` | ProjectsService |
-| `quotes` | QuotesService |
-| `sales` | SalesService |
-| `security` | SecurityService |
-| `services` | ServicesService |
-| `shipments` | ShipmentsService |
-| `social` | SocialService |
-| `storage` | StorageService |
-| `subscriptions` | SubscriptionsService |
-| `support` | SupportService |
-| `system` | SystemService |
-| `tenants` | TenantsService |
-| `timetracker` | TimeTrackerService |
-| `users` | UsersService |
-| `wallets` | WalletsService |
+| 0 | Done. |
+| 1 | The API refused or failed the request for a reason no narrower code describes (a validation error, a feature that is off, an unexpected failure). |
+| 2 | A bad flag, argument, `--query` expression or configuration value; or input was needed under `--no-input`. |
+| 3 | Not signed in, or the session expired and could not be refreshed. |
+| 4 | No OS-protected credential store on this computer, so the session could not be kept (it is never kept in plain text). |
+| 5 | The record does not exist in this workspace. |
+| 6 | Signed in, but not allowed to do this (403). |
+| 7 | The server failed (5xx). |
+| 8 | The server could not be reached, or did not answer in time. |
 
-### Example: CLI vs REST
+## Agents: run tokens
 
-**CLI:**
-```bash
-absuite crm create contact --TenantId $TENANT_ID --ContactCreateDto '{"firstName":"Alice","lastName":"Smith"}'
-```
+An agent on its own computer uses its run token instead of `absuite login`:
 
-**REST equivalent:**
-```bash
-curl -X POST "$ABSUITE_HOST_URL/api/v2/CrmService/Contacts" \
-  -H "Authorization: Bearer $ABSUITE_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"firstName":"Alice","lastName":"Smith"}'
-```
-
-Both return the same envelope response. The CLI handles token management automatically; with REST you manage the bearer token yourself.
-
----
-
-## Critical Rules
-
-- **Always authenticate first.** Use the `absuite-login` skill if no valid session exists.
-- **Always check `--help` before calling unfamiliar commands.** It shows exact parameter names, types, required fields, and the output schema.
-- **Use `list-commands` for discovery.** Don't guess command names — discover them.
-- **Respect tenant scoping.** Most operations require `--TenantId` or a configured default tenant.
-- **Parse the envelope.** The actual data is inside the `result` field. Always check `isSuccess` before using `result`.
-- **Parameter names are case-sensitive.** Use the exact casing shown in `--help` (e.g., `--TenantId`, not `--tenantid`).
-- **JSON string parameters must be valid JSON.** For DTO parameters, ensure the JSON matches the schema shown in `--help`.
-- **The CLI handles authentication automatically.** Tokens are cached — you do not need to pass bearer tokens or auth headers.
+- Set `ABS_TOKEN` (the token) or `ABS_TOKEN_FILE` (an absolute path to a file holding only the token; read fresh on every command, so rotation needs no restart). Set one, never both: both is a usage error.
+- The token is used only with `--url` or `ABS_URL`; otherwise the CLI says it is ignored. It is never sent over plain http:// except to a server on the same computer (localhost, 127.0.0.1 or ::1).
+- The token says who the agent is; the workspace's roles decide what it may do (CEO ruling, 2026-11-10). A read passes the run-token check; the workspace's roles still decide what it can see. A write meets the same permission checks as a person's, and a governed capability goes to Approvals, whose answer is returned as-is.
+- Refusals a run token can meet, with the API code shown in the error: `trust.agent_api.unbound_run` (the token names no run or workspace), `trust.agent_api.unpermissioned_write` (a write whose use case names no permission and no role, the one write roles cannot govern), `trust.agent_api.gate_unavailable` (the check could not decide, so it refused). They end with exit 6 or 1. `trust.agent_api.unclassified_write` is no longer returned; older audit rows may still show it.
+- Always pass `--no-input` and `-o json`, and act on the exit code, not on the text.

@@ -1,186 +1,50 @@
 ---
 name: absuite-locations-cli
 key: fenixalliance.absuite.locations-cli
-version: 1.0.0
+version: 1.1.0
 description: >
-  Manage business locations and addresses using the `absuite` CLI. Covers tenant-scoped
-  Locations and wallet-scoped Locations via list/count/get/create/update/delete commands.
-  Requires an authenticated CLI session (see absuite-login-cli). For atomic PATCH updates
-  or raw HTTP, use the absuite-locations (REST) skill.
+  Drive the Alliance Business Suite (ABS) Locations area with the absuite CLI: 6 commands (3 read, 3
+  write) under `absuite locations`, each generated from the platform's ServiceClients and checked
+  against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-locations
+  REST skill.
 ---
 
 # Alliance Business Suite — Locations Skill (CLI)
 
-Drive the ABS **LocationsService** through the `absuite` CLI. The CLI service token is
-**`locations`**. A *location* is a physical/business address record (title, street lines,
-unit, city/state/country IDs, postal code, geocoordinates) plus shipping/routing flags.
-Locations live in two scopes:
+Generated from the absuite CLI at Platform 9b72a00a47 (`absuite commands -o json`). The commands, arguments and options below are the CLI's own; re-run `absuite commands -o json` before relying on one.
 
-- **Tenant Locations** — owned by a business tenant; commands are **tenant-scoped** (`--TenantId`).
-- **Wallet Locations** — addresses attached to a specific wallet / billing profile; scoped
-  by `--WalletId` and take **no** tenant parameter.
+> **Coverage:** the `absuite-locations` REST skill documents 8 routes; 5 of them have no CLI command (a write the CLI keeps to Studio, a call that is not workspace-scoped, or a field shape it cannot take yet). Use the REST skill for those.
 
-For general CLI usage and authentication, see `absuite-cli` and `absuite-login-cli`. For
-atomic PATCH (JSON Patch) or raw HTTP, use the `absuite-locations` REST skill — **the CLI
-does not support PATCH**.
+## Before you start
 
-## API usage essentials
+- Install: `npm install -g @fenixalliance/absuite` (a self-contained binary per platform). `absuite --version` prints the version.
+- Sign in: `absuite login` (a one-time code in your browser, the default). `absuite me` shows who you are; `absuite account show` shows the profile, server and workspace.
+- Workspace: `absuite account list` lists yours; `absuite account set --tenant <id|name>` saves one. `--tenant <id>` or `ABS_TENANT` picks one for a single command.
+- Agents on their computer: the run token comes from `ABS_TOKEN` or `ABS_TOKEN_FILE` (one of them, never both), used only with `--url` or `ABS_URL`, and only over https:// or to a server on the same computer. The token says who the agent is; the workspace's roles decide what it may do.
+- Scripts and agents: pass `--no-input` (it is also on when stdin is not a terminal, or CI or ABS_NO_TUI is set). Anything that needs input then fails with exit 2 and names the flag to pass.
+- Output: `-o table|json|jsonc|tsv|yaml|none`; `--query "<JMESPath>"` filters the result before it is printed.
+- `absuite commands -o json` lists every command with its options and whether it only reads. Check it before you rely on a command; `absuite <command> --help` shows one.
+- Full sign-in, output, exit-code and run-token rules: the `absuite-cli` skill. Anything not listed here: the `absuite-locations` REST skill.
 
-> Full detail in `absuite-cli`.
+## Commands
 
-- **`update` replaces the ENTIRE object** (it maps to HTTP `PUT`) — a full overwrite, not a merge. **`get` the entity first, change only what you need on the complete object, then `update` with the full body.** A partial `update` (or an incomplete `create`) blanks the omitted fields -> silent data loss.
-- **No atomic partial update in the CLI.** For a safe single-field change, use the `absuite-locations` REST skill's `PATCH` (JSON Patch), where that service exposes one.
-- Use **`count <entity>`** (a dedicated operation) to size a collection. OData filtering/paging (`$filter`, `$top`, ...) is REST-only — the CLI does not expose it; use `absuite-locations` for filtered queries or a filtered count.
+6 commands, from `absuite commands -o json`. "Reads" commands never change data. Writes take field flags or `--json`/`--file` with the same fields, and `--dry-run` prints the request without sending it. Deletes ask first unless `--yes` (with `--no-input` and no `--yes`, a delete fails with exit 2).
 
-## Prerequisites
+### Locations (`absuite locations`)
 
-1. **Authenticate first:** `absuite login` (see `absuite-login-cli`).
-2. **Set a default tenant** (optional but recommended for tenant-scoped commands):
-   `absuite config set --tenant-id <tenant-guid>`. When set, the CLI auto-injects `TenantId`
-   on any command that needs it; otherwise pass `--TenantId <tenant-guid>` explicitly.
-   (Wallet-location commands ignore tenant entirely — they use `--WalletId`.)
-3. **Discover commands:** `absuite locations list-commands`, or `--help` on any command,
-   e.g. `absuite locations create --help` (prints parameters and the DTO field schema).
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite locations list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's locations. `GET /api/v2/LocationsService/Locations` |
+| `absuite locations count` | Reads |  |  | Count the workspace's locations. `GET /api/v2/LocationsService/Locations/count` |
+| `absuite locations get` | Reads | `<id>` | `--columns` | Show one of the workspace's locations. `GET /api/v2/LocationsService/Locations/{locationId}` |
+| `absuite locations create` | Writes |  | `--title`, `--email`, `--phone`, `--fax`, `--address1`, `--address2`, `--address3`, `--unit`, `--city-id`, `--state-id`, `--postal-code`, `--country-id`, `--longitude`, `--latitude`, `--is-routable`, `--is-global-primary`, `--is-country-primary`, `--can-generate-labels`, `--is-default-sender-address`, `--is-default-return-address`, `--is-default-supping-location`; `--json` `--file` `--dry-run` | Create a record in the workspace's locations. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/LocationsService/Locations` |
+| `absuite locations update` | Writes | `<id>` | `--title`, `--email`, `--phone`, `--fax`, `--address1`, `--address2`, `--address3`, `--unit`, `--city-id`, `--state-id`, `--postal-code`, `--country-id`, `--longitude`, `--latitude`, `--is-routable`, `--is-global-primary`, `--is-country-primary`, `--can-generate-labels`, `--is-default-sender-address`, `--is-default-return-address`, `--is-default-supping-location`; `--json` `--file` `--dry-run` | Change one of the workspace's locations: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/LocationsService/Locations/{locationId}` |
+| `absuite locations delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's locations; it asks first unless --yes. `DELETE /api/v2/LocationsService/Locations/{locationId}` |
 
-## Command structure
-
-```
-absuite locations <verb> [<entity>] --Param value [--Param value ...]
-```
-
-- Verbs available for this service: **list, count, get, create, update, delete**.
-- The canonical SDK function-name form also works, e.g.
-  `absuite locations Get-LocationsAsync --TenantId <tenant-guid>`.
-- JSON DTO parameters are passed as a single-quoted JSON string
-  (`--LocationCreateDto '{...}'`) using the **same field names** as the REST API
-  (`title`, `address1`, `cityId`, `isDefaultSenderAddress`, ...).
-- There is **no `search` verb** for locations. To filter/page/sort, the REST `list`
-  endpoint accepts OData query options — use the `absuite-locations` REST skill for that.
-
-## Tenant Locations
+## Example
 
 ```bash
-# List locations
-absuite locations list --TenantId <tenant-guid>
-
-# Count locations
-absuite locations count --TenantId <tenant-guid>
-
-# Get a location by ID
-absuite locations get --TenantId <tenant-guid> --LocationId <location-guid>
-
-# Create a location
-absuite locations create --TenantId <tenant-guid> --LocationCreateDto '{
-  "title": "Main Warehouse",
-  "email": "warehouse@example.com",
-  "phone": "+1-555-0100",
-  "address1": "123 Commerce Ave",
-  "address2": "Building B",
-  "unit": "Dock 4",
-  "cityId": "<city-id>",
-  "stateId": "<state-id>",
-  "postalCode": "10001",
-  "countryId": "<country-id>",
-  "longitude": -74.006,
-  "latitude": 40.7128,
-  "isRoutable": true,
-  "isCountryPrimary": true,
-  "canGenerateLabels": true,
-  "isDefaultSenderAddress": true,
-  "isDefaultSuppingLocation": true
-}'
-
-# Update a location (full replace)
-absuite locations update --TenantId <tenant-guid> --LocationId <location-guid> --LocationUpdateDto '{
-  "title": "Main Warehouse (East)",
-  "address1": "123 Commerce Ave",
-  "cityId": "<city-id>",
-  "stateId": "<state-id>",
-  "countryId": "<country-id>",
-  "postalCode": "10001",
-  "isRoutable": true,
-  "isDefaultSenderAddress": true
-}'
-
-# Delete a location
-absuite locations delete --TenantId <tenant-guid> --LocationId <location-guid>
+absuite locations list --top 5 -o json --query "[].id"
+absuite locations create --title <value> --email <value> --dry-run   # prints the POST, sends nothing
+absuite locations create --title <value> --email <value> -o json --no-input
 ```
-
-### Location DTO fields
-
-The create/update DTO (`LocationCreateDto` / `LocationUpdateDto`) accepts:
-`title`, `email`, `phone`, `fax`, `address1`, `address2`, `address3`, `unit`, `cityId`,
-`stateId`, `postalCode`, `countryId`, `longitude` (number), `latitude` (number),
-`isRoutable`, `isGlobalPrimary`, `isCountryPrimary`, `canGenerateLabels`,
-`isDefaultSenderAddress`, `isDefaultReturnAddress`, `isDefaultSuppingLocation` (booleans).
-The **create** DTO additionally accepts `id` and `timestamp` (omit to let the server assign).
-`isDefaultSuppingLocation` is the field name as published by the API — use it exactly.
-`countryId` / `stateId` / `cityId` are Globe reference IDs (use `absuite globe ...` to resolve them).
-
-## Wallet Locations
-
-Addresses attached to a specific wallet / billing profile. Scoped by `--WalletId` —
-**do not pass `--TenantId`**.
-
-```bash
-# List wallet locations
-absuite locations list wallet --WalletId <wallet-guid>
-
-# Count wallet locations
-absuite locations count wallet --WalletId <wallet-guid>
-
-# Get a wallet location by ID
-absuite locations get wallet --WalletId <wallet-guid> --LocationId <location-guid>
-
-# Create a wallet location (same LocationCreateDto body as tenant create)
-absuite locations create wallet --WalletId <wallet-guid> --LocationCreateDto '{
-  "title": "Billing Address",
-  "email": "billing@example.com",
-  "address1": "500 Finance St",
-  "unit": "Suite 1200",
-  "cityId": "<city-id>",
-  "stateId": "<state-id>",
-  "postalCode": "94105",
-  "countryId": "<country-id>"
-}'
-
-# Update a wallet location (full replace)
-absuite locations update wallet --WalletId <wallet-guid> --LocationId <location-guid> --LocationUpdateDto '{
-  "title": "Billing Address (Updated)",
-  "address1": "500 Finance St",
-  "unit": "Suite 1400",
-  "cityId": "<city-id>",
-  "stateId": "<state-id>",
-  "countryId": "<country-id>",
-  "postalCode": "94105"
-}'
-
-# Delete a wallet location
-absuite locations delete wallet --WalletId <wallet-guid> --LocationId <location-guid>
-```
-
-## CLI Commands Quick Reference
-
-| Action | CLI command |
-|---|---|
-| List locations | `absuite locations list --TenantId <tenant-guid>` |
-| Count locations | `absuite locations count --TenantId <tenant-guid>` |
-| Get location | `absuite locations get --TenantId <tenant-guid> --LocationId <location-guid>` |
-| Create location | `absuite locations create --TenantId <tenant-guid> --LocationCreateDto '{...}'` |
-| Update location | `absuite locations update --TenantId <tenant-guid> --LocationId <location-guid> --LocationUpdateDto '{...}'` |
-| Delete location | `absuite locations delete --TenantId <tenant-guid> --LocationId <location-guid>` |
-| List wallet locations | `absuite locations list wallet --WalletId <wallet-guid>` |
-| Count wallet locations | `absuite locations count wallet --WalletId <wallet-guid>` |
-| Get wallet location | `absuite locations get wallet --WalletId <wallet-guid> --LocationId <location-guid>` |
-| Create wallet location | `absuite locations create wallet --WalletId <wallet-guid> --LocationCreateDto '{...}'` |
-| Update wallet location | `absuite locations update wallet --WalletId <wallet-guid> --LocationId <location-guid> --LocationUpdateDto '{...}'` |
-| Delete wallet location | `absuite locations delete wallet --WalletId <wallet-guid> --LocationId <location-guid>` |
-
-## Critical Rules
-
-- **Authenticate first** (`absuite login`).
-- **Tenant-location commands need a tenant** — set a default with
-  `absuite config set --tenant-id <guid>` or pass `--TenantId <guid>` on each call.
-- **Wallet-location commands use `--WalletId`** and ignore tenant context — do not pass `--TenantId`.
-- **No PATCH in the CLI.** For atomic partial updates, use the `absuite-locations` REST skill.
-- Use `absuite globe ...` to resolve valid `countryId`, `stateId`, and `cityId` values.

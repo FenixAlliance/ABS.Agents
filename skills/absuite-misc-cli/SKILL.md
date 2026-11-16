@@ -1,418 +1,332 @@
 ---
 name: absuite-misc-cli
 key: fenixalliance.absuite.misc-cli
-version: 1.0.0
+version: 1.1.0
 description: >
-  Manage inventory, logistics, shipments, and sales resources using the `absuite` CLI.
-  Covers warehouses, ports, vessels, voyages, waybills, trucks, proofs of delivery,
-  shipments, bills of lading, shipping methods/couriers/zones/classes, stores,
-  point-of-sales, loyalty programs and sales literature via list/count/get/create/
-  update/delete commands plus lifecycle actions. Requires an authenticated CLI session
-  (see absuite-login-cli). For atomic PATCH updates or raw HTTP, use the absuite-misc
-  (REST) skill.
+  Drive the Alliance Business Suite (ABS) Misc area with the absuite CLI: 173 commands (87 read, 86
+  write) under `absuite logistics`, `absuite sales`, `absuite shipments`, each generated from the
+  platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does
+  not cover, use the absuite-misc REST skill.
 ---
 
-# Alliance Business Suite — Misc Services CLI Skill (Inventory / Logistics / Shipments / Sales / Marketplace)
+# Alliance Business Suite — Misc Skill (CLI)
 
-This skill drives five ABS services through the `absuite` CLI: **inventory**, **logistics**,
-**shipments**, **sales**, and **marketplace**. Coverage is uneven — Logistics, Shipments and
-Sales have rich command sets; Inventory has a single read command; Marketplace has none. The
-CLI does **not** support PATCH (JSON Patch) — for atomic partial updates use the REST skill
-`absuite-misc`.
+Generated from the absuite CLI at Platform 9b72a00a47 (`absuite commands -o json`). The commands, arguments and options below are the CLI's own; re-run `absuite commands -o json` before relying on one.
 
-## API usage essentials
+> **Coverage:** the `absuite-misc` REST skill documents 29 routes; 2 of them have no CLI command (a write the CLI keeps to Studio, a call that is not workspace-scoped, or a field shape it cannot take yet). Use the REST skill for those.
 
-> Full detail in `absuite-cli`.
+## Before you start
 
-- **`update` replaces the ENTIRE object** (it maps to HTTP `PUT`) — a full overwrite, not a merge. **`get` the entity first, change only what you need on the complete object, then `update` with the full body.** A partial `update` (or an incomplete `create`) blanks the omitted fields -> silent data loss.
-- **No atomic partial update in the CLI.** For a safe single-field change, use the `absuite-misc` REST skill's `PATCH` (JSON Patch), where that service exposes one.
-- Use **`count <entity>`** (a dedicated operation) to size a collection. OData filtering/paging (`$filter`, `$top`, ...) is REST-only — the CLI does not expose it; use `absuite-misc` for filtered queries or a filtered count.
+- Install: `npm install -g @fenixalliance/absuite` (a self-contained binary per platform). `absuite --version` prints the version.
+- Sign in: `absuite login` (a one-time code in your browser, the default). `absuite me` shows who you are; `absuite account show` shows the profile, server and workspace.
+- Workspace: `absuite account list` lists yours; `absuite account set --tenant <id|name>` saves one. `--tenant <id>` or `ABS_TENANT` picks one for a single command.
+- Agents on their computer: the run token comes from `ABS_TOKEN` or `ABS_TOKEN_FILE` (one of them, never both), used only with `--url` or `ABS_URL`, and only over https:// or to a server on the same computer. The token says who the agent is; the workspace's roles decide what it may do.
+- Scripts and agents: pass `--no-input` (it is also on when stdin is not a terminal, or CI or ABS_NO_TUI is set). Anything that needs input then fails with exit 2 and names the flag to pass.
+- Output: `-o table|json|jsonc|tsv|yaml|none`; `--query "<JMESPath>"` filters the result before it is printed.
+- `absuite commands -o json` lists every command with its options and whether it only reads. Check it before you rely on a command; `absuite <command> --help` shows one.
+- Full sign-in, output, exit-code and run-token rules: the `absuite-cli` skill. Anything not listed here: the `absuite-misc` REST skill.
 
-## Prerequisites
+## Commands
 
-1. **Authenticate first:** `absuite login` (see `absuite-login-cli`).
-2. **Set your default tenant** so you can omit `--TenantId` on each call:
-   ```
-   absuite config set --tenant-id <tenant-guid>
-   ```
-   or pass `--TenantId <tenant-guid>` explicitly. (Examples below use `$TENANT_ID`.)
-   All Logistics / Shipments / Sales commands are tenant-scoped and require it.
-3. **Discover commands** for any service:
-   ```
-   absuite logistics list-commands
-   absuite logistics get warehouse --help
-   ```
-   See general CLI conventions in `absuite-cli`.
+173 commands, from `absuite commands -o json`. "Reads" commands never change data. Writes take field flags or `--json`/`--file` with the same fields, and `--dry-run` prints the request without sending it. Deletes ask first unless `--yes` (with `--no-input` and no `--yes`, a delete fails with exit 2).
 
-## Command structure
+### Airway Bills (`absuite logistics airway-bills`)
 
-Two equivalent forms work:
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite logistics airway-bills list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's airway-bills. `GET /api/v2/LogisticsService/AirwayBills` |
+| `absuite logistics airway-bills count` | Reads |  |  | Count the workspace's airway-bills. `GET /api/v2/LogisticsService/AirwayBills/Count` |
+| `absuite logistics airway-bills get` | Reads | `<id>` | `--columns` | Show one of the workspace's airway-bills. `GET /api/v2/LogisticsService/AirwayBills/{billId}` |
+| `absuite logistics airway-bills create` | Writes |  | `--document-number`, `--airway-bill-type`, `--master-awb-number`, `--shipper-contact-id`, `--consignee-contact-id`, `--notify-party-contact-id`, `--carrier-id`, `--airline-code`, `--flight-number`, `--airport-of-departure-code`, `--airport-of-destination-code`, `--departure-date`, `--arrival-date`, `--date-issued`, `--freight-terms`, `--freight-amount`, `--freight-currency-id`, `--chargeable-weight-kg`, `--total-gross-weight-kg`, `--total-packages`, `--total-volume-m3`, `--declared-value-for-carriage`, `--declared-value-for-customs`, `--insurance-amount`, `--special-handling-codes`, `--special-instructions`, `--remarks`, `--shipment-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's airway-bills. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/LogisticsService/AirwayBills` |
+| `absuite logistics airway-bills update` | Writes | `<id>` | `--document-number`, `--airway-bill-type`, `--master-awb-number`, `--shipper-contact-id`, `--consignee-contact-id`, `--notify-party-contact-id`, `--carrier-id`, `--airline-code`, `--flight-number`, `--airport-of-departure-code`, `--airport-of-destination-code`, `--departure-date`, `--arrival-date`, `--date-issued`, `--freight-terms`, `--freight-amount`, `--freight-currency-id`, `--chargeable-weight-kg`, `--total-gross-weight-kg`, `--total-packages`, `--total-volume-m3`, `--declared-value-for-carriage`, `--declared-value-for-customs`, `--insurance-amount`, `--special-handling-codes`, `--special-instructions`, `--remarks`, `--shipment-id`; `--json` `--file` `--dry-run` | Change one of the workspace's airway-bills: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/LogisticsService/AirwayBills/{billId}` |
+| `absuite logistics airway-bills delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's airway-bills; it asks first unless --yes. `DELETE /api/v2/LogisticsService/AirwayBills/{billId}` |
+| `absuite logistics airway-bills lines list` | Reads |  | `--bill-id` (required); `--top` `--skip` `--columns` | List the workspace's airway-bills lines. `GET /api/v2/LogisticsService/AirwayBills/{billId}/Lines` |
+| `absuite logistics airway-bills lines count` | Reads |  | `--bill-id` (required) | Count the workspace's airway-bills lines. `GET /api/v2/LogisticsService/AirwayBills/{billId}/Lines/Count` |
+| `absuite logistics airway-bills lines create` | Writes |  | `--bill-id` (required), `--description`, `--quantity`, `--gross-weight-kg`, `--volume-m3`, `--package-type`, `--length-cm`, `--width-cm`, `--height-cm`, `--hs-code`, `--marks-and-numbers`, `--declared-value`, `--declared-value-currency-id`, `--seal-number`, `--container-number`, `--chargeable-weight-kg`, `--iata-rate-class`, `--dangerous-goods-class`, `--un-hazmat-number`, `--wagon-number`; `--json` `--file` `--dry-run` | Create a record in the workspace's airway-bills lines. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/LogisticsService/AirwayBills/{billId}/Lines` |
+| `absuite logistics airway-bills lines delete` | Writes | `<id>` | `--bill-id` (required); `--yes` `--dry-run` | Delete one of the workspace's airway-bills lines; it asks first unless --yes. `DELETE /api/v2/LogisticsService/AirwayBills/{billId}/Lines/{lineId}` |
 
-- **Friendly:** `absuite <service> <verb> <entity> --Param value`
-  (verbs: `list`, `count`, `search`, `get`, `create`, `update`, `delete`, plus service actions).
-- **Canonical function name** (matches the SDK 1:1): `absuite <service> <Verb>-<Entity>Async --Param value`
-  e.g. `absuite logistics Get-WarehousesAsync`, `absuite sales New-StoreAsync`.
+### Item Restocks (`absuite logistics item-restocks`)
 
-Service tokens: `inventory`, `logistics`, `shipments`, `sales`, `marketplace`.
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite logistics item-restocks list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's item-restocks. `GET /api/v2/LogisticsService/ItemRestocks` |
+| `absuite logistics item-restocks count` | Reads |  |  | Count the workspace's item-restocks. `GET /api/v2/LogisticsService/ItemRestocks/Count` |
+| `absuite logistics item-restocks get` | Reads | `<id>` | `--columns` | Show one of the workspace's item-restocks. `GET /api/v2/LogisticsService/ItemRestocks/{restockId}` |
+| `absuite logistics item-restocks create` | Writes |  | `--name`, `--description`; `--json` `--file` `--dry-run` | Create a record in the workspace's item-restocks. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/LogisticsService/ItemRestocks` |
+| `absuite logistics item-restocks update` | Writes | `<id>` | `--name`, `--description`; `--json` `--file` `--dry-run` | Change one of the workspace's item-restocks: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/LogisticsService/ItemRestocks/{restockId}` |
+| `absuite logistics item-restocks delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's item-restocks; it asks first unless --yes. `DELETE /api/v2/LogisticsService/ItemRestocks/{restockId}` |
+| `absuite logistics item-restocks entries list` | Reads |  | `--item-restock-id` (required); `--top` `--skip` `--columns` | List the workspace's item-restocks entries. `GET /api/v2/LogisticsService/ItemRestocks/{itemRestockId}/Entries` |
+| `absuite logistics item-restocks entries count` | Reads |  | `--item-restock-id` (required) | Count the workspace's item-restocks entries. `GET /api/v2/LogisticsService/ItemRestocks/{itemRestockId}/Entries/Count` |
+| `absuite logistics item-restocks entries get` | Reads | `<id>` | `--item-restock-id` (required); `--columns` | Show one of the workspace's item-restocks entries. `GET /api/v2/LogisticsService/ItemRestocks/{itemRestockId}/Entries/{entryId}` |
+| `absuite logistics item-restocks entries create` | Writes |  | `--item-restock-id` (required), `--item-id`, `--warehouse-id`, `--quantity`, `--order-item-record-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's item-restocks entries. Only in --json: item-restock-id. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/LogisticsService/ItemRestocks/{itemRestockId}/Entries` |
+| `absuite logistics item-restocks entries update` | Writes | `<id>` | `--item-restock-id` (required), `--item-id`, `--warehouse-id`, `--quantity`, `--order-item-record-id`; `--json` `--file` `--dry-run` | Change one of the workspace's item-restocks entries: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/LogisticsService/ItemRestocks/{itemRestockId}/Entries/{entryId}` |
+| `absuite logistics item-restocks entries delete` | Writes | `<id>` | `--item-restock-id` (required); `--yes` `--dry-run` | Delete one of the workspace's item-restocks entries; it asks first unless --yes. `DELETE /api/v2/LogisticsService/ItemRestocks/{itemRestockId}/Entries/{entryId}` |
 
-JSON DTO parameters are passed as a single-quoted JSON string with the **same camelCase field
-names** as the REST DTOs (e.g. `--CreateWarehouseDto '{"title":"...","address1":"..."}'`).
-The CLI has **no patch verb** — use `update` (full replace) or the REST skill for partial edits.
+### Item Retain Samples (`absuite logistics item-retain-samples`)
 
----
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite logistics item-retain-samples list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's item-retain-samples. `GET /api/v2/LogisticsService/ItemRetainSamples` |
+| `absuite logistics item-retain-samples count` | Reads |  |  | Count the workspace's item-retain-samples. `GET /api/v2/LogisticsService/ItemRetainSamples/Count` |
+| `absuite logistics item-retain-samples get` | Reads | `<id>` | `--columns` | Show one of the workspace's item-retain-samples. `GET /api/v2/LogisticsService/ItemRetainSamples/{sampleId}` |
+| `absuite logistics item-retain-samples create` | Writes |  | `--warehouse-id`, `--item-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's item-retain-samples. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/LogisticsService/ItemRetainSamples` |
+| `absuite logistics item-retain-samples update` | Writes | `<id>` | `--warehouse-id`, `--item-id`; `--json` `--file` `--dry-run` | Change one of the workspace's item-retain-samples: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/LogisticsService/ItemRetainSamples/{sampleId}` |
+| `absuite logistics item-retain-samples delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's item-retain-samples; it asks first unless --yes. `DELETE /api/v2/LogisticsService/ItemRetainSamples/{sampleId}` |
 
-# inventory
+### Ports (`absuite logistics ports`)
 
-The **inventory** service exposes a single read command (no list/create/update/delete):
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite logistics ports list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's ports. `GET /api/v2/LogisticsService/Ports` |
+| `absuite logistics ports count` | Reads |  |  | Count the workspace's ports. `GET /api/v2/LogisticsService/Ports/Count` |
+| `absuite logistics ports get` | Reads | `<id>` | `--columns` | Show one of the workspace's ports. `GET /api/v2/LogisticsService/Ports/{portId}` |
+| `absuite logistics ports create` | Writes |  | `--title`, `--company`, `--email`, `--address1`, `--address2`, `--address3`, `--unit`, `--custom-city`, `--custom-state`, `--postal-code`, `--phone`, `--fax`, `--longitude`, `--latitude`, `--country-id`, `--country-state-id`, `--city-id`, `--un-locode`, `--iata-code`, `--port-type`, `--port-authority`, `--has-customs-facility`, `--is-free-tradezone`, `--is-active`, `--parent-port-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's ports. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/LogisticsService/Ports` |
+| `absuite logistics ports update` | Writes | `<id>` | `--title`, `--company`, `--email`, `--address1`, `--address2`, `--address3`, `--unit`, `--custom-city`, `--custom-state`, `--postal-code`, `--phone`, `--fax`, `--longitude`, `--latitude`, `--country-id`, `--country-state-id`, `--city-id`, `--un-locode`, `--iata-code`, `--port-type`, `--port-authority`, `--has-customs-facility`, `--is-free-tradezone`, `--is-active`, `--parent-port-id`; `--json` `--file` `--dry-run` | Change one of the workspace's ports: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/LogisticsService/Ports/{portId}` |
+| `absuite logistics ports delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's ports; it asks first unless --yes. `DELETE /api/v2/LogisticsService/Ports/{portId}` |
 
+### Proofs Of Delivery (`absuite logistics proofs-of-delivery`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite logistics proofs-of-delivery list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's proofs-of-delivery. `GET /api/v2/LogisticsService/ProofsOfDelivery` |
+| `absuite logistics proofs-of-delivery count` | Reads |  |  | Count the workspace's proofs-of-delivery. `GET /api/v2/LogisticsService/ProofsOfDelivery/Count` |
+| `absuite logistics proofs-of-delivery get` | Reads | `<id>` | `--columns` | Show one of the workspace's proofs-of-delivery. `GET /api/v2/LogisticsService/ProofsOfDelivery/{podId}` |
+| `absuite logistics proofs-of-delivery create` | Writes |  | `--document-number`, `--shipment-id`, `--bill-of-lading-id`, `--seaway-bill-id`, `--airway-bill-id`, `--road-waybill-id`, `--rail-waybill-id`, `--truck-trip-id`, `--recipient-name`, `--recipient-company-contact-id`, `--delivery-address`, `--delivery-date`, `--delivery-time`, `--overall-condition`, `--remarks`; `--json` `--file` `--dry-run` | Create a record in the workspace's proofs-of-delivery. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/LogisticsService/ProofsOfDelivery` |
+| `absuite logistics proofs-of-delivery update` | Writes | `<id>` | `--document-number`, `--shipment-id`, `--bill-of-lading-id`, `--seaway-bill-id`, `--airway-bill-id`, `--road-waybill-id`, `--rail-waybill-id`, `--truck-trip-id`, `--recipient-name`, `--recipient-company-contact-id`, `--delivery-address`, `--delivery-date`, `--delivery-time`, `--overall-condition`, `--total-quantity-delivered`, `--total-quantity-rejected`, `--remarks`, `--photo-evidence-uri`; `--json` `--file` `--dry-run` | Change one of the workspace's proofs-of-delivery: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/LogisticsService/ProofsOfDelivery/{podId}` |
+| `absuite logistics proofs-of-delivery delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's proofs-of-delivery; it asks first unless --yes. `DELETE /api/v2/LogisticsService/ProofsOfDelivery/{podId}` |
+| `absuite logistics proofs-of-delivery delivery-notes list` | Reads |  | `--pod-id` (required); `--columns` | List the workspace's proofs-of-delivery delivery-notes. `GET /api/v2/LogisticsService/ProofsOfDelivery/{podId}/DeliveryNotes` |
+| `absuite logistics proofs-of-delivery lines list` | Reads |  | `--pod-id` (required); `--top` `--skip` `--columns` | List the workspace's proofs-of-delivery lines. `GET /api/v2/LogisticsService/ProofsOfDelivery/{podId}/Lines` |
+| `absuite logistics proofs-of-delivery delivery-notes count` | Reads |  | `--pod-id` (required) | Count the workspace's proofs-of-delivery delivery-notes. `GET /api/v2/LogisticsService/ProofsOfDelivery/{podId}/DeliveryNotes/Count` |
+| `absuite logistics proofs-of-delivery lines count` | Reads |  | `--pod-id` (required) | Count the workspace's proofs-of-delivery lines. `GET /api/v2/LogisticsService/ProofsOfDelivery/{podId}/Lines/Count` |
+| `absuite logistics proofs-of-delivery lines create` | Writes |  | `--pod-id` (required), `--description`, `--quantity-expected`, `--quantity-received`, `--quantity-rejected`, `--condition`, `--remarks`, `--hs-code`; `--json` `--file` `--dry-run` | Create a record in the workspace's proofs-of-delivery lines. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/LogisticsService/ProofsOfDelivery/{podId}/Lines` |
+| `absuite logistics proofs-of-delivery delivery-notes delete` | Writes | `<id>` | `--pod-id` (required); `--yes` `--dry-run` | Delete one of the workspace's proofs-of-delivery delivery-notes; it asks first unless --yes. `DELETE /api/v2/LogisticsService/ProofsOfDelivery/{podId}/DeliveryNotes/{noteId}` |
+| `absuite logistics proofs-of-delivery lines delete` | Writes | `<id>` | `--pod-id` (required); `--yes` `--dry-run` | Delete one of the workspace's proofs-of-delivery lines; it asks first unless --yes. `DELETE /api/v2/LogisticsService/ProofsOfDelivery/{podId}/Lines/{lineId}` |
+
+### Seaway Bills (`absuite logistics seaway-bills`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite logistics seaway-bills list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's seaway-bills. `GET /api/v2/LogisticsService/SeawayBills` |
+| `absuite logistics seaway-bills count` | Reads |  |  | Count the workspace's seaway-bills. `GET /api/v2/LogisticsService/SeawayBills/Count` |
+| `absuite logistics seaway-bills get` | Reads | `<id>` | `--columns` | Show one of the workspace's seaway-bills. `GET /api/v2/LogisticsService/SeawayBills/{billId}` |
+| `absuite logistics seaway-bills create` | Writes |  | `--document-number`, `--shipper-contact-id`, `--consignee-contact-id`, `--notify-party-contact-id`, `--carrier-id`, `--vessel-id`, `--voyage-id`, `--port-of-loading-id`, `--port-of-discharge-id`, `--place-of-receipt`, `--place-of-delivery`, `--date-issued`, `--date-shipped`, `--freight-terms`, `--freight-amount`, `--freight-currency-id`, `--total-weight`, `--total-packages`, `--special-instructions`, `--remarks`, `--shipment-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's seaway-bills. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/LogisticsService/SeawayBills` |
+| `absuite logistics seaway-bills update` | Writes | `<id>` | `--document-number`, `--shipper-contact-id`, `--consignee-contact-id`, `--notify-party-contact-id`, `--carrier-id`, `--vessel-id`, `--voyage-id`, `--port-of-loading-id`, `--port-of-discharge-id`, `--place-of-receipt`, `--place-of-delivery`, `--date-issued`, `--date-shipped`, `--freight-terms`, `--freight-amount`, `--freight-currency-id`, `--total-weight`, `--total-packages`, `--special-instructions`, `--remarks`, `--shipment-id`; `--json` `--file` `--dry-run` | Change one of the workspace's seaway-bills: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/LogisticsService/SeawayBills/{billId}` |
+| `absuite logistics seaway-bills delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's seaway-bills; it asks first unless --yes. `DELETE /api/v2/LogisticsService/SeawayBills/{billId}` |
+| `absuite logistics seaway-bills lines list` | Reads |  | `--bill-id` (required); `--top` `--skip` `--columns` | List the workspace's seaway-bills lines. `GET /api/v2/LogisticsService/SeawayBills/{billId}/Lines` |
+| `absuite logistics seaway-bills lines count` | Reads |  | `--bill-id` (required) | Count the workspace's seaway-bills lines. `GET /api/v2/LogisticsService/SeawayBills/{billId}/Lines/Count` |
+| `absuite logistics seaway-bills lines create` | Writes |  | `--bill-id` (required), `--description`, `--quantity`, `--gross-weight-kg`, `--volume-m3`, `--package-type`, `--length-cm`, `--width-cm`, `--height-cm`, `--hs-code`, `--marks-and-numbers`, `--declared-value`, `--declared-value-currency-id`, `--seal-number`, `--container-number`, `--chargeable-weight-kg`, `--iata-rate-class`, `--dangerous-goods-class`, `--un-hazmat-number`, `--wagon-number`; `--json` `--file` `--dry-run` | Create a record in the workspace's seaway-bills lines. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/LogisticsService/SeawayBills/{billId}/Lines` |
+| `absuite logistics seaway-bills lines delete` | Writes | `<id>` | `--bill-id` (required); `--yes` `--dry-run` | Delete one of the workspace's seaway-bills lines; it asks first unless --yes. `DELETE /api/v2/LogisticsService/SeawayBills/{billId}/Lines/{lineId}` |
+
+### Truck Drivers (`absuite logistics truck-drivers`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite logistics truck-drivers list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's truck-drivers. `GET /api/v2/LogisticsService/TruckDrivers` |
+| `absuite logistics truck-drivers count` | Reads |  |  | Count the workspace's truck-drivers. `GET /api/v2/LogisticsService/TruckDrivers/Count` |
+| `absuite logistics truck-drivers get` | Reads | `<id>` | `--columns` | Show one of the workspace's truck-drivers. `GET /api/v2/LogisticsService/TruckDrivers/{driverId}` |
+| `absuite logistics truck-drivers create` | Writes |  | `--name`, `--license-number`, `--license-class`, `--phone`, `--email`, `--contact-id`, `--shipping-courier-id`, `--adr-certified`, `--license-expiry-date`, `--medical-exam-expiry-date`, `--national-id-number`, `--notes`; `--json` `--file` `--dry-run` | Create a record in the workspace's truck-drivers. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/LogisticsService/TruckDrivers` |
+| `absuite logistics truck-drivers update` | Writes | `<id>` | `--name`, `--license-number`, `--license-class`, `--phone`, `--email`, `--contact-id`, `--shipping-courier-id`, `--adr-certified`, `--license-expiry-date`, `--medical-exam-expiry-date`, `--national-id-number`, `--notes`; `--json` `--file` `--dry-run` | Change one of the workspace's truck-drivers: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/LogisticsService/TruckDrivers/{driverId}` |
+| `absuite logistics truck-drivers delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's truck-drivers; it asks first unless --yes. `DELETE /api/v2/LogisticsService/TruckDrivers/{driverId}` |
+
+### Trucks (`absuite logistics trucks`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite logistics trucks list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's trucks. `GET /api/v2/LogisticsService/Trucks` |
+| `absuite logistics trucks count` | Reads |  |  | Count the workspace's trucks. `GET /api/v2/LogisticsService/Trucks/Count` |
+| `absuite logistics trucks get` | Reads | `<id>` | `--columns` | Show one of the workspace's trucks. `GET /api/v2/LogisticsService/Trucks/{truckId}` |
+| `absuite logistics trucks create` | Writes |  | `--plate-number`, `--name`, `--truck-type`, `--max-payload-kg`, `--teu-capacity`, `--driver-name`, `--driver-phone`, `--driver-license-number`, `--is-active`, `--is-refrigerated`, `--shipping-courier-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's trucks. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/LogisticsService/Trucks` |
+| `absuite logistics trucks update` | Writes | `<id>` | `--plate-number`, `--name`, `--truck-type`, `--max-payload-kg`, `--teu-capacity`, `--driver-name`, `--driver-phone`, `--driver-license-number`, `--is-active`, `--is-refrigerated`, `--shipping-courier-id`; `--json` `--file` `--dry-run` | Change one of the workspace's trucks: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/LogisticsService/Trucks/{truckId}` |
+| `absuite logistics trucks delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's trucks; it asks first unless --yes. `DELETE /api/v2/LogisticsService/Trucks/{truckId}` |
+| `absuite logistics trucks trips list` | Reads |  | `--truck-id` (required); `--top` `--skip` `--columns` | List the workspace's trucks trips. `GET /api/v2/LogisticsService/Trucks/{truckId}/Trips` |
+| `absuite logistics trucks trips count` | Reads |  | `--truck-id` (required) | Count the workspace's trucks trips. `GET /api/v2/LogisticsService/Trucks/{truckId}/Trips/Count` |
+| `absuite logistics trucks trips create` | Writes |  | `--truck-id` (required), `--trip-number`, `--container-number`, `--seal-number`, `--departure-time`, `--arrival-time`, `--distance-km`, `--notes`, `--origin-port-id`, `--origin-location-id`, `--destination-port-id`, `--destination-location-id`, `--shipment-id`, `--bill-of-lading-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's trucks trips. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/LogisticsService/Trucks/{truckId}/Trips` |
+| `absuite logistics trucks trips delete` | Writes | `<id>` | `--truck-id` (required); `--yes` `--dry-run` | Delete one of the workspace's trucks trips; it asks first unless --yes. `DELETE /api/v2/LogisticsService/Trucks/{truckId}/Trips/{tripId}` |
+
+### Vessels (`absuite logistics vessels`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite logistics vessels list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's vessels. `GET /api/v2/LogisticsService/Vessels` |
+| `absuite logistics vessels count` | Reads |  |  | Count the workspace's vessels. `GET /api/v2/LogisticsService/Vessels/Count` |
+| `absuite logistics vessels get` | Reads | `<id>` | `--columns` | Show one of the workspace's vessels. `GET /api/v2/LogisticsService/Vessels/{vesselId}` |
+| `absuite logistics vessels create` | Writes |  | `--name`, `--imo-number`, `--mmsi-number`, `--call-sign`, `--flag-country-id`, `--vessel-type`, `--vessel-status`, `--gross-tonnage`, `--deadweight-tonnage`, `--teu-capacity`, `--length-meters`, `--beam-meters`, `--draft-meters`, `--year-built`, `--shipping-courier-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's vessels. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/LogisticsService/Vessels` |
+| `absuite logistics vessels update` | Writes | `<id>` | `--name`, `--imo-number`, `--mmsi-number`, `--call-sign`, `--flag-country-id`, `--vessel-type`, `--vessel-status`, `--gross-tonnage`, `--deadweight-tonnage`, `--teu-capacity`, `--length-meters`, `--beam-meters`, `--draft-meters`, `--year-built`, `--shipping-courier-id`; `--json` `--file` `--dry-run` | Change one of the workspace's vessels: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/LogisticsService/Vessels/{vesselId}` |
+| `absuite logistics vessels delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's vessels; it asks first unless --yes. `DELETE /api/v2/LogisticsService/Vessels/{vesselId}` |
+
+### Voyages (`absuite logistics voyages`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite logistics voyages list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's voyages. `GET /api/v2/LogisticsService/Voyages` |
+| `absuite logistics voyages count` | Reads |  |  | Count the workspace's voyages. `GET /api/v2/LogisticsService/Voyages/Count` |
+| `absuite logistics voyages get` | Reads | `<id>` | `--columns` | Show one of the workspace's voyages. `GET /api/v2/LogisticsService/Voyages/{voyageId}` |
+| `absuite logistics voyages create` | Writes |  | `--voyage-number`, `--title`, `--description`, `--voyage-direction`, `--departure-date`, `--arrival-date`, `--vessel-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's voyages. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/LogisticsService/Voyages` |
+| `absuite logistics voyages update` | Writes | `<id>` | `--voyage-number`, `--title`, `--description`, `--voyage-direction`, `--departure-date`, `--arrival-date`, `--vessel-id`; `--json` `--file` `--dry-run` | Change one of the workspace's voyages: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/LogisticsService/Voyages/{voyageId}` |
+| `absuite logistics voyages delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's voyages; it asks first unless --yes. `DELETE /api/v2/LogisticsService/Voyages/{voyageId}` |
+| `absuite logistics voyages port-calls list` | Reads |  | `--voyage-id` (required); `--top` `--skip` `--columns` | List the workspace's voyages port-calls. `GET /api/v2/LogisticsService/Voyages/{voyageId}/PortCalls` |
+| `absuite logistics voyages port-calls count` | Reads |  | `--voyage-id` (required) | Count the workspace's voyages port-calls. `GET /api/v2/LogisticsService/Voyages/{voyageId}/PortCalls/Count` |
+| `absuite logistics voyages port-calls create` | Writes |  | `--voyage-id` (required), `--sequence-number`, `--port-call-status`, `--eta`, `--etd`, `--berth-number`, `--remarks`, `--port-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's voyages port-calls. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/LogisticsService/Voyages/{voyageId}/PortCalls` |
+| `absuite logistics voyages port-calls delete` | Writes | `<id>` | `--voyage-id` (required); `--yes` `--dry-run` | Delete one of the workspace's voyages port-calls; it asks first unless --yes. `DELETE /api/v2/LogisticsService/Voyages/{voyageId}/PortCalls/{portCallId}` |
+
+### Warehouses (`absuite logistics warehouses`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite logistics warehouses list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's warehouses. `GET /api/v2/LogisticsService/Warehouses` |
+| `absuite logistics warehouses count` | Reads |  |  | Count the workspace's warehouses. `GET /api/v2/LogisticsService/Warehouses/Count` |
+| `absuite logistics warehouses get` | Reads | `<id>` | `--columns` | Show one of the workspace's warehouses. `GET /api/v2/LogisticsService/Warehouses/{warehouseId}` |
+| `absuite logistics warehouses create` | Writes |  | `--title`, `--address1`, `--address2`, `--address3`, `--postal-code`, `--phone`, `--country-id`, `--state-id`, `--city-id`, `--is-group`, `--shipwire-warehouse-id`, `--parent-warehouse-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's warehouses. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/LogisticsService/Warehouses` |
+| `absuite logistics warehouses update` | Writes | `<id>` | `--title`, `--address1`, `--address2`, `--address3`, `--postal-code`, `--phone`, `--country-id`, `--state-id`, `--city-id`, `--is-group`, `--shipwire-warehouse-id`, `--parent-warehouse-id`; `--json` `--file` `--dry-run` | Change one of the workspace's warehouses: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/LogisticsService/Warehouses/{warehouseId}` |
+| `absuite logistics warehouses delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's warehouses; it asks first unless --yes. `DELETE /api/v2/LogisticsService/Warehouses/{warehouseId}` |
+
+### Loyalty Programs (`absuite sales loyalty-programs`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite sales loyalty-programs list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's loyalty-programs. `GET /api/v2/SalesService/LoyaltyPrograms` |
+| `absuite sales loyalty-programs count` | Reads |  |  | Count the workspace's loyalty-programs. `GET /api/v2/SalesService/LoyaltyPrograms/Count` |
+| `absuite sales loyalty-programs get` | Reads | `<id>` | `--columns` | Show one of the workspace's loyalty-programs. `GET /api/v2/SalesService/LoyaltyPrograms/{loyaltyProgramId}` |
+| `absuite sales loyalty-programs create` | Writes |  | `--title`, `--description`, `--price-list-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's loyalty-programs. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/SalesService/LoyaltyPrograms` |
+| `absuite sales loyalty-programs update` | Writes | `<id>` | `--title`, `--description`, `--price-list-id`; `--json` `--file` `--dry-run` | Change one of the workspace's loyalty-programs: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/SalesService/LoyaltyPrograms/{loyaltyProgramId}` |
+| `absuite sales loyalty-programs delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's loyalty-programs; it asks first unless --yes. `DELETE /api/v2/SalesService/LoyaltyPrograms/{loyaltyProgramId}` |
+
+### Point Of Sales (`absuite sales point-of-sales`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite sales point-of-sales list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's point-of-sales. `GET /api/v2/SalesService/PointOfSales` |
+| `absuite sales point-of-sales count` | Reads |  |  | Count the workspace's point-of-sales. `GET /api/v2/SalesService/PointOfSales/Count` |
+| `absuite sales point-of-sales get` | Reads | `<id>` | `--columns` | Show one of the workspace's point-of-sales. `GET /api/v2/SalesService/PointOfSales/{pointOfSaleId}` |
+| `absuite sales point-of-sales create` | Writes |  | `--title`, `--code`, `--description`, `--price-list-id`, `--location-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's point-of-sales. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/SalesService/PointOfSales` |
+| `absuite sales point-of-sales update` | Writes | `<id>` | `--code`, `--title`, `--description`, `--price-list-id`, `--location-id`; `--json` `--file` `--dry-run` | Change one of the workspace's point-of-sales: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/SalesService/PointOfSales/{pointOfSaleId}` |
+| `absuite sales point-of-sales delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's point-of-sales; it asks first unless --yes. `DELETE /api/v2/SalesService/PointOfSales/{pointOfSaleId}` |
+
+### Sales Literatures (`absuite sales sales-literatures`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite sales sales-literatures list` | Reads |  | `--columns` | List the workspace's sales-literatures. `GET /api/v2/SalesService/SalesLiteratures` |
+| `absuite sales sales-literatures create` | Writes |  | `--sales-literature-id` (required), `--title`, `--content`, `--description`, `--modified-date`, `--expiration-date`, `--sales-literature-type-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's sales-literatures. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/SalesService/SalesLiteratures` |
+| `absuite sales sales-literatures delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's sales-literatures; it asks first unless --yes. `DELETE /api/v2/SalesService/SalesLiteratures/{salesLiteratureId}` |
+| `absuite sales sales-literatures extended list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's sales-literatures extended. `GET /api/v2/SalesService/SalesLiteratures/Extended` |
+
+### Stores (`absuite sales stores`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite sales stores list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's stores. `GET /api/v2/SalesService/Stores` |
+| `absuite sales stores count` | Reads |  |  | Count the workspace's stores. `GET /api/v2/SalesService/Stores/Count` |
+| `absuite sales stores get` | Reads | `<id>` | `--columns` | Show one of the workspace's stores. `GET /api/v2/SalesService/Stores/{storeId}` |
+| `absuite sales stores create` | Writes |  | `--name`, `--e-commerce`, `--currency-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's stores. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/SalesService/Stores` |
+| `absuite sales stores update` | Writes | `<id>` | `--name`, `--e-commerce`, `--currency-id`; `--json` `--file` `--dry-run` | Change one of the workspace's stores: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/SalesService/Stores/{storeId}` |
+| `absuite sales stores delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's stores; it asks first unless --yes. `DELETE /api/v2/SalesService/Stores/{storeId}` |
+
+### Bills Of Lading (`absuite shipments bills-of-lading`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite shipments bills-of-lading list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's bills-of-lading. `GET /api/v2/ShipmentsService/BillsOfLading` |
+| `absuite shipments bills-of-lading count` | Reads |  |  | Count the workspace's bills-of-lading. `GET /api/v2/ShipmentsService/BillsOfLading/Count` |
+| `absuite shipments bills-of-lading get` | Reads | `<id>` | `--columns` | Show one of the workspace's bills-of-lading. `GET /api/v2/ShipmentsService/BillsOfLading/{billOfLadingId}` |
+| `absuite shipments bills-of-lading create` | Writes |  | `--bill-of-lading-number`, `--title`, `--description`, `--bill-of-lading-type`, `--is-negotiable`, `--is-clean`, `--number-of-originals`, `--freight-payment-type`, `--shipping-terms`, `--freight-charges-description`, `--declared-value-amount`, `--declared-value-currency-id`, `--vessel-name`, `--voyage-number`, `--shipper-contact-id`, `--consignee-contact-id`, `--notify-party-contact-id`, `--shipping-courier-id`, `--port-of-loading-id`, `--port-of-discharge-id`, `--place-of-receipt-id`, `--place-of-delivery-id`, `--shipment-id`, `--order-id`, `--voyage-id`, `--marks-and-numbers`, `--total-packages`, `--total-gross-weight-kg`, `--total-volume-m3`; `--json` `--file` `--dry-run` | Create a record in the workspace's bills-of-lading. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/ShipmentsService/BillsOfLading` |
+| `absuite shipments bills-of-lading update` | Writes | `<id>` | `--bill-of-lading-number`, `--title`, `--description`, `--bill-of-lading-type`, `--is-negotiable`, `--is-clean`, `--number-of-originals`, `--freight-payment-type`, `--shipping-terms`, `--freight-charges-description`, `--declared-value-amount`, `--declared-value-currency-id`, `--expiry-date`, `--vessel-name`, `--voyage-number`, `--shipper-contact-id`, `--consignee-contact-id`, `--notify-party-contact-id`, `--shipping-courier-id`, `--port-of-loading-id`, `--port-of-discharge-id`, `--place-of-receipt-id`, `--place-of-delivery-id`, `--shipment-id`, `--order-id`, `--voyage-id`, `--marks-and-numbers`, `--total-packages`, `--total-gross-weight-kg`, `--total-volume-m3`; `--json` `--file` `--dry-run` | Change one of the workspace's bills-of-lading: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/ShipmentsService/BillsOfLading/{billOfLadingId}` |
+| `absuite shipments bills-of-lading delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's bills-of-lading; it asks first unless --yes. `DELETE /api/v2/ShipmentsService/BillsOfLading/{billOfLadingId}` |
+| `absuite shipments bills-of-lading lines list` | Reads |  | `--bill-of-lading-id` (required); `--top` `--skip` `--columns` | List the workspace's bills-of-lading lines. `GET /api/v2/ShipmentsService/BillsOfLading/{billOfLadingId}/Lines` |
+| `absuite shipments bills-of-lading lines count` | Reads |  | `--bill-of-lading-id` (required) | Count the workspace's bills-of-lading lines. `GET /api/v2/ShipmentsService/BillsOfLading/{billOfLadingId}/Lines/Count` |
+| `absuite shipments bills-of-lading lines get` | Reads | `<id>` | `--bill-of-lading-id` (required); `--columns` | Show one of the workspace's bills-of-lading lines. `GET /api/v2/ShipmentsService/BillsOfLading/{billOfLadingId}/Lines/{lineId}` |
+| `absuite shipments bills-of-lading lines create` | Writes |  | `--bill-of-lading-id` (required), `--description`, `--quantity`, `--package-type`, `--gross-weight-kg`, `--volume-m3`, `--marks-and-numbers`, `--hs-code`, `--item-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's bills-of-lading lines. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/ShipmentsService/BillsOfLading/{billOfLadingId}/Lines` |
+| `absuite shipments bills-of-lading lines update` | Writes | `<id>` | `--bill-of-lading-id` (required), `--description`, `--quantity`, `--package-type`, `--gross-weight-kg`, `--volume-m3`, `--marks-and-numbers`, `--hs-code`, `--item-id`; `--json` `--file` `--dry-run` | Change one of the workspace's bills-of-lading lines: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/ShipmentsService/BillsOfLading/{billOfLadingId}/Lines/{lineId}` |
+| `absuite shipments bills-of-lading lines delete` | Writes | `<id>` | `--bill-of-lading-id` (required); `--yes` `--dry-run` | Delete one of the workspace's bills-of-lading lines; it asks first unless --yes. `DELETE /api/v2/ShipmentsService/BillsOfLading/{billOfLadingId}/Lines/{lineId}` |
+
+### Item Shipping Policies (`absuite shipments item-shipping-policies`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite shipments item-shipping-policies list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's item-shipping-policies. `GET /api/v2/ShipmentsService/ItemShippingPolicies` |
+| `absuite shipments item-shipping-policies count` | Reads |  |  | Count the workspace's item-shipping-policies. `GET /api/v2/ShipmentsService/ItemShippingPolicies/Count` |
+| `absuite shipments item-shipping-policies get` | Reads | `<id>` | `--columns` | Show one of the workspace's item-shipping-policies. `GET /api/v2/ShipmentsService/ItemShippingPolicies/{policyId}` |
+| `absuite shipments item-shipping-policies create` | Writes |  | `--title`, `--description`, `--code`, `--is-express-shipment-policy`, `--is-free`, `--reduce`, `--is-enabled`, `--is-default`, `--allow-international`, `--hours`, `--days`, `--weeks`, `--months`, `--years`, `--value`, `--percentage`, `--currency-id`, `--country-id`, `--country-state-id`, `--custom-state`, `--custom-city`, `--city-id`, `--shipping-courier-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's item-shipping-policies. Never set here: type (not settable: discriminator (TPH rule)); id (set by the server); timestamp (set by the server). `POST /api/v2/ShipmentsService/ItemShippingPolicies` |
+| `absuite shipments item-shipping-policies update` | Writes | `<id>` | `--title`, `--description`, `--code`, `--is-express-shipment-policy`, `--is-free`, `--reduce`, `--is-enabled`, `--is-default`, `--allow-international`, `--hours`, `--days`, `--weeks`, `--months`, `--years`, `--value`, `--percentage`, `--currency-id`, `--country-id`, `--country-state-id`, `--custom-state`, `--custom-city`, `--city-id`, `--shipping-courier-id`; `--json` `--file` `--dry-run` | Change one of the workspace's item-shipping-policies: reads it, applies --json/--file and the field flags, then saves it. Never set here: type (not settable: discriminator (TPH rule)). `PUT /api/v2/ShipmentsService/ItemShippingPolicies/{policyId}` |
+| `absuite shipments item-shipping-policies delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's item-shipping-policies; it asks first unless --yes. `DELETE /api/v2/ShipmentsService/ItemShippingPolicies/{policyId}` |
+
+### Shipping Classes (`absuite shipments shipping-classes`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite shipments shipping-classes list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's shipping-classes. `GET /api/v2/ShipmentsService/ShippingClasses` |
+| `absuite shipments shipping-classes count` | Reads |  |  | Count the workspace's shipping-classes. `GET /api/v2/ShipmentsService/ShippingClasses/Count` |
+| `absuite shipments shipping-classes get` | Reads | `<id>` | `--columns` | Show one of the workspace's shipping-classes. `GET /api/v2/ShipmentsService/ShippingClasses/{classId}` |
+| `absuite shipments shipping-classes create` | Writes |  | `--name`, `--slug`; `--json` `--file` `--dry-run` | Create a record in the workspace's shipping-classes. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/ShipmentsService/ShippingClasses` |
+| `absuite shipments shipping-classes update` | Writes | `<id>` | `--name`, `--slug`; `--json` `--file` `--dry-run` | Change one of the workspace's shipping-classes: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/ShipmentsService/ShippingClasses/{classId}` |
+| `absuite shipments shipping-classes delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's shipping-classes; it asks first unless --yes. `DELETE /api/v2/ShipmentsService/ShippingClasses/{classId}` |
+
+### Shipping Couriers (`absuite shipments shipping-couriers`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite shipments shipping-couriers list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's shipping-couriers. `GET /api/v2/ShipmentsService/ShippingCouriers` |
+| `absuite shipments shipping-couriers count` | Reads |  |  | Count the workspace's shipping-couriers. `GET /api/v2/ShipmentsService/ShippingCouriers/Count` |
+| `absuite shipments shipping-couriers get` | Reads | `<id>` | `--columns` | Show one of the workspace's shipping-couriers. `GET /api/v2/ShipmentsService/ShippingCouriers/{courierId}` |
+| `absuite shipments shipping-couriers create` | Writes |  | `--name`, `--logo-url`, `--country-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's shipping-couriers. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/ShipmentsService/ShippingCouriers` |
+| `absuite shipments shipping-couriers update` | Writes | `<id>` | `--name`, `--logo-url`, `--country-id`; `--json` `--file` `--dry-run` | Change one of the workspace's shipping-couriers: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/ShipmentsService/ShippingCouriers/{courierId}` |
+| `absuite shipments shipping-couriers delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's shipping-couriers; it asks first unless --yes. `DELETE /api/v2/ShipmentsService/ShippingCouriers/{courierId}` |
+
+### Shipping Labels (`absuite shipments shipping-labels`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite shipments shipping-labels list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's shipping-labels. `GET /api/v2/ShipmentsService/ShippingLabels` |
+| `absuite shipments shipping-labels count` | Reads |  |  | Count the workspace's shipping-labels. `GET /api/v2/ShipmentsService/ShippingLabels/Count` |
+| `absuite shipments shipping-labels get` | Reads | `<id>` | `--columns` | Show one of the workspace's shipping-labels. `GET /api/v2/ShipmentsService/ShippingLabels/{labelId}` |
+| `absuite shipments shipping-labels create` | Writes |  | `--tracking-code`, `--expected-delivery`, `--location-id`, `--shipment-id`, `--shipping-courier-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's shipping-labels. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/ShipmentsService/ShippingLabels` |
+| `absuite shipments shipping-labels update` | Writes | `<id>` | `--tracking-code`, `--expected-delivery`, `--location-id`, `--shipment-id`, `--shipping-courier-id`; `--json` `--file` `--dry-run` | Change one of the workspace's shipping-labels: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/ShipmentsService/ShippingLabels/{labelId}` |
+| `absuite shipments shipping-labels delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's shipping-labels; it asks first unless --yes. `DELETE /api/v2/ShipmentsService/ShippingLabels/{labelId}` |
+
+### Shipping Methods (`absuite shipments shipping-methods`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite shipments shipping-methods list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's shipping-methods. `GET /api/v2/ShipmentsService/ShippingMethods` |
+| `absuite shipments shipping-methods count` | Reads |  |  | Count the workspace's shipping-methods. `GET /api/v2/ShipmentsService/ShippingMethods/Count` |
+| `absuite shipments shipping-methods get` | Reads | `<id>` | `--columns` | Show one of the workspace's shipping-methods. `GET /api/v2/ShipmentsService/ShippingMethods/{methodId}` |
+| `absuite shipments shipping-methods create` | Writes |  | `--name`, `--description`, `--cost`, `--taxable`, `--tax-included`, `--currency-id`, `--shipping-class-calculation-type`; `--json` `--file` `--dry-run` | Create a record in the workspace's shipping-methods. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/ShipmentsService/ShippingMethods` |
+| `absuite shipments shipping-methods update` | Writes | `<id>` | `--name`, `--description`, `--cost`, `--taxable`, `--tax-included`, `--currency-id`, `--shipping-class-calculation-type`; `--json` `--file` `--dry-run` | Change one of the workspace's shipping-methods: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/ShipmentsService/ShippingMethods/{methodId}` |
+| `absuite shipments shipping-methods delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's shipping-methods; it asks first unless --yes. `DELETE /api/v2/ShipmentsService/ShippingMethods/{methodId}` |
+
+### Shipping Regions (`absuite shipments shipping-regions`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite shipments shipping-regions list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's shipping-regions. `GET /api/v2/ShipmentsService/ShippingRegions` |
+| `absuite shipments shipping-regions count` | Reads |  |  | Count the workspace's shipping-regions. `GET /api/v2/ShipmentsService/ShippingRegions/Count` |
+| `absuite shipments shipping-regions get` | Reads | `<id>` | `--columns` | Show one of the workspace's shipping-regions. `GET /api/v2/ShipmentsService/ShippingRegions/{regionId}` |
+| `absuite shipments shipping-regions create` | Writes |  | `--name`, `--postal-codes`; `--json` `--file` `--dry-run` | Create a record in the workspace's shipping-regions. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/ShipmentsService/ShippingRegions` |
+| `absuite shipments shipping-regions update` | Writes | `<id>` | `--name`, `--postal-codes`; `--json` `--file` `--dry-run` | Change one of the workspace's shipping-regions: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/ShipmentsService/ShippingRegions/{regionId}` |
+| `absuite shipments shipping-regions delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's shipping-regions; it asks first unless --yes. `DELETE /api/v2/ShipmentsService/ShippingRegions/{regionId}` |
+
+### Shipping Zones (`absuite shipments shipping-zones`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite shipments shipping-zones list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's shipping-zones. `GET /api/v2/ShipmentsService/ShippingZones` |
+| `absuite shipments shipping-zones count` | Reads |  |  | Count the workspace's shipping-zones. `GET /api/v2/ShipmentsService/ShippingZones/Count` |
+| `absuite shipments shipping-zones get` | Reads | `<id>` | `--columns` | Show one of the workspace's shipping-zones. `GET /api/v2/ShipmentsService/ShippingZones/{zoneId}` |
+| `absuite shipments shipping-zones create` | Writes |  | `--name`, `--default`, `--everywhere`, `--postal-codes`, `--country-codes`; `--json` `--file` `--dry-run` | Create a record in the workspace's shipping-zones. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/ShipmentsService/ShippingZones` |
+| `absuite shipments shipping-zones update` | Writes | `<id>` | `--name`, `--default`, `--everywhere`, `--postal-codes`, `--country-codes`; `--json` `--file` `--dry-run` | Change one of the workspace's shipping-zones: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/ShipmentsService/ShippingZones/{zoneId}` |
+| `absuite shipments shipping-zones delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's shipping-zones; it asks first unless --yes. `DELETE /api/v2/ShipmentsService/ShippingZones/{zoneId}` |
+
+### Shipments (`absuite shipments`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite shipments list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's shipments. `GET /api/v2/ShipmentsService/Shipments` |
+| `absuite shipments create` | Writes |  | `--tracking-code`, `--is-international`, `--expected-shipping-date`, `--expected-delivery-date`, `--shipping-terms`, `--order-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's shipments. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/ShipmentsService/Shipments` |
+
+## Example
+
+```bash
+absuite logistics airway-bills list --top 5 -o json --query "[].id"
+absuite logistics airway-bills create --document-number <value> --airway-bill-type <value> --dry-run   # prints the POST, sends nothing
+absuite logistics airway-bills create --document-number <value> --airway-bill-type <value> -o json --no-input
 ```
-absuite inventory get inventory-details --StockItemId <stockItemId>
-```
-
-Canonical form: `absuite inventory Get-InventoryDetailsAsync --StockItemId <stockItemId>`.
-This command is **not** tenant-scoped (it is keyed by the stock item).
-
----
-
-# logistics
-
-Full command coverage. Every command is tenant-scoped (`--TenantId`). Verbs: list, count, get,
-create, update, delete, plus per-resource lifecycle actions. The CLI exposes one function per
-manifest operation; representative commands shown below.
-
-## Warehouses, Ports, Vessels, Supplier Profiles (flat CRUD)
-
-```
-absuite logistics list warehouses --TenantId $TENANT_ID
-absuite logistics count warehouses --TenantId $TENANT_ID
-absuite logistics get warehouse --TenantId $TENANT_ID --WarehouseId <id>
-absuite logistics create warehouse --TenantId $TENANT_ID \
-  --CreateWarehouseDto '{"title":"Central DC","address1":"100 Dock Rd","isGroup":false}'
-absuite logistics update warehouse --TenantId $TENANT_ID --WarehouseId <id> \
-  --UpdateWarehouseDto '{"title":"Central DC (renamed)","address1":"100 Dock Rd"}'
-absuite logistics delete warehouse --TenantId $TENANT_ID --WarehouseId <id>
-```
-
-Same shape for `ports` (`--PortId`, `--CreatePortDto`/`--UpdatePortDto`), `vessels`
-(`--VesselId`, `--CreateVesselDto`/`--UpdateVesselDto`), and `supplier-profiles`
-(`--SupplierProfileId`, `--CreateSupplierProfileDto`/`--UpdateSupplierProfileDto`).
-Required create fields: warehouse `title`+`address1`; port `title`+`address1`.
-
-## Trucks & Trips
-
-Trucks are flat CRUD; trips are a sub-resource of a truck with their own CRUD plus five
-lifecycle actions (no patch, no single-trip get).
-
-```
-absuite logistics list trucks --TenantId $TENANT_ID
-absuite logistics get truck --TenantId $TENANT_ID --TruckId <id>
-absuite logistics create truck --TenantId $TENANT_ID \
-  --CreateTruckDto '{"plateNumber":"ABC-123","name":"Truck 1","truckType":"Semi","isActive":true}'
-absuite logistics update truck --TenantId $TENANT_ID --TruckId <id> --UpdateTruckDto '{...}'
-absuite logistics delete truck --TenantId $TENANT_ID --TruckId <id>
-
-# Trips
-absuite logistics list truck-trips --TenantId $TENANT_ID --TruckId <id>
-absuite logistics count truck-trips --TenantId $TENANT_ID --TruckId <id>
-absuite logistics create truck-trip --TenantId $TENANT_ID --TruckId <id> \
-  --CreateTruckTripDto '{"tripNumber":"T-1001","departureTime":"2026-06-12T08:00:00Z"}'
-absuite logistics update truck-trip --TenantId $TENANT_ID --TruckId <id> --TripId <tripId> --UpdateTruckTripDto '{...}'
-absuite logistics delete truck-trip --TenantId $TENANT_ID --TruckId <id> --TripId <tripId>
-
-# Trip lifecycle actions (Dispatch -> Depart -> Arrive -> Deliver ; or Cancel)
-absuite logistics dispatch truck-trip --TenantId $TENANT_ID --TruckId <id> --TripId <tripId>
-absuite logistics depart   truck-trip --TenantId $TENANT_ID --TruckId <id> --TripId <tripId>
-absuite logistics arrive   truck-trip --TenantId $TENANT_ID --TruckId <id> --TripId <tripId>
-absuite logistics deliver  truck-trip --TenantId $TENANT_ID --TruckId <id> --TripId <tripId>
-absuite logistics cancel   truck-trip --TenantId $TENANT_ID --TruckId <id> --TripId <tripId>
-```
-
-## Truck Drivers
-
-Flat CRUD plus **activate / deactivate**:
-
-```
-absuite logistics list truck-drivers --TenantId $TENANT_ID
-absuite logistics create truck-driver --TenantId $TENANT_ID \
-  --CreateTruckDriverDto '{"name":"A. Driver","licenseNumber":"D-100"}'
-absuite logistics activate   truck-driver --TenantId $TENANT_ID --DriverId <id>
-absuite logistics deactivate truck-driver --TenantId $TENANT_ID --DriverId <id>
-```
-
-## Voyages & Port Calls
-
-Voyages: CRUD plus **start / complete / cancel**. Port calls: CRUD sub-resource.
-
-```
-absuite logistics list voyages --TenantId $TENANT_ID
-absuite logistics create voyage --TenantId $TENANT_ID \
-  --CreateVoyageDto '{"voyageNumber":"VY-2026-01","vesselId":"<vessel-guid>"}'
-absuite logistics start    voyage --TenantId $TENANT_ID --VoyageId <id>
-absuite logistics complete voyage --TenantId $TENANT_ID --VoyageId <id>
-absuite logistics cancel   voyage --TenantId $TENANT_ID --VoyageId <id>
-
-absuite logistics list voyage-port-calls --TenantId $TENANT_ID --VoyageId <id>
-absuite logistics create voyage-port-call --TenantId $TENANT_ID --VoyageId <id> \
-  --CreateVoyagePortCallDto '{"sequenceNumber":1,"portId":"<port-guid>"}'
-absuite logistics delete voyage-port-call --TenantId $TENANT_ID --VoyageId <id> --PortCallId <pcId>
-```
-
-## Proofs of Delivery (+ Lines, + Delivery Notes)
-
-CRUD plus **sign / reject / dispute**, a Lines sub-resource (CRUD), and delivery-note
-attach/detach.
-
-```
-absuite logistics list proofs-of-delivery --TenantId $TENANT_ID
-absuite logistics create proof-of-delivery --TenantId $TENANT_ID \
-  --CreateProofOfDeliveryDto '{"documentNumber":"POD-1001","shipmentId":"<shipment-guid>"}'
-absuite logistics sign    proof-of-delivery --TenantId $TENANT_ID --PodId <id> --SignProofOfDeliveryRequest '{"signedBy":"J. Receiver"}'
-absuite logistics reject  proof-of-delivery --TenantId $TENANT_ID --PodId <id> --RejectProofOfDeliveryRequest '{"reason":"Seal broken"}'
-absuite logistics dispute proof-of-delivery --TenantId $TENANT_ID --PodId <id> --DisputeProofOfDeliveryRequest '{"reason":"..."}'
-
-# POD lines
-absuite logistics list proof-of-delivery-lines --TenantId $TENANT_ID --PodId <id>
-absuite logistics create proof-of-delivery-line --TenantId $TENANT_ID --PodId <id> \
-  --CreateProofOfDeliveryLineDto '{"description":"Pallet A","quantityExpected":10,"quantityReceived":9}'
-absuite logistics delete proof-of-delivery-line --TenantId $TENANT_ID --PodId <id> --LineId <lineId>
-
-# Attach / detach delivery notes (noteId in the command, not a body)
-absuite logistics attach proof-of-delivery-note --TenantId $TENANT_ID --PodId <id> --NoteId <noteId>
-absuite logistics detach proof-of-delivery-note --TenantId $TENANT_ID --PodId <id> --NoteId <noteId>
-```
-
-## Delivery Notes
-
-Flat CRUD (no actions):
-
-```
-absuite logistics list delivery-notes --TenantId $TENANT_ID
-absuite logistics create delivery-note --TenantId $TENANT_ID \
-  --CreateDeliveryNoteDto '{"title":"DN-1001","shipmentId":"<shipment-guid>"}'
-```
-
-## Item Restocks / Pick Lists / Packing Slips / Retain Samples (+ Entries)
-
-CRUD aggregates; restocks/pick-lists/packing-slips also have an Entries sub-resource:
-
-```
-absuite logistics list item-restocks --TenantId $TENANT_ID
-absuite logistics create item-restock --TenantId $TENANT_ID \
-  --CreateItemRestockDto '{"name":"Q3 replenishment"}'
-absuite logistics list item-restock-entries --TenantId $TENANT_ID --RestockId <id>
-absuite logistics create item-restock-entry --TenantId $TENANT_ID --RestockId <id> \
-  --CreateItemRestockEntryDto '{"itemId":"<item-guid>","warehouseId":"<wh-guid>","itemRestockId":"<id>","quantity":100}'
-```
-
-Swap `item-restocks`→`item-pick-lists`/`item-packing-slips` (each with `...-entries`), or
-`item-retain-samples` (no entries; create requires `warehouseId`+`itemId`).
-
-## Waybills (Airway / Rail / Road / Seaway) + Lines
-
-Four parallel families, each CRUD + Lines sub-resource + lifecycle actions:
-
-```
-# Airway bills (representative)
-absuite logistics list airway-bills --TenantId $TENANT_ID
-absuite logistics create airway-bill --TenantId $TENANT_ID \
-  --CreateAirwayBillDto '{"documentNumber":"AWB-1001","shipperContactId":"<c>","consigneeContactId":"<c>"}'
-absuite logistics get airway-bill --TenantId $TENANT_ID --BillId <id>
-absuite logistics update airway-bill --TenantId $TENANT_ID --BillId <id> --UpdateAirwayBillDto '{...}'
-absuite logistics delete airway-bill --TenantId $TENANT_ID --BillId <id>
-
-# Lines (shared waybill-line DTO)
-absuite logistics list airway-bill-lines --TenantId $TENANT_ID --BillId <id>
-absuite logistics create airway-bill-line --TenantId $TENANT_ID --BillId <id> \
-  --CreateWaybillLineDto '{"description":"Electronics","quantity":12,"grossWeightKg":240}'
-
-# Lifecycle actions
-absuite logistics issue          airway-bill --TenantId $TENANT_ID --BillId <id>
-absuite logistics mark-in-transit airway-bill --TenantId $TENANT_ID --BillId <id>
-absuite logistics mark-arrived    airway-bill --TenantId $TENANT_ID --BillId <id>
-absuite logistics mark-delivered  airway-bill --TenantId $TENANT_ID --BillId <id>
-absuite logistics cancel          airway-bill --TenantId $TENANT_ID --BillId <id>
-```
-
-Family / id-param / actions:
-
-| Family | entity token | id param | actions |
-|--------|--------------|----------|---------|
-| Airway Bills | `airway-bill` | `--BillId` | issue, cancel, mark-in-transit, mark-arrived, mark-delivered |
-| Rail Waybills | `rail-waybill` | `--WaybillId` | issue, cancel, mark-in-transit, mark-delivered |
-| Road Waybills | `road-waybill` | `--WaybillId` | issue, cancel, dispute, mark-in-transit, mark-delivered |
-| Seaway Bills | `seaway-bill` | `--BillId` | issue, cancel, mark-in-transit, mark-arrived, release |
-
----
-
-# shipments
-
-Full command coverage; every command is tenant-scoped (`--TenantId`). Verbs: list, count, get,
-create, update, delete. **No lifecycle actions** in this service. Only Bills of Lading have a
-Lines sub-resource.
-
-```
-# Shipments (shippingTerms is an Incoterms enum: NC|EXW|FCA|FOB|FAS|CFR|CIF|CPT|CIP|DDP|DAP|DPU)
-absuite shipments list shipments --TenantId $TENANT_ID
-absuite shipments get shipment --TenantId $TENANT_ID --ShipmentId <id>
-absuite shipments create shipment --TenantId $TENANT_ID \
-  --CreateShipmentDto '{"trackingCode":"TRK-1001","isInternational":true,"shippingTerms":"CIF"}'
-absuite shipments update shipment --TenantId $TENANT_ID --ShipmentId <id> --UpdateShipmentDto '{...}'
-absuite shipments delete shipment --TenantId $TENANT_ID --ShipmentId <id>
-
-# Shipping labels
-absuite shipments create shipping-label --TenantId $TENANT_ID \
-  --CreateShippingLabelDto '{"trackingCode":"TRK-1001","shipmentId":"<shipment-guid>"}'
-
-# Bills of lading + lines
-absuite shipments list bills-of-lading --TenantId $TENANT_ID
-absuite shipments create bill-of-lading --TenantId $TENANT_ID \
-  --CreateBillOfLadingDto '{"billOfLadingNumber":"BL-1001","title":"Ocean BL"}'
-absuite shipments list bill-of-lading-lines --TenantId $TENANT_ID --BillOfLadingId <id>
-absuite shipments create bill-of-lading-line --TenantId $TENANT_ID --BillOfLadingId <id> \
-  --CreateBillOfLadingLineDto '{"description":"Coffee beans","quantity":100,"itemId":"<item-guid>"}'
-
-# Flat catalogs (CRUD + count): methods, couriers, regions, zones, classes, item shipping policies
-absuite shipments list shipping-methods --TenantId $TENANT_ID
-absuite shipments create shipping-method --TenantId $TENANT_ID \
-  --CreateShippingMethodDto '{"name":"Standard Ground","cost":9.99,"shippingClassCalculationType":"PerOrder"}'
-absuite shipments create shipping-courier --TenantId $TENANT_ID --CreateShippingCourierDto '{"name":"Example Courier"}'
-absuite shipments create shipping-region  --TenantId $TENANT_ID --CreateShippingRegionDto '{"name":"Northeast"}'
-absuite shipments create shipping-zone    --TenantId $TENANT_ID --CreateShippingZoneDto '{"name":"Domestic","default":true}'
-absuite shipments create shipping-class   --TenantId $TENANT_ID --CreateShippingClassDto '{"name":"Fragile","slug":"fragile"}'
-absuite shipments create item-shipping-policy --TenantId $TENANT_ID \
-  --CreateItemShippingPolicyDto '{"title":"Free over $50","type":"Threshold","code":"FREE50","currencyID":"<c>","shippingCourierID":"<c>"}'
-```
-
-> `shippingClassCalculationType` enum: `PerClass|PerOrder`. ItemShippingPolicy create
-> requires `title`, `type`, `code`, `currencyID`, `shippingCourierID` (note uppercase `ID`).
-> Entity id params: `--ShipmentId`, `--LabelId`, `--BillOfLadingId`/`--LineId`, `--MethodId`,
-> `--CourierId`, `--RegionId`, `--ZoneId`, `--ClassId`, `--PolicyId`.
-
----
-
-# sales
-
-Full command coverage for the four collection aggregates; every command is tenant-scoped.
-Verbs: list, count, get, create, update, delete. **No lifecycle actions.** Margins is a
-read-only lookup (not tenant-scoped).
-
-```
-# Stores
-absuite sales list stores --TenantId $TENANT_ID
-absuite sales get store --TenantId $TENANT_ID --StoreId <id>
-absuite sales create store --TenantId $TENANT_ID \
-  --CreateStoreDto '{"name":"Flagship Store","eCommerce":true,"currencyId":"<currency-guid>"}'
-absuite sales update store --TenantId $TENANT_ID --StoreId <id> --UpdateStoreDto '{...}'
-absuite sales delete store --TenantId $TENANT_ID --StoreId <id>
-
-# Point of sales
-absuite sales create point-of-sale --TenantId $TENANT_ID \
-  --CreatePointOfSaleDto '{"title":"Register 1","code":"POS-1"}'
-
-# Loyalty programs
-absuite sales create loyalty-program --TenantId $TENANT_ID \
-  --CreateLoyaltyProgramDto '{"title":"Gold Tier"}'
-
-# Sales literatures (+ extended list)
-absuite sales list sales-literatures --TenantId $TENANT_ID
-absuite sales list extended-sales-literatures --TenantId $TENANT_ID
-absuite sales create sales-literature --TenantId $TENANT_ID \
-  --CreateSalesLiteratureDto '{"title":"Product Brochure","content":"..."}'
-
-# Margins (read-only; no --TenantId)
-absuite sales get margin-details --MarginId <marginId>
-```
-
-Required create fields: store `name`; point-of-sale `title`; loyalty-program `title`.
-Entity id params: `--StoreId`, `--PointOfSaleId`, `--LoyaltyProgramId`, `--SalesLiteratureId`.
-
----
-
-# marketplace
-
-The **marketplace** service has **no domain commands** in the CLI (its API surface currently
-exposes only shared host endpoints). There is nothing to list/create/update here yet.
-
-```
-# Confirm — returns no domain commands today
-absuite marketplace list-commands
-```
-
-Re-check `list-commands` periodically; new marketplace commands will appear here when the
-service gains resources.
-
----
-
-# CLI Commands Quick Reference
-
-(Use `$TENANT_ID` or `--TenantId <guid>`; inventory `get` and sales `get margin-details` are not tenant-scoped.)
-
-## inventory
-
-| Action | CLI command |
-|--------|-------------|
-| Get inventory details | `absuite inventory get inventory-details --StockItemId <id>` |
-
-## logistics
-
-| Action | CLI command |
-|--------|-------------|
-| List / count / get / create / update / delete (per resource) | `absuite logistics <verb> <entity> --TenantId $TENANT_ID [--<Id> <id>] [--<Dto> '{...}']` |
-| Warehouses | `... warehouse(s)` `--WarehouseId` `--CreateWarehouseDto`/`--UpdateWarehouseDto` |
-| Ports / Vessels / Supplier Profiles | `... port(s)`/`vessel(s)`/`supplier-profile(s)` + matching `--<Entity>Id`/DTO |
-| Trucks | `... truck(s)` `--TruckId` |
-| Truck Trips | `... truck-trip(s) --TruckId <id> [--TripId <tripId>]` |
-| Truck Trip actions | `absuite logistics {dispatch\|depart\|arrive\|deliver\|cancel} truck-trip --TruckId <id> --TripId <tripId>` |
-| Truck Drivers | `... truck-driver(s) --DriverId` (+ `activate`/`deactivate`) |
-| Voyages | `... voyage(s) --VoyageId` (+ `start`/`complete`/`cancel`) |
-| Voyage Port Calls | `... voyage-port-call(s) --VoyageId <id> [--PortCallId <pcId>]` |
-| Proofs of Delivery | `... proof(s)-of-delivery --PodId` (+ `sign`/`reject`/`dispute`) |
-| POD Lines | `... proof-of-delivery-line(s) --PodId <id> [--LineId <lineId>]` |
-| POD Delivery Notes | `absuite logistics {attach\|detach} proof-of-delivery-note --PodId <id> --NoteId <noteId>` |
-| Delivery Notes | `... delivery-note(s) --DeliveryNoteId` |
-| Item Restocks / Pick Lists / Packing Slips (+ entries) | `... item-restock(s)`/`item-pick-list(s)`/`item-packing-slip(s)` and `...-entries` |
-| Item Retain Samples | `... item-retain-sample(s) --RetainSampleId` |
-| Airway / Rail / Road / Seaway bills (+ lines) | `... airway-bill`/`rail-waybill`/`road-waybill`/`seaway-bill` (+ `...-line(s)`) |
-| Waybill actions | `absuite logistics {issue\|cancel\|mark-in-transit\|mark-arrived\|mark-delivered\|dispute\|release} <waybill-entity> --BillId/--WaybillId <id>` |
-
-## shipments
-
-| Action | CLI command |
-|--------|-------------|
-| Shipments | `absuite shipments <verb> shipment(s) --TenantId $TENANT_ID [--ShipmentId <id>]` |
-| Shipping Labels | `... shipping-label(s) --LabelId` |
-| Bills of Lading (+ lines) | `... bill(s)-of-lading --BillOfLadingId` ; `... bill-of-lading-line(s) --BillOfLadingId <id> [--LineId <lineId>]` |
-| Shipping Methods / Couriers / Regions / Zones / Classes | `... shipping-method(s)`/`courier(s)`/`region(s)`/`zone(s)`/`class(es)` + matching `--<Entity>Id` |
-| Item Shipping Policies | `... item-shipping-policy(ies) --PolicyId` |
-
-## sales
-
-| Action | CLI command |
-|--------|-------------|
-| Stores | `absuite sales <verb> store(s) --TenantId $TENANT_ID [--StoreId <id>]` |
-| Point of Sales | `... point-of-sale(s) --PointOfSaleId` |
-| Loyalty Programs | `... loyalty-program(s) --LoyaltyProgramId` |
-| Sales Literatures (+ extended list) | `... sales-literature(s) --SalesLiteratureId` ; `... list extended-sales-literatures` |
-| Margin details (no tenant) | `absuite sales get margin-details --MarginId <id>` |
-
-## marketplace
-
-| Action | CLI command |
-|--------|-------------|
-| (none) | No domain commands; run `absuite marketplace list-commands` to re-check |
-
----
-
-## Critical rules
-
-- Authenticate with `absuite login` first (`absuite-login-cli`); set the default tenant via
-  `absuite config set --tenant-id <guid>` or pass `--TenantId <guid>` on each call.
-- Logistics / Shipments / Sales commands are tenant-scoped. Inventory `get inventory-details`
-  and Sales `get margin-details` are **not** — do not pass `--TenantId` to them.
-- The CLI has **no PATCH**. For atomic partial updates (JSON Patch) or raw HTTP, use the
-  REST skill `absuite-misc`.
-- Pass DTO bodies as single-quoted JSON with the same camelCase field names as the REST DTOs
-  (ItemShippingPolicy uses uppercase `currencyID`/`shippingCourierID`).
-- When unsure of a verb/entity/parameter spelling, run `absuite <service> list-commands` and
-  `absuite <service> <verb> <entity> --help` rather than guessing.
-- See `absuite-cli` for general CLI conventions.

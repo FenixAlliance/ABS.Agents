@@ -1,579 +1,189 @@
 ---
 name: absuite-catalog-cli
 key: fenixalliance.absuite.catalog-cli
-version: 1.0.0
+version: 1.1.0
 description: >
-  Manage the product catalog in the Alliance Business Suite (ABS) using the
-  `absuite` CLI. Covers stock items (products), categories, types, families,
-  brands, tags, images, attachments, attributes & options, bundles, reviews,
-  questions, policy relationships (tax / shipping / return / refund / warranty),
-  price-rule relationships, Google categories, and merchants via list / count /
-  get / create / update / delete / relate commands. Requires an authenticated CLI
-  session (see absuite-login-cli). For atomic PATCH updates or raw HTTP, use the
-  absuite-catalog (REST) skill.
+  Drive the Alliance Business Suite (ABS) Catalog area with the absuite CLI: 85 commands (37 read, 48
+  write) under `absuite catalog`, each generated from the platform's ServiceClients and checked
+  against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-catalog REST
+  skill.
 ---
 
 # Alliance Business Suite — Catalog Skill (CLI)
 
-Manage the product catalog through the `absuite` CLI's `catalog` service. In ABS, **Items = Catalog Items = Stock Items = Products** — the same aggregate. Catalog reads are global/public by default and scope to a tenant when you pass `--TenantId`; writes require a tenant.
+Generated from the absuite CLI at Platform 9b72a00a47 (`absuite commands -o json`). The commands, arguments and options below are the CLI's own; re-run `absuite commands -o json` before relying on one.
 
-> For raw HTTP, JSON-Patch (atomic partial updates), or the full field reference, use the `absuite-catalog` (REST) skill. For general CLI usage and config, see `absuite-cli`.
+> **Coverage:** the `absuite-catalog` REST skill documents 102 routes; 52 of them have no CLI command (a write the CLI keeps to Studio, a call that is not workspace-scoped, or a field shape it cannot take yet). Use the REST skill for those.
 
-## API usage essentials
+## Before you start
 
-> Full detail in `absuite-cli`.
+- Install: `npm install -g @fenixalliance/absuite` (a self-contained binary per platform). `absuite --version` prints the version.
+- Sign in: `absuite login` (a one-time code in your browser, the default). `absuite me` shows who you are; `absuite account show` shows the profile, server and workspace.
+- Workspace: `absuite account list` lists yours; `absuite account set --tenant <id|name>` saves one. `--tenant <id>` or `ABS_TENANT` picks one for a single command.
+- Agents on their computer: the run token comes from `ABS_TOKEN` or `ABS_TOKEN_FILE` (one of them, never both), used only with `--url` or `ABS_URL`, and only over https:// or to a server on the same computer. The token says who the agent is; the workspace's roles decide what it may do.
+- Scripts and agents: pass `--no-input` (it is also on when stdin is not a terminal, or CI or ABS_NO_TUI is set). Anything that needs input then fails with exit 2 and names the flag to pass.
+- Output: `-o table|json|jsonc|tsv|yaml|none`; `--query "<JMESPath>"` filters the result before it is printed.
+- `absuite commands -o json` lists every command with its options and whether it only reads. Check it before you rely on a command; `absuite <command> --help` shows one.
+- Full sign-in, output, exit-code and run-token rules: the `absuite-cli` skill. Anything not listed here: the `absuite-catalog` REST skill.
 
-- **`update` replaces the ENTIRE object** (it maps to HTTP `PUT`) — a full overwrite, not a merge. **`get` the entity first, change only what you need on the complete object, then `update` with the full body.** A partial `update` (or an incomplete `create`) blanks the omitted fields -> silent data loss.
-- **No atomic partial update in the CLI.** For a safe single-field change, use the `absuite-catalog` REST skill's `PATCH` (JSON Patch), where that service exposes one.
-- Use **`count <entity>`** (a dedicated operation) to size a collection. OData filtering/paging (`$filter`, `$top`, ...) is REST-only — the CLI does not expose it; use `absuite-catalog` for filtered queries or a filtered count.
+## Commands
 
-## Prerequisites
+85 commands, from `absuite commands -o json`. "Reads" commands never change data. Writes take field flags or `--json`/`--file` with the same fields, and `--dry-run` prints the request without sending it. Deletes ask first unless `--yes` (with `--no-input` and no `--yes`, a delete fails with exit 2).
 
-1. **Authenticate first**: run `absuite login` (see `absuite-login-cli`).
-2. **Set your default tenant** so writes succeed: `absuite config set --tenant-id <tenant-guid>` (referenced below as `$TENANT_ID`), or pass `--TenantId <tenant-guid>` on each command.
-3. **Discover commands**: `absuite catalog list-commands`, and `absuite catalog <command> --help` for the full parameter/DTO schema of any command.
+### Item Attachments (`absuite catalog item-attachments`)
 
-## Command structure
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite catalog item-attachments list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's item-attachments. `GET /api/v2/CatalogService/ItemAttachments` |
+| `absuite catalog item-attachments get` | Reads | `<id>` | `--columns` | Show one of the workspace's item-attachments. `GET /api/v2/CatalogService/ItemAttachments/{itemAttachmentId}` |
+| `absuite catalog item-attachments delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's item-attachments; it asks first unless --yes. `DELETE /api/v2/CatalogService/ItemAttachments/{itemAttachmentId}` |
 
+### Item Attribute Options (`absuite catalog item-attribute-options`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite catalog item-attribute-options list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's item-attribute-options. `GET /api/v2/CatalogService/ItemAttributeOptions` |
+| `absuite catalog item-attribute-options count` | Reads |  |  | Count the workspace's item-attribute-options. `GET /api/v2/CatalogService/ItemAttributeOptions/Count` |
+| `absuite catalog item-attribute-options get` | Reads | `<id>` | `--columns` | Show one of the workspace's item-attribute-options. `GET /api/v2/CatalogService/ItemAttributeOptions/{itemAttributeOptionId}` |
+| `absuite catalog item-attribute-options create` | Writes |  | `--name`, `--description`, `--item-attribute-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's item-attribute-options. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/CatalogService/ItemAttributeOptions` |
+| `absuite catalog item-attribute-options update` | Writes | `<id>` | `--name`, `--description`; `--json` `--file` `--dry-run` | Change one of the workspace's item-attribute-options: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/CatalogService/ItemAttributeOptions/{itemAttributeOptionId}` |
+| `absuite catalog item-attribute-options delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's item-attribute-options; it asks first unless --yes. `DELETE /api/v2/CatalogService/ItemAttributeOptions/{itemAttributeOptionId}` |
+
+### Item Attributes (`absuite catalog item-attributes`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite catalog item-attributes list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's item-attributes. `GET /api/v2/CatalogService/ItemAttributes` |
+| `absuite catalog item-attributes count` | Reads |  |  | Count the workspace's item-attributes. `GET /api/v2/CatalogService/ItemAttributes/Count` |
+| `absuite catalog item-attributes get` | Reads | `<id>` | `--columns` | Show one of the workspace's item-attributes. `GET /api/v2/CatalogService/ItemAttributes/{itemAttributeId}` |
+| `absuite catalog item-attributes create` | Writes |  | `--name`, `--description`; `--json` `--file` `--dry-run` | Create a record in the workspace's item-attributes. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/CatalogService/ItemAttributes` |
+| `absuite catalog item-attributes update` | Writes | `<id>` | `--name`, `--description`; `--json` `--file` `--dry-run` | Change one of the workspace's item-attributes: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/CatalogService/ItemAttributes/{itemAttributeId}` |
+| `absuite catalog item-attributes delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's item-attributes; it asks first unless --yes. `DELETE /api/v2/CatalogService/ItemAttributes/{itemAttributeId}` |
+
+### Item Brands (`absuite catalog item-brands`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite catalog item-brands list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's item-brands. `GET /api/v2/CatalogService/ItemBrands` |
+| `absuite catalog item-brands count` | Reads |  |  | Count the workspace's item-brands. `GET /api/v2/CatalogService/ItemBrands/Count` |
+| `absuite catalog item-brands get` | Reads | `<id>` | `--columns` | Show one of the workspace's item-brands. `GET /api/v2/CatalogService/ItemBrands/{itemBrandId}` |
+| `absuite catalog item-brands create` | Writes |  | `--code`, `--name`, `--description`, `--website-url`, `--featured`, `--trending`; `--json` `--file` `--dry-run` | Create a record in the workspace's item-brands. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/CatalogService/ItemBrands` |
+| `absuite catalog item-brands update` | Writes | `<id>` | `--name`, `--description`, `--website-url`, `--logo-url`, `--featured`, `--trending`; `--json` `--file` `--dry-run` | Change one of the workspace's item-brands: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/CatalogService/ItemBrands/{itemBrandId}` |
+| `absuite catalog item-brands delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's item-brands; it asks first unless --yes. `DELETE /api/v2/CatalogService/ItemBrands/{itemBrandId}` |
+
+### Item Bundles (`absuite catalog item-bundles`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite catalog item-bundles list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's item-bundles. `GET /api/v2/CatalogService/ItemBundles` |
+| `absuite catalog item-bundles count` | Reads |  |  | Count the workspace's item-bundles. `GET /api/v2/CatalogService/ItemBundles/Count` |
+| `absuite catalog item-bundles get` | Reads | `<id>` | `--columns` | Show one of the workspace's item-bundles. `GET /api/v2/CatalogService/ItemBundles/{itemBundleId}` |
+| `absuite catalog item-bundles create` | Writes |  | `--name`, `--code`, `--description`, `--disabled`; `--json` `--file` `--dry-run` | Create a record in the workspace's item-bundles. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/CatalogService/ItemBundles` |
+| `absuite catalog item-bundles update` | Writes | `<id>` | `--name`, `--code`, `--description`, `--disabled`; `--json` `--file` `--dry-run` | Change one of the workspace's item-bundles: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/CatalogService/ItemBundles/{itemBundleId}` |
+| `absuite catalog item-bundles delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's item-bundles; it asks first unless --yes. `DELETE /api/v2/CatalogService/ItemBundles/{itemBundleId}` |
+
+### Item Categories (`absuite catalog item-categories`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite catalog item-categories list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's item-categories. `GET /api/v2/CatalogService/ItemCategories` |
+| `absuite catalog item-categories count` | Reads |  |  | Count the workspace's item-categories. `GET /api/v2/CatalogService/ItemCategories/Count` |
+| `absuite catalog item-categories get` | Reads | `<id>` | `--columns` | Show one of the workspace's item-categories. `GET /api/v2/CatalogService/ItemCategories/{itemCategoryId}` |
+| `absuite catalog item-categories create` | Writes |  | `--title`, `--description`, `--image-url`, `--parent-item-category-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's item-categories. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/CatalogService/ItemCategories` |
+| `absuite catalog item-categories update` | Writes | `<id>` | `--title`, `--description`, `--image-url`, `--is-featured`, `--enable-for-courses`, `--enable-for-products`, `--enable-for-licenses`, `--enable-for-services`, `--enable-for-subscriptions`, `--parent-item-category-id`; `--json` `--file` `--dry-run` | Change one of the workspace's item-categories: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/CatalogService/ItemCategories/{itemCategoryId}` |
+| `absuite catalog item-categories delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's item-categories; it asks first unless --yes. `DELETE /api/v2/CatalogService/ItemCategories/{itemCategoryId}` |
+
+### Item Families (`absuite catalog item-families`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite catalog item-families list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's item-families. `GET /api/v2/CatalogService/ItemFamilies` |
+| `absuite catalog item-families count` | Reads |  |  | Count the workspace's item-families. `GET /api/v2/CatalogService/ItemFamilies/Count` |
+| `absuite catalog item-families get` | Reads | `<id>` | `--columns` | Show one of the workspace's item-families. `GET /api/v2/CatalogService/ItemFamilies/{itemFamilyId}` |
+| `absuite catalog item-families create` | Writes |  | `--name`, `--code`, `--description`; `--json` `--file` `--dry-run` | Create a record in the workspace's item-families. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/CatalogService/ItemFamilies` |
+| `absuite catalog item-families update` | Writes | `<id>` | `--name`, `--code`, `--description`; `--json` `--file` `--dry-run` | Change one of the workspace's item-families: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/CatalogService/ItemFamilies/{itemFamilyId}` |
+| `absuite catalog item-families delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's item-families; it asks first unless --yes. `DELETE /api/v2/CatalogService/ItemFamilies/{itemFamilyId}` |
+
+### Item Images (`absuite catalog item-images`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite catalog item-images list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's item-images. `GET /api/v2/CatalogService/ItemImages` |
+| `absuite catalog item-images get` | Reads | `<id>` | `--columns` | Show one of the workspace's item-images. `GET /api/v2/CatalogService/ItemImages/{itemImageId}` |
+| `absuite catalog item-images delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's item-images; it asks first unless --yes. `DELETE /api/v2/CatalogService/ItemImages/{itemImageId}` |
+
+### Item Questions (`absuite catalog item-questions`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite catalog item-questions list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's item-questions. `GET /api/v2/CatalogService/ItemQuestions` |
+| `absuite catalog item-questions get` | Reads | `<id>` | `--columns` | Show one of the workspace's item-questions. `GET /api/v2/CatalogService/ItemQuestions/{itemQuestionId}` |
+| `absuite catalog item-questions create` | Writes |  | `--title`, `--needs-revision`, `--question`, `--social-profile-id`, `--item-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's item-questions. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/CatalogService/ItemQuestions` |
+| `absuite catalog item-questions update` | Writes | `<id>` | `--title`, `--needs-revision`, `--question`; `--json` `--file` `--dry-run` | Change one of the workspace's item-questions: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/CatalogService/ItemQuestions/{itemQuestionId}` |
+| `absuite catalog item-questions delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's item-questions; it asks first unless --yes. `DELETE /api/v2/CatalogService/ItemQuestions/{itemQuestionId}` |
+
+### Item Reviews (`absuite catalog item-reviews`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite catalog item-reviews count` | Reads |  |  | Count the workspace's item-reviews. `GET /api/v2/CatalogService/ItemReviews/Count` |
+| `absuite catalog item-reviews create` | Writes |  | `--item-id`, `--review-score`, `--review-message`, `--social-profile-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's item-reviews. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/CatalogService/ItemReviews` |
+| `absuite catalog item-reviews delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's item-reviews; it asks first unless --yes. `DELETE /api/v2/CatalogService/ItemReviews/{itemReviewId}` |
+
+### Item Tags (`absuite catalog item-tags`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite catalog item-tags list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's item-tags. `GET /api/v2/CatalogService/ItemTags` |
+| `absuite catalog item-tags count` | Reads |  |  | Count the workspace's item-tags. `GET /api/v2/CatalogService/ItemTags/Count` |
+| `absuite catalog item-tags get` | Reads | `<id>` | `--columns` | Show one of the workspace's item-tags. `GET /api/v2/CatalogService/ItemTags/{itemTagId}` |
+| `absuite catalog item-tags create` | Writes |  | `--title`, `--description`; `--json` `--file` `--dry-run` | Create a record in the workspace's item-tags. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/CatalogService/ItemTags` |
+| `absuite catalog item-tags update` | Writes | `<id>` | `--title`, `--description`; `--json` `--file` `--dry-run` | Change one of the workspace's item-tags: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/CatalogService/ItemTags/{itemTagId}` |
+| `absuite catalog item-tags delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's item-tags; it asks first unless --yes. `DELETE /api/v2/CatalogService/ItemTags/{itemTagId}` |
+
+### Item Types (`absuite catalog item-types`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite catalog item-types list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's item-types. `GET /api/v2/CatalogService/ItemTypes` |
+| `absuite catalog item-types count` | Reads |  |  | Count the workspace's item-types. `GET /api/v2/CatalogService/ItemTypes/Count` |
+| `absuite catalog item-types get` | Reads | `<id>` | `--columns` | Show one of the workspace's item-types. `GET /api/v2/CatalogService/ItemTypes/{itemTypeId}` |
+| `absuite catalog item-types create` | Writes |  | `--plural-title`, `--singular-title`, `--description`, `--image-url`, `--google-category-taxonomy`, `--item-category-id`, `--item-google-category-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's item-types. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/CatalogService/ItemTypes` |
+| `absuite catalog item-types update` | Writes | `<id>` | `--plural-title`, `--singular-title`, `--description`, `--image-url`, `--google-category-taxonomy`; `--json` `--file` `--dry-run` | Change one of the workspace's item-types: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/CatalogService/ItemTypes/{itemTypeId}` |
+| `absuite catalog item-types delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's item-types; it asks first unless --yes. `DELETE /api/v2/CatalogService/ItemTypes/{itemTypeId}` |
+
+### Items (`absuite catalog items`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite catalog items list` | Reads |  | `--top` `--skip` | List the catalog items in the workspace. |
+| `absuite catalog items count` | Reads |  |  | Count the workspace's items. `GET /api/v2/CatalogService/Items/Count` |
+| `absuite catalog items get` | Reads | `<id>` |  | Show one catalog item, drafts included. |
+| `absuite catalog items create` | Writes |  | `--sku`, `--upc`, `--ean`, `--mpn`, `--isbn`, `--asin`, `--gtin`, `--sk-us`, `--up-cs`, `--ea-ns`, `--part`, `--name`, `--mp-ns`, `--isb-ns`, `--asi-ns`, `--gti-ns`, `--model`, `--title`, `--color`, `--unspsc`, `--unit-id`, `--series`, `--barcode`, `--unsps-cs`, `--summary`, `--brand-id`, `--pattern`, `--features`, `--material`, `--permalink`, `--brand-name`, `--variations`, `--categories`, `--language-id`, `--item-type-id`, `--category-id`, `--currency-id`, `--unit-group-id`, `--description`, `--ingredients`, `--supplier-code`, `--ships-to-rules`, `--parent-item-id`, `--purchase-note`, `--tariff-heading`, `--mozaic-cover-url`, `--youtube-video-id`, `--nutrition-facts`, `--package-content`, `--primary-image-url`, `--google-categories`, `--short-description`, `--supplier-profile-id`, `--shipping-country-id`, `--system-requirements`, `--custom-tax-description`, `--page-cover-background-url`, `--official-description-url`, `--recently-viewed-record-id`, `--primary-google-category-id`, `--supported-operating-system`, `--primary-google-category-name`, `--hot`, `--on-sale`, `--auction`, `--deleted`, `--digital`, `--pre-sale`, `--taxable`, `--in-stock`, `--trending`, `--featured`, `--low-stock`, `--published`, `--by-request`, `--on-discount`, `--is-daily-deal`, `--is-new-arrival`, `--is-weekly-deal`, `--is-best-seller`, `--is-monthly-deal`, `--has-variations`, `--is-fixed-discount`, `--manage-inventory`, `--is-dealers-choice`, `--is-official-choice`, `--valid-primary-image`, `--is-deadline-discount`, `--tax-included-in-price`, `--display-showcase-tab`, `--is-product-of-the-week`, `--is-product-of-the-month`, `--is-percentage-discount`, `--display-on-global-mozaic`, `--display-on-brands-mozaic`, `--disable-default-policies`, `--display-on-category-mozaic`, `--display-description-editor`, `--display-short-description-editor`, `--display-on-banner-marketing-rotation`, `--views-count`, `--reviews-count`, `--packaged-quantity`, `--recurrency`, `--current-stock`, `--custom-tax-value`, `--width`, `--weight`, `--length`, `--height`, `--total-tax`, `--final-price`, `--reviews-avg`, `--payment-cost`, `--regular-price`, `--discount-price`, `--discount-amount`, `--discount-percentage`, `--estimated-taxes-in-usd`, `--custom-tax-percentage`, `--estimated-profit-in-usd`, `--estimated-base-price-in-usd`, `--estimated-discounts-in-usd`, `--estimated-surcharges-in-usd`, `--estimated-payment-tax-in-usd`, `--estimated-total-price-in-usd`, `--estimated-payment-cost-in-usd`, `--estimated-deal-savings-in-usd`, `--estimated-regular-price-in-usd`, `--estimated-tax-base-price-in-usd`, `--estimated-witholding-taxes-in-usd`, `--estimated-withholding-taxes-in-usd`, `--estimated-default-shipping-tax-in-usd`, `--estimated-default-shipping-cost-in-usd`, `--auction-end`, `--release-date`, `--auction-start`, `--published-date`, `--discount-dead-line`, `--deadline-discount-due-date`, `--deadline-discount-from-date`, `--last-fixed-prices-update-date-time`; `--json` `--file` `--dry-run` | Create a record in the workspace's items. Never set here: type (not settable: discriminator (TPH rule)); id (set by the server); timestamp (set by the server). `POST /api/v2/CatalogService/Items` |
+| `absuite catalog items update` | Writes | `<id>` | `--hot`, `--sku`, `--upc`, `--ean`, `--mpn`, `--sk-us`, `--isbn`, `--up-cs`, `--ea-ns`, `--asin`, `--gtin`, `--mp-ns`, `--part`, `--name`, `--on-sale`, `--isb-ns`, `--asi-ns`, `--gti-ns`, `--width`, `--model`, `--auction`, `--title`, `--color`, `--deleted`, `--digital`, `--pre-sale`, `--taxable`, `--in-stock`, `--isbn13`, `--unspsc`, `--weight`, `--length`, `--height`, `--unit-id`, `--series`, `--featured`, `--brands`, `--trending`, `--low-stock`, `--barcode`, `--unsps-cs`, `--pattern`, `--published`, `--by-request`, `--summary`, `--brand-id`, `--views-count`, `--features`, `--material`, `--on-discount`, `--total-tax`, `--permalink`, `--brand-name`, `--reviews-count`, `--is-daily-deal`, `--language-id`, `--categories`, `--final-price`, `--item-type-id`, `--category-id`, `--currency-id`, `--reviews-avg`, `--is-new-arrival`, `--is-weekly-deal`, `--is-best-seller`, `--unit-group-id`, `--description`, `--ingredients`, `--release-date`, `--is-monthly-deal`, `--recurrency`, `--payment-cost`, `--custom-tax-value`, `--has-variations`, `--questions-count`, `--supplier-code`, `--auction-end`, `--purchase-note`, `--ships-to-rules`, `--regular-price`, `--shipping-cost`, `--parent-item-id`, `--item-type-name`, `--cart-record-id`, `--tariff-heading`, `--packaged-quantity`, `--is-fixed-discount`, `--discount-price`, `--is-dealers-choice`, `--current-stock`, `--manage-inventory`, `--auction-start`, `--nutrition-facts`, `--mozaic-cover-url`, `--package-content`, `--discount-amount`, `--youtube-video-id`, `--in-cart-quantity`, `--is-official-choice`, `--published-date`, `--primary-image-url`, `--valid-primary-image`, `--custom-tax-amount`, `--long-description`, `--compare-record-id`, `--measurement-unit`, `--short-description`, `--google-categories`, `--is-deadline-discount`, `--display-showcase-tab`, `--tax-included-in-price`, `--is-product-of-the-week`, `--supplier-profile-id`, `--shipping-country-id`, `--is-product-of-the-month`, `--system-requirements`, `--is-porcentual-discount`, `--discount-percentage`, `--discount-dead-line`, `--display-on-global-mozaic`, `--display-on-brands-mozaic`, `--custom-tax-percentage`, `--estimated-taxes-in-usd`, `--custom-tax-description`, `--disable-default-policies`, `--estimated-profit-in-usd`, `--display-on-category-mozaic`, `--official-description-url`, `--energy-efficiency-rating`, `--page-cover-background-url`, `--estimated-base-price-in-usd`, `--estimated-discounts-in-usd`, `--operating-system-supported`, `--estimated-surcharges-in-usd`, `--deadline-discount-due-date`, `--deadline-discount-from-date`, `--estimated-regular-price-in-usd`, `--estimated-tax-base-price-in-usd`, `--display-on-banner-marketing-rotation`, `--last-fixed-prices-update-date-time`, `--estimated-witholding-taxes-in-usd`, `--estimated-payment-cost-in-usd`, `--estimated-payment-tax-in-usd`, `--estimated-default-shipping-cost-in-usd`, `--estimated-default-shipping-tax-in-usd`, `--estimated-total-price-in-usd`, `--recently-viewed-record-id`, `--display-description-editor`, `--primary-google-category-id`, `--supported-operating-system`, `--estimated-deal-savings-in-usd`, `--primary-google-category-name`, `--display-short-description-editor`, `--estimated-withholding-taxes-in-usd`; `--json` `--file` `--dry-run` | Change one of the workspace's items: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/CatalogService/Items/{itemId}` |
+| `absuite catalog items delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's items; it asks first unless --yes. `DELETE /api/v2/CatalogService/Items/{itemId}` |
+| `absuite catalog items extended show` | Reads |  | `--item-id` (required); `--columns` | Show the workspace's items extended. `GET /api/v2/CatalogService/Items/{itemId}/Extended` |
+| `absuite catalog items max-price show` | Reads |  | `--columns` | Show the workspace's items max-price. `GET /api/v2/CatalogService/Items/MaxPrice` |
+| `absuite catalog items min-price show` | Reads |  | `--columns` | Show the workspace's items min-price. `GET /api/v2/CatalogService/Items/MinPrice` |
+| `absuite catalog items reviews create` | Writes |  | `--item-id` (required), `--review-score`, `--review-message`, `--social-profile-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's items reviews. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/CatalogService/Items/{itemId}/Reviews` |
+| `absuite catalog items attachments delete` | Writes | `<id>` | `--item-id` (required); `--yes` `--dry-run` | Delete one of the workspace's items attachments; it asks first unless --yes. `DELETE /api/v2/CatalogService/Items/{itemId}/Attachments/{itemAttachmentId}` |
+| `absuite catalog items brands delete` | Writes | `<id>` | `--item-id` (required); `--yes` `--dry-run` | Delete one of the workspace's items brands; it asks first unless --yes. `DELETE /api/v2/CatalogService/Items/{itemId}/Brands/{itemBrandId}` |
+| `absuite catalog items categories delete` | Writes | `<id>` | `--item-id` (required); `--yes` `--dry-run` | Delete one of the workspace's items categories; it asks first unless --yes. `DELETE /api/v2/CatalogService/Items/{itemId}/Categories/{itemCategoryId}` |
+| `absuite catalog items google-categories delete` | Writes | `<id>` | `--item-id` (required); `--yes` `--dry-run` | Delete one of the workspace's items google-categories; it asks first unless --yes. `DELETE /api/v2/CatalogService/Items/{itemId}/GoogleCategories/{googleCategoryId}` |
+| `absuite catalog items images delete` | Writes | `<id>` | `--item-id` (required); `--yes` `--dry-run` | Delete one of the workspace's items images; it asks first unless --yes. `DELETE /api/v2/CatalogService/Items/{itemId}/Images/{itemImageId}` |
+| `absuite catalog items questions delete` | Writes | `<id>` | `--item-id` (required); `--yes` `--dry-run` | Delete one of the workspace's items questions; it asks first unless --yes. `DELETE /api/v2/CatalogService/Items/{itemId}/Questions/{itemQuestionId}` |
+| `absuite catalog items return-policies delete` | Writes | `<id>` | `--item-id` (required); `--yes` `--dry-run` | Delete one of the workspace's items return-policies; it asks first unless --yes. `DELETE /api/v2/CatalogService/Items/{itemId}/ReturnPolicies/{returnPolicyId}` |
+| `absuite catalog items reviews delete` | Writes | `<id>` | `--item-id` (required); `--yes` `--dry-run` | Delete one of the workspace's items reviews; it asks first unless --yes. `DELETE /api/v2/CatalogService/Items/{itemId}/Reviews/{itemReviewId}` |
+| `absuite catalog items shipping-policies delete` | Writes | `<id>` | `--item-id` (required); `--yes` `--dry-run` | Delete one of the workspace's items shipping-policies; it asks first unless --yes. `DELETE /api/v2/CatalogService/Items/{itemId}/ShippingPolicies/{shippingPolicyId}` |
+| `absuite catalog items tags delete` | Writes | `<id>` | `--item-id` (required); `--yes` `--dry-run` | Delete one of the workspace's items tags; it asks first unless --yes. `DELETE /api/v2/CatalogService/Items/{itemId}/Tags/{itemTagId}` |
+| `absuite catalog items tax-policies delete` | Writes | `<id>` | `--item-id` (required); `--yes` `--dry-run` | Delete one of the workspace's items tax-policies; it asks first unless --yes. `DELETE /api/v2/CatalogService/Items/{itemId}/TaxPolicies/{itemTaxPolicyId}` |
+| `absuite catalog items types delete` | Writes | `<id>` | `--item-id` (required); `--yes` `--dry-run` | Delete one of the workspace's items types; it asks first unless --yes. `DELETE /api/v2/CatalogService/Items/{itemId}/Types/{itemTypeId}` |
+| `absuite catalog items warranty-policies delete` | Writes | `<id>` | `--item-id` (required); `--yes` `--dry-run` | Delete one of the workspace's items warranty-policies; it asks first unless --yes. `DELETE /api/v2/CatalogService/Items/{itemId}/WarrantyPolicies/{warrantyPolicyId}` |
+
+## Example
+
+```bash
+absuite catalog item-attachments list --top 5 -o json --query "[].id"
+absuite catalog item-attribute-options create --name <value> --description <value> --dry-run   # prints the POST, sends nothing
+absuite catalog item-attribute-options create --name <value> --description <value> -o json --no-input
 ```
-absuite catalog <verb> <entity> --Param value
-```
-
-- The service token is `catalog`.
-- Common verbs: **list, count, get, create, update, delete**, plus catalog-specific **relate / remove** actions and **batch / bulk-upsert / recalculate-prices**.
-- The canonical PowerShell function-name form also works, e.g. `absuite catalog Get-StockItemsQuery`, `absuite catalog New-StockItem`, `absuite catalog Update-StockItem`.
-- JSON DTO parameters are passed as a single-quoted JSON string, e.g. `--CatalogItemCreateDto '{ ... }'`, using the **same field names** as the REST manifest (camelCase).
-- Reads accept an optional `--TenantId`; writes require it (use your configured default or pass it explicitly).
-
-> The CLI does **not** support PATCH (JSON Patch). For atomic partial updates, use the `absuite-catalog` REST skill.
-
-## Stock Items (Products)
-
-```powershell
-# List (omit --TenantId for the global/public catalog)
-absuite catalog get stock-items-query --TenantId $TENANT_ID
-
-# Count
-absuite catalog count stock-items-by-business --TenantId $TENANT_ID
-
-# Get by ID
-absuite catalog get stock-item-by-id --ItemId <item-guid>
-
-# Get extended (with related data)
-absuite catalog get extended-stock-item-by-id --ItemId <item-guid>
-
-# Min / Max price
-absuite catalog get stock-items-odata-min-price --TenantId $TENANT_ID
-absuite catalog get stock-items-odata-max-price --TenantId $TENANT_ID
-
-# Create
-absuite catalog create stock-item --TenantId $TENANT_ID --CatalogItemCreateDto '{
-  "name": "<product-name>",
-  "title": "<display-title>",
-  "sku": "<sku>",
-  "description": "<long-description>",
-  "shortDescription": "<short-description>",
-  "regularPrice": 49.99,
-  "discountPrice": 44.99,
-  "currencyId": "<currency-guid>",
-  "categoryId": "<category-guid>",
-  "itemTypeId": "<type-guid>",
-  "brandId": "<brand-guid>",
-  "inStock": true,
-  "published": true,
-  "taxable": true,
-  "manageInventory": true,
-  "currentStock": 100.0,
-  "weight": 0.5,
-  "selectedCategories": ["<category-guid>"],
-  "selectedTags": ["<tag-guid>"],
-  "selectedTaxPolicies": ["<tax-policy-guid>"]
-}'
-
-# Update (PUT-style, full DTO)
-absuite catalog update stock-item --TenantId $TENANT_ID --ItemId <item-guid> --CatalogItemUpdateDto '{
-  "name": "<product-name>",
-  "regularPrice": 59.99,
-  "onSale": true,
-  "discountPrice": 49.99,
-  "published": true
-}'
-
-# Delete
-absuite catalog delete stock-item --TenantId $TENANT_ID --ItemId <item-guid>
-```
-
-**Key `CatalogItemCreateDto` fields** (all optional unless your workflow needs them):
-
-| Field | Type | Description |
-|---|---|---|
-| `name` / `title` | string | Product name / display title |
-| `sku` / `upc` / `ean` / `gtin` / `mpn` / `isbn` / `asin` / `unspsc` | string | Product identifiers |
-| `regularPrice` / `discountPrice` | number | Base / sale price |
-| `currencyId` | string | Currency |
-| `categoryId` / `itemTypeId` / `brandId` | string | Primary category / type / brand |
-| `languageId` / `unitId` / `unitGroupId` | string | Localization / units |
-| `inStock` / `published` / `taxable` / `manageInventory` | boolean | Availability / inventory flags |
-| `currentStock` | number | Quantity on hand |
-| `weight` / `width` / `height` / `length` | number | Dimensions |
-| `featured` / `onSale` / `hot` / `trending` / `digital` / `byRequest` | boolean | Merchandising / nature flags |
-| `supplierProfileId` / `supplierCode` | string | Supplier link |
-| `selectedCategories` / `selectedTags` / `selectedBrands` / `selectedTypes` | string[] | Linked sub-resource IDs |
-| `selectedTaxPolicies` / `selectedShipmentPolicies` / `selectedReturnPolicies` / `selectedRefundPolicies` / `selectedWarrantyPolicies` | string[] | Linked policy IDs |
-| `selectedPricingRules` / `selectedGoogleCategories` / `selectedAttributesOptions` | string[] | Linked rule / taxonomy / attribute-option IDs |
-
-### Bulk operations & price recalculation
-
-```powershell
-# Batch-toggle flags / add-remove tax policies across many items
-absuite catalog batch-update-stock-items --TenantId $TENANT_ID --BatchStockItemUpdateRequest '{
-  "itemIds": ["<item-guid>", "<item-guid>"],
-  "published": true,
-  "taxable": true,
-  "addTaxPolicyIds": ["<tax-policy-guid>"],
-  "removeTaxPolicyIds": ["<tax-policy-guid>"]
-}'
-
-# Bulk upsert from flat rows
-absuite catalog bulk-upsert-stock-items --TenantId $TENANT_ID --BulkProduct '[
-  {
-    "sku": "<sku>",
-    "title": "<product-name>",
-    "type": "<type-name>",
-    "brand": "<brand-name>",
-    "currency": "<currency-code>",
-    "supplier": "<supplier-name>",
-    "regularPrice": 49.99,
-    "currentStock": 100,
-    "taxable": true,
-    "inStock": true,
-    "manageInventory": true
-  }
-]'
-
-# Recalculate prices for a set of items (array of item IDs)
-absuite catalog recalculate-stock-item-prices --TenantId $TENANT_ID --RequestBody '["<item-guid>", "<item-guid>"]'
-```
-
-### Primary image
-
-```powershell
-absuite catalog get product-primary-image --ItemId <item-guid>
-absuite catalog update product-primary-image --TenantId $TENANT_ID --ItemId <item-guid>
-```
-
-## Item Categories
-
-`ItemCategoryCreateDto` requires `title`; `ItemCategoryUpdateDto` requires `title`.
-
-```powershell
-absuite catalog count item-categories --TenantId $TENANT_ID
-absuite catalog get item-categories --TenantId $TENANT_ID
-absuite catalog get item-category-by-id --ItemCategoryId <category-guid>
-
-absuite catalog create item-category --TenantId $TENANT_ID --ItemCategoryCreateDto '{
-  "title": "<category-title>",
-  "description": "<description>",
-  "imageURL": "<image-url>",
-  "parentItemCategoryId": "<parent-category-guid>"
-}'
-
-absuite catalog update item-category --TenantId $TENANT_ID --ItemCategoryId <category-guid> --ItemCategoryUpdateDto '{
-  "title": "<category-title>",
-  "description": "<description>",
-  "isFeatured": true,
-  "enableForProducts": true
-}'
-
-absuite catalog delete item-category --TenantId $TENANT_ID --ItemCategoryId <category-guid>
-```
-
-## Item Types
-
-Types use `singularTitle` / `pluralTitle` (**not** `name`). `ItemTypeCreateDto` requires `itemCategoryId`; `ItemTypeUpdateDto` requires `singularTitle`.
-
-```powershell
-absuite catalog count item-types --TenantId $TENANT_ID
-absuite catalog get item-types --TenantId $TENANT_ID
-absuite catalog get item-type-by-id --ItemTypeID <type-guid>
-
-absuite catalog create item-type --TenantId $TENANT_ID --ItemTypeCreateDto '{
-  "singularTitle": "<singular-title>",
-  "pluralTitle": "<plural-title>",
-  "description": "<description>",
-  "itemCategoryId": "<category-guid>",
-  "itemGoogleCategoryId": "<google-category-guid>"
-}'
-
-absuite catalog update item-type --TenantId $TENANT_ID --ItemTypeID <type-guid> --ItemTypeUpdateDto '{
-  "singularTitle": "<singular-title>",
-  "pluralTitle": "<plural-title>",
-  "description": "<description>"
-}'
-
-absuite catalog delete item-type --TenantId $TENANT_ID --ItemTypeID <type-guid>
-```
-
-> Note: the type-by-ID parameter is spelled `--ItemTypeID`.
-
-## Item Families
-
-`ItemFamilyCreateDto` / `ItemFamilyUpdateDto` require `name`.
-
-```powershell
-absuite catalog count item-families --TenantId $TENANT_ID
-absuite catalog get item-families --TenantId $TENANT_ID
-absuite catalog get item-family-by-id --ItemFamilyId <family-guid>
-absuite catalog create item-family --TenantId $TENANT_ID --ItemFamilyCreateDto '{ "name": "<family-name>", "code": "<code>", "description": "<description>" }'
-absuite catalog update item-family --TenantId $TENANT_ID --ItemFamilyId <family-guid> --ItemFamilyUpdateDto '{ "name": "<family-name>", "code": "<code>", "description": "<description>" }'
-absuite catalog delete item-family --TenantId $TENANT_ID --ItemFamilyId <family-guid>
-```
-
-## Item Brands
-
-`ItemBrandCreateDto` / `ItemBrandUpdateDto` require `name`. (No `count` command for brands.)
-
-```powershell
-absuite catalog get item-brands --TenantId $TENANT_ID
-absuite catalog get item-brand-by-id --ItemBrandId <brand-guid>
-absuite catalog create item-brand --TenantId $TENANT_ID --ItemBrandCreateDto '{ "name": "<brand-name>", "code": "<code>", "description": "<description>", "websiteURL": "<url>" }'
-absuite catalog update item-brand --TenantId $TENANT_ID --ItemBrandId <brand-guid> --ItemBrandUpdateDto '{ "name": "<brand-name>", "description": "<description>", "logoURL": "<logo-url>", "featured": true }'
-absuite catalog delete item-brand --TenantId $TENANT_ID --ItemBrandId <brand-guid>
-```
-
-## Item Tags
-
-Tags use `title` (**not** `name`). `ItemTagCreateDto` / `ItemTagUpdateDto` require `title`. (No standalone `count` command for tags — count tags on an item via `count stock-item-tags-by-item-id`.)
-
-```powershell
-absuite catalog get item-tags --TenantId $TENANT_ID
-absuite catalog get item-tag-by-id --ItemTagId <tag-guid>
-absuite catalog create item-tag --TenantId $TENANT_ID --ItemTagCreateDto '{ "title": "<tag-title>", "description": "<description>" }'
-absuite catalog update item-tag --TenantId $TENANT_ID --ItemTagId <tag-guid> --ItemTagUpdateDto '{ "title": "<tag-title>", "description": "<description>" }'
-absuite catalog delete item-tag --TenantId $TENANT_ID --ItemTagId <tag-guid>
-```
-
-## Item Images
-
-`ItemImageCreateDto` requires `fileName`; `ItemImageUpdateDto` requires `itemId`, `mD5Hash`, `fileUploadURL`, `fileName`, `contentType`. (No `count` command.)
-
-```powershell
-absuite catalog get item-images --TenantId $TENANT_ID
-absuite catalog get item-image-by-id --ItemImageId <image-guid>
-absuite catalog create item-image --TenantId $TENANT_ID --ItemImageCreateDto '{
-  "itemId": "<item-guid>",
-  "fileName": "<file-name>",
-  "fileUploadURL": "<upload-url>",
-  "title": "<title>",
-  "contentType": "image/jpeg"
-}'
-absuite catalog update item-image --TenantId $TENANT_ID --ItemImageId <image-guid> --ItemImageUpdateDto '{
-  "itemId": "<item-guid>",
-  "mD5Hash": "<md5>",
-  "fileUploadURL": "<upload-url>",
-  "fileName": "<file-name>",
-  "contentType": "image/jpeg"
-}'
-absuite catalog delete item-image --TenantId $TENANT_ID --ItemImageId <image-guid>
-```
-
-## Item Attachments
-
-No required fields. (No `count` command.)
-
-```powershell
-absuite catalog get item-attachments --TenantId $TENANT_ID
-absuite catalog get item-attachment-by-id --ItemAttachmentId <attachment-guid>
-absuite catalog create item-attachment --TenantId $TENANT_ID --ItemAttachmentCreateDto '{ "title": "<title>", "fileName": "<file-name>", "filePath": "<file-path>", "itemId": "<item-guid>" }'
-absuite catalog update item-attachment --TenantId $TENANT_ID --ItemAttachmentId <attachment-guid> --ItemAttachmentUpdateDto '{ "title": "<title>", "fileName": "<file-name>", "filePath": "<file-path>" }'
-absuite catalog delete item-attachment --TenantId $TENANT_ID --ItemAttachmentId <attachment-guid>
-```
-
-## Item Attributes
-
-`ItemAttributeCreateDto` / `ItemAttributeUpdateDto` require `name`.
-
-```powershell
-absuite catalog count item-attributes --TenantId $TENANT_ID
-absuite catalog get item-attributes --TenantId $TENANT_ID
-absuite catalog get item-attribute-by-id --ItemAttributeId <attr-guid>
-absuite catalog create item-attribute --TenantId $TENANT_ID --ItemAttributeCreateDto '{ "name": "<attribute-name>", "description": "<description>" }'
-absuite catalog update item-attribute --TenantId $TENANT_ID --ItemAttributeId <attr-guid> --ItemAttributeUpdateDto '{ "name": "<attribute-name>", "description": "<description>" }'
-absuite catalog delete item-attribute --TenantId $TENANT_ID --ItemAttributeId <attr-guid>
-```
-
-## Item Attribute Options
-
-`ItemAttributeOptionCreateDto` requires `name` and `itemAttributeId`; `ItemAttributeOptionUpdateDto` requires `name`.
-
-```powershell
-absuite catalog get item-attribute-options-count --TenantId $TENANT_ID
-absuite catalog get item-attribute-options --TenantId $TENANT_ID
-absuite catalog get item-attribute-option-by-id --ItemAttributeOptionId <option-guid>
-absuite catalog create item-attribute-option --TenantId $TENANT_ID --ItemAttributeOptionCreateDto '{ "name": "<option-name>", "description": "<description>", "itemAttributeId": "<attr-guid>" }'
-absuite catalog update item-attribute-option --TenantId $TENANT_ID --ItemAttributeOptionId <option-guid> --ItemAttributeOptionUpdateDto '{ "name": "<option-name>", "description": "<description>" }'
-absuite catalog delete item-attribute-option --TenantId $TENANT_ID --ItemAttributeOptionId <option-guid>
-```
-
-## Item Bundles
-
-`ItemBundleCreateDto` / `ItemBundleUpdateDto` require `name`.
-
-```powershell
-absuite catalog count item-bundles --TenantId $TENANT_ID
-absuite catalog get item-bundles --TenantId $TENANT_ID
-absuite catalog get item-bundle-by-id --ItemBundleId <bundle-guid>
-absuite catalog create item-bundle --TenantId $TENANT_ID --ItemBundleCreateDto '{ "name": "<bundle-name>", "code": "<code>", "description": "<description>", "disabled": false }'
-absuite catalog update item-bundle --TenantId $TENANT_ID --ItemBundleId <bundle-guid> --ItemBundleUpdateDto '{ "name": "<bundle-name>", "code": "<code>", "description": "<description>", "disabled": false }'
-absuite catalog delete item-bundle --TenantId $TENANT_ID --ItemBundleId <bundle-guid>
-```
-
-## Item Reviews
-
-`list item-reviews` filters by `--ItemId` (required). Create requires `--TenantId`. `ItemReviewUpdateDto` carries `reviewScore`, `reviewMessage`.
-
-```powershell
-absuite catalog get item-reviews --ItemId <item-guid>
-absuite catalog get item-review-by-id --ItemReviewId <review-guid>
-absuite catalog create item-review --TenantId $TENANT_ID --ItemReviewCreateDto '{ "itemId": "<item-guid>", "reviewScore": 5, "reviewMessage": "<message>" }'
-absuite catalog update item-review --TenantId $TENANT_ID --ItemReviewId <review-guid> --ItemReviewUpdateDto '{ "reviewScore": 4, "reviewMessage": "<message>" }'
-absuite catalog delete item-review --TenantId $TENANT_ID --ItemReviewId <review-guid>
-```
-
-## Item Questions
-
-`ItemQuestionCreateDto` requires `title`, `needsRevision`, `question`, `itemId`; `ItemQuestionUpdateDto` requires `needsRevision`.
-
-```powershell
-absuite catalog get item-questions --TenantId $TENANT_ID
-absuite catalog get item-question-by-id --ItemQuestionId <question-guid>
-absuite catalog create item-question --TenantId $TENANT_ID --ItemQuestionCreateDto '{ "title": "<title>", "needsRevision": true, "question": "<question>", "itemId": "<item-guid>" }'
-absuite catalog update item-question --TenantId $TENANT_ID --ItemQuestionId <question-guid> --ItemQuestionUpdateDto '{ "title": "<title>", "needsRevision": false, "question": "<question>" }'
-absuite catalog delete item-question --TenantId $TENANT_ID --ItemQuestionId <question-guid>
-```
-
-## Stock-item sub-resources (relate / list / remove)
-
-Link existing entities to a stock item. Listing the related set and getting a single link take no tenant; relate / remove generally require `--TenantId` (a few take none — pass it from your configured default when unsure).
-
-### Brands
-
-```powershell
-absuite catalog get stock-item-brands-by-item-id --ItemId <item-guid>
-absuite catalog relate-brand-to-stock-item --TenantId $TENANT_ID --ItemId <item-guid> --ItemBrandId <brand-guid>
-absuite catalog remove-brand-from-stock-item --TenantId $TENANT_ID --ItemId <item-guid> --ItemBrandId <brand-guid>
-```
-
-### Categories
-
-```powershell
-absuite catalog get stock-item-categories-by-item-id --ItemId <item-guid>
-absuite catalog relate-category-to-stock-item --TenantId $TENANT_ID --ItemId <item-guid> --ItemCategoryId <category-guid>
-absuite catalog remove-category-from-stock-item --TenantId $TENANT_ID --ItemId <item-guid> --ItemCategoryId <category-guid>
-```
-
-### Types
-
-```powershell
-absuite catalog get stock-item-types-by-item-id --TenantId $TENANT_ID --ItemId <item-guid>
-absuite catalog relate-type-to-stock-item --TenantId $TENANT_ID --ItemId <item-guid> --ItemTypeId <type-guid>
-absuite catalog remove-type-from-stock-item --TenantId $TENANT_ID --ItemId <item-guid> --ItemTypeId <type-guid>
-```
-
-### Tags (count is item-scoped)
-
-```powershell
-absuite catalog get stock-item-tags-by-item-id --TenantId $TENANT_ID --ItemId <item-guid>
-absuite catalog count stock-item-tags-by-item-id --TenantId $TENANT_ID --ItemId <item-guid>
-absuite catalog relate-tag-to-stock-item --TenantId $TENANT_ID --ItemId <item-guid> --ItemTagId <tag-guid>
-absuite catalog remove-tag-from-stock-item --TenantId $TENANT_ID --ItemId <item-guid> --ItemTagId <tag-guid>
-```
-
-### Images
-
-```powershell
-absuite catalog get stock-item-images-by-item-id --ItemId <item-guid>
-absuite catalog relate-image-to-stock-item --TenantId $TENANT_ID --ItemId <item-guid> --ItemImageId <image-guid>
-absuite catalog remove-image-from-stock-item --TenantId $TENANT_ID --ItemId <item-guid> --ItemImageId <image-guid>
-```
-
-### Attachments
-
-```powershell
-absuite catalog get stock-item-attachments-by-item-id --ItemId <item-guid>
-absuite catalog relate-attachment-to-stock-item --TenantId $TENANT_ID --ItemId <item-guid> --ItemAttachmentId <attachment-guid> --ItemAttachmentCreateDto '{ "title": "<title>", "fileName": "<file-name>", "filePath": "<file-path>" }'
-absuite catalog remove-attachment-from-stock-item --TenantId $TENANT_ID --ItemId <item-guid> --ItemAttachmentId <attachment-guid>
-```
-
-### Attribute Options
-
-```powershell
-absuite catalog get stock-item-attribute-options-by-item-id --ItemId <item-guid>
-absuite catalog relate-attribute-option-to-stock-item --ItemId <item-guid> --ItemAttributeOptionId <option-guid>
-absuite catalog remove-attribute-option-from-stock-item --ItemId <item-guid> --ItemAttributeOptionId <option-guid>
-```
-
-### Google Categories
-
-```powershell
-absuite catalog get stock-item-google-categories-by-item-id --ItemId <item-guid>
-absuite catalog relate-google-category-to-stock-item --TenantId $TENANT_ID --ItemId <item-guid> --ItemGoogleCategoryId <google-category-guid>
-absuite catalog remove-google-category-from-stock-item --TenantId $TENANT_ID --ItemId <item-guid> --ItemGoogleCategoryId <google-category-guid>
-```
-
-### Price Rules
-
-```powershell
-absuite catalog get stock-item-price-rules-by-item-id --ItemId <item-guid>
-absuite catalog relate-price-rule-to-stock-item --ItemId <item-guid> --ItemPriceRuleId <price-rule-guid>
-absuite catalog remove-price-rule-from-stock-item --ItemId <item-guid> --ItemPriceRuleId <price-rule-guid>
-```
-
-### Questions / Reviews (create against an item)
-
-```powershell
-absuite catalog get stock-item-questions-by-item-id --ItemId <item-guid>
-absuite catalog relate-question-to-stock-item --TenantId $TENANT_ID --ItemId <item-guid> --ItemQuestionRecordCreateDto '{ "title": "<title>", "needsRevision": true, "question": "<question>" }'
-absuite catalog remove-question-from-stock-item --TenantId $TENANT_ID --ItemId <item-guid> --ItemQuestionId <question-guid>
-
-absuite catalog get stock-item-reviews-by-item-id --ItemId <item-guid>
-absuite catalog relate-review-to-stock-item --TenantId $TENANT_ID --ItemId <item-guid> --ItemReviewRecordCreateDto '{ "reviewScore": 5, "reviewMessage": "<message>" }'
-absuite catalog remove-review-from-stock-item --TenantId $TENANT_ID --ItemId <item-guid> --ItemReviewId <review-guid>
-```
-
-### Policy relationships (Tax / Shipping / Return / Refund / Warranty)
-
-Each policy kind exposes the item-scoped relate/get/remove plus a standalone link resource that takes `--ItemId` and the policy ID as parameters. List / get / count the link records, then relate or remove:
-
-```powershell
-# Tax
-absuite catalog get stock-item-tax-policies-by-item-id --ItemId <item-guid>
-absuite catalog relate-item-to-tax-policy --TenantId $TENANT_ID --ItemId <item-guid> --TaxPolicyId <tax-policy-guid>
-absuite catalog remove-tax-policy-from-item --TenantId $TENANT_ID --ItemId <item-guid> --ItemTaxPolicyId <item-tax-policy-guid>
-absuite catalog get item-tax-policies --TenantId $TENANT_ID --ItemId <item-guid>
-absuite catalog count item-tax-policies --TenantId $TENANT_ID --ItemId <item-guid>
-
-# Shipping
-absuite catalog get stock-item-shipping-policies-by-item-id --ItemId <item-guid>
-absuite catalog relate-item-to-shipping-policy --TenantId $TENANT_ID --ItemId <item-guid> --ShippingPolicyId <shipping-policy-guid>
-absuite catalog remove-shipping-policy-from-item --TenantId $TENANT_ID --ItemId <item-guid> --ItemShippingPolicyId <item-shipping-policy-guid>
-absuite catalog get item-shipping-policies --TenantId $TENANT_ID --ItemId <item-guid>
-absuite catalog count item-shipping-policies --TenantId $TENANT_ID --ItemId <item-guid>
-
-# Return
-absuite catalog get stock-item-return-policies-by-item-id --ItemId <item-guid>
-absuite catalog relate-item-to-return-policy --TenantId $TENANT_ID --ItemId <item-guid> --ReturnPolicyId <return-policy-guid>
-absuite catalog remove-return-policy-from-item --TenantId $TENANT_ID --ItemId <item-guid> --ItemReturnPolicyId <item-return-policy-guid>
-absuite catalog get item-return-policies --TenantId $TENANT_ID --ItemId <item-guid>
-absuite catalog count item-return-policies --TenantId $TENANT_ID --ItemId <item-guid>
-
-# Refund
-absuite catalog get stock-item-refund-policies-by-item-id --ItemId <item-guid>
-absuite catalog relate-item-to-refund-policy --TenantId $TENANT_ID --ItemId <item-guid> --RefundPolicyId <refund-policy-guid>
-absuite catalog remove-refund-policy-from-item --TenantId $TENANT_ID --ItemId <item-guid> --ItemRefundPolicyId <item-refund-policy-guid>
-absuite catalog get item-refund-policies --TenantId $TENANT_ID --ItemId <item-guid>
-absuite catalog count item-refund-policies --TenantId $TENANT_ID --ItemId <item-guid>
-
-# Warranty
-absuite catalog get stock-item-warranty-policies-by-item-id --ItemId <item-guid>
-absuite catalog relate-item-to-warranty-policy --TenantId $TENANT_ID --ItemId <item-guid> --WarrantyPolicyId <warranty-policy-guid>
-absuite catalog remove-warranty-policy-from-item --TenantId $TENANT_ID --ItemId <item-guid> --ItemWarrantyPolicyId <item-warranty-policy-guid>
-absuite catalog get item-warranty-policies --TenantId $TENANT_ID --ItemId <item-guid>
-absuite catalog count item-warranty-policies --TenantId $TENANT_ID --ItemId <item-guid>
-```
-
-## Google Categories (read-only taxonomy)
-
-All reads are public; only `map-item-google-categories-tree` is a tenant-scoped write.
-
-```powershell
-absuite catalog get item-google-categories
-absuite catalog get all-item-google-categories
-absuite catalog get root-item-google-categories
-absuite catalog get item-google-categories-count
-absuite catalog get item-google-categories-tree
-absuite catalog get item-google-category-by-id --ItemCategoryId <google-category-id>
-absuite catalog get children-item-google-categories-by-id --ItemCategoryId <google-category-id>
-absuite catalog map-item-google-categories-tree --TenantId $TENANT_ID
-```
-
-> Note: the Google-category-by-ID / children commands take `--ItemCategoryId`, not a separate Google-category parameter.
-
-## Merchants (read-only)
-
-```powershell
-absuite catalog get merchants
-absuite catalog get merchants-count
-absuite catalog get merchant-by-id --MerchantId <merchant-guid>
-```
-
-## Critical Rules
-
-- **Authenticate first.** Run `absuite login` before any catalog command.
-- **Writes need a tenant.** Set `$TENANT_ID` via `absuite config set --tenant-id <guid>` or pass `--TenantId` on every create / update / delete / relate / remove.
-- **Create taxonomy first.** Make categories, types, and brands before creating stock items that reference them.
-- **Use `relate-*` commands** to link existing categories, tags, images, and policies to stock items; the `selected*` arrays on `CatalogItemCreateDto` link them inline at creation.
-- **Types use `singularTitle`/`pluralTitle`; categories and tags use `title`.**
-- **Use `--help`** on any command for the full DTO schema.
-
-## CLI Commands Quick Reference
-
-| Action | CLI command |
-|---|---|
-| List stock items | `absuite catalog get stock-items-query` |
-| Count stock items | `absuite catalog count stock-items-by-business` |
-| Get stock item | `absuite catalog get stock-item-by-id --ItemId <id>` |
-| Get extended stock item | `absuite catalog get extended-stock-item-by-id --ItemId <id>` |
-| Min / Max price | `absuite catalog get stock-items-odata-min-price` / `... max-price` |
-| Create stock item | `absuite catalog create stock-item --CatalogItemCreateDto '{...}'` |
-| Update stock item | `absuite catalog update stock-item --ItemId <id> --CatalogItemUpdateDto '{...}'` |
-| Delete stock item | `absuite catalog delete stock-item --ItemId <id>` |
-| Batch update items | `absuite catalog batch-update-stock-items --BatchStockItemUpdateRequest '{...}'` |
-| Bulk upsert items | `absuite catalog bulk-upsert-stock-items --BulkProduct '[...]'` |
-| Recalculate prices | `absuite catalog recalculate-stock-item-prices --RequestBody '[...]'` |
-| Get / set primary image | `absuite catalog get product-primary-image --ItemId <id>` / `update product-primary-image` |
-| List / count categories | `absuite catalog get item-categories` / `count item-categories` |
-| Get / create / update / delete category | `absuite catalog get|create|update|delete item-category[-by-id]` |
-| List / count types | `absuite catalog get item-types` / `count item-types` |
-| Get / create / update / delete type | `absuite catalog get|create|update|delete item-type[-by-id] --ItemTypeID <id>` |
-| List / count families | `absuite catalog get item-families` / `count item-families` |
-| Get / create / update / delete family | `absuite catalog get|create|update|delete item-family[-by-id]` |
-| List brands | `absuite catalog get item-brands` |
-| Get / create / update / delete brand | `absuite catalog get|create|update|delete item-brand[-by-id]` |
-| List tags | `absuite catalog get item-tags` |
-| Get / create / update / delete tag | `absuite catalog get|create|update|delete item-tag[-by-id]` |
-| List images | `absuite catalog get item-images` |
-| Get / create / update / delete image | `absuite catalog get|create|update|delete item-image[-by-id]` |
-| List attachments | `absuite catalog get item-attachments` |
-| Get / create / update / delete attachment | `absuite catalog get|create|update|delete item-attachment[-by-id]` |
-| List / count attributes | `absuite catalog get item-attributes` / `count item-attributes` |
-| Get / create / update / delete attribute | `absuite catalog get|create|update|delete item-attribute[-by-id]` |
-| List / count attribute options | `absuite catalog get item-attribute-options` / `get item-attribute-options-count` |
-| Get / create / update / delete attribute option | `absuite catalog get|create|update|delete item-attribute-option[-by-id]` |
-| List / count bundles | `absuite catalog get item-bundles` / `count item-bundles` |
-| Get / create / update / delete bundle | `absuite catalog get|create|update|delete item-bundle[-by-id]` |
-| List reviews (by item) | `absuite catalog get item-reviews --ItemId <id>` |
-| Get / create / update / delete review | `absuite catalog get|create|update|delete item-review[-by-id]` |
-| List questions | `absuite catalog get item-questions` |
-| Get / create / update / delete question | `absuite catalog get|create|update|delete item-question[-by-id]` |
-| Relate / remove brand on item | `absuite catalog relate-brand-to-stock-item` / `remove-brand-from-stock-item` |
-| Relate / remove category on item | `absuite catalog relate-category-to-stock-item` / `remove-category-from-stock-item` |
-| Relate / remove type on item | `absuite catalog relate-type-to-stock-item` / `remove-type-from-stock-item` |
-| Relate / remove tag on item | `absuite catalog relate-tag-to-stock-item` / `remove-tag-from-stock-item` |
-| Relate / remove image on item | `absuite catalog relate-image-to-stock-item` / `remove-image-from-stock-item` |
-| Relate / remove attachment on item | `absuite catalog relate-attachment-to-stock-item` / `remove-attachment-from-stock-item` |
-| Relate / remove attribute option on item | `absuite catalog relate-attribute-option-to-stock-item` / `remove-attribute-option-from-stock-item` |
-| Relate / remove Google category on item | `absuite catalog relate-google-category-to-stock-item` / `remove-google-category-from-stock-item` |
-| Relate / remove price rule on item | `absuite catalog relate-price-rule-to-stock-item` / `remove-price-rule-from-stock-item` |
-| Relate / remove question on item | `absuite catalog relate-question-to-stock-item` / `remove-question-from-stock-item` |
-| Relate / remove review on item | `absuite catalog relate-review-to-stock-item` / `remove-review-from-stock-item` |
-| Relate / remove tax policy | `absuite catalog relate-item-to-tax-policy` / `remove-tax-policy-from-item` |
-| Relate / remove shipping policy | `absuite catalog relate-item-to-shipping-policy` / `remove-shipping-policy-from-item` |
-| Relate / remove return policy | `absuite catalog relate-item-to-return-policy` / `remove-return-policy-from-item` |
-| Relate / remove refund policy | `absuite catalog relate-item-to-refund-policy` / `remove-refund-policy-from-item` |
-| Relate / remove warranty policy | `absuite catalog relate-item-to-warranty-policy` / `remove-warranty-policy-from-item` |
-| List / count policy links | `absuite catalog get item-<kind>-policies` / `count item-<kind>-policies` |
-| Google categories (read) | `absuite catalog get item-google-categories` / `all-...` / `root-...` / `...-tree` / `...-count` |
-| Map Google category tree | `absuite catalog map-item-google-categories-tree` |
-| List / count merchants | `absuite catalog get merchants` / `get merchants-count` |
-| Get merchant | `absuite catalog get merchant-by-id --MerchantId <id>` |

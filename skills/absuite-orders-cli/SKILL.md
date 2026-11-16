@@ -1,361 +1,74 @@
 ---
 name: absuite-orders-cli
 key: fenixalliance.absuite.orders-cli
-version: 1.0.0
+version: 1.1.0
 description: >
-  Create, read, update, delete, and calculate orders and order lines in the
-  Alliance Business Suite (ABS) Orders Service using the `absuite` CLI. Covers
-  direct order creation, cart-to-order submission, line items, totals calculation,
-  and transactional email via list/count/get/create/update/delete commands.
-  Requires an authenticated CLI session (see absuite-login-cli). For atomic PATCH
-  updates or raw HTTP, use the absuite-orders (REST) skill.
+  Drive the Alliance Business Suite (ABS) Orders area with the absuite CLI: 16 commands (11 read, 5
+  write) under `absuite orders`, each generated from the platform's ServiceClients and checked against
+  `absuite commands -o json`. For routes the CLI does not cover, use the absuite-orders REST skill.
 ---
 
-# Alliance Business Suite — Orders (CLI)
+# Alliance Business Suite — Orders Skill (CLI)
 
-Manage orders and order lines through the `absuite` CLI's **`orders`** service. Every
-order operation (except cart submission) is tenant-scoped and requires an authenticated
-session. For shared CLI conventions, see `absuite-cli`. The CLI does **not** support
-PATCH — for atomic JSON-Patch partial updates use the REST skill `absuite-orders`.
+Generated from the absuite CLI at Platform 9b72a00a47 (`absuite commands -o json`). The commands, arguments and options below are the CLI's own; re-run `absuite commands -o json` before relying on one.
 
-## API usage essentials
+> **Coverage:** the `absuite-orders` REST skill documents 22 routes; 11 of them have no CLI command (a write the CLI keeps to Studio, a call that is not workspace-scoped, or a field shape it cannot take yet). Use the REST skill for those.
 
-> Full detail in `absuite-cli`.
+## Before you start
 
-- **`update` replaces the ENTIRE object** (it maps to HTTP `PUT`) — a full overwrite, not a merge. **`get` the entity first, change only what you need on the complete object, then `update` with the full body.** A partial `update` (or an incomplete `create`) blanks the omitted fields -> silent data loss.
-- **No atomic partial update in the CLI.** For a safe single-field change, use the `absuite-orders` REST skill's `PATCH` (JSON Patch), where that service exposes one.
-- Use **`count <entity>`** (a dedicated operation) to size a collection. OData filtering/paging (`$filter`, `$top`, ...) is REST-only — the CLI does not expose it; use `absuite-orders` for filtered queries or a filtered count.
+- Install: `npm install -g @fenixalliance/absuite` (a self-contained binary per platform). `absuite --version` prints the version.
+- Sign in: `absuite login` (a one-time code in your browser, the default). `absuite me` shows who you are; `absuite account show` shows the profile, server and workspace.
+- Workspace: `absuite account list` lists yours; `absuite account set --tenant <id|name>` saves one. `--tenant <id>` or `ABS_TENANT` picks one for a single command.
+- Agents on their computer: the run token comes from `ABS_TOKEN` or `ABS_TOKEN_FILE` (one of them, never both), used only with `--url` or `ABS_URL`, and only over https:// or to a server on the same computer. The token says who the agent is; the workspace's roles decide what it may do.
+- Scripts and agents: pass `--no-input` (it is also on when stdin is not a terminal, or CI or ABS_NO_TUI is set). Anything that needs input then fails with exit 2 and names the flag to pass.
+- Output: `-o table|json|jsonc|tsv|yaml|none`; `--query "<JMESPath>"` filters the result before it is printed.
+- `absuite commands -o json` lists every command with its options and whether it only reads. Check it before you rely on a command; `absuite <command> --help` shows one.
+- Full sign-in, output, exit-code and run-token rules: the `absuite-cli` skill. Anything not listed here: the `absuite-orders` REST skill.
 
-## Prerequisites
+## Commands
 
-1. **Authenticate first** with `absuite login` (see `absuite-login-cli`).
-2. **Set your tenant** — all order commands except `submit cart` require a tenant.
-   Either set a default once:
-   ```
-   absuite config set --tenant-id <tenant-guid>
-   ```
-   or pass `--TenantId <tenant-guid>` on each call.
-3. **Discover commands** — list everything the service exposes and inspect any command:
-   ```
-   absuite orders list-commands
-   absuite orders create --help
-   ```
+16 commands, from `absuite commands -o json`. "Reads" commands never change data. Writes take field flags or `--json`/`--file` with the same fields, and `--dry-run` prints the request without sending it. Deletes ask first unless `--yes` (with `--no-input` and no `--yes`, a delete fails with exit 2).
 
-## Command structure
+### Extended (`absuite orders extended`)
 
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite orders extended list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's extended. `GET /api/v2/OrdersService/Orders/Extended` |
+
+### Lines (`absuite orders lines`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite orders lines list` | Reads |  | `--order-id` (required); `--top` `--skip` `--columns` | List the workspace's lines. `GET /api/v2/OrdersService/Orders/{orderId}/Lines` |
+| `absuite orders lines count` | Reads |  | `--order-id` (required) | Count the workspace's lines. `GET /api/v2/OrdersService/Orders/{orderId}/Lines/Count` |
+| `absuite orders lines show` | Reads |  | `--order-id` (required); `--columns` | Show the workspace's lines. `GET /api/v2/OrdersService/Orders/{orderId}/Lines` |
+| `absuite orders lines create` | Writes |  | `--order-id` (required), `--item-id`, `--unit-id`, `--currency-id`, `--price-list-id`, `--unit-group-id`, `--discount-list-id`, `--rounding-policy-id`, `--price`, `--percent`; `--json` `--file` `--dry-run` | Create a record in the workspace's lines. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/OrdersService/Orders/{orderId}/Lines` |
+| `absuite orders lines delete` | Writes | `<id>` | `--order-id` (required); `--yes` `--dry-run` | Delete one of the workspace's lines; it asks first unless --yes. `DELETE /api/v2/OrdersService/Orders/{orderId}/Lines/{orderLineId}` |
+
+### Received (`absuite orders received`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite orders received list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's received. `GET /api/v2/OrdersService/Orders/Received` |
+| `absuite orders received count` | Reads |  |  | Count the workspace's received. `GET /api/v2/OrdersService/Orders/Received/Count` |
+| `absuite orders received get` | Reads | `<id>` | `--columns` | Show one of the workspace's received. `GET /api/v2/OrdersService/Orders/Received/{orderId}` |
+| `absuite orders received lines list` | Reads |  | `--order-id` (required); `--top` `--skip` `--columns` | List the workspace's received lines. `GET /api/v2/OrdersService/Orders/Received/{orderId}/Lines` |
+
+### Orders (`absuite orders`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite orders list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's orders. `GET /api/v2/OrdersService/Orders` |
+| `absuite orders count` | Reads |  |  | Count the workspace's orders. `GET /api/v2/OrdersService/Orders/Count` |
+| `absuite orders get` | Reads | `<id>` | `--columns` | Show one of the workspace's orders. `GET /api/v2/OrdersService/Orders/{orderId}` |
+| `absuite orders create` | Writes |  | `--cart-id`, `--quote-id`, `--wallet-id`, `--parent-order-id`, `--shipping-method-id`, `--billing-location-id`, `--customer-notes`, `--order-status`, `--quote-status`, `--freight-terms`, `--shipping-location-id`, `--qualified-identifier`, `--total-taxes-in-usd`, `--total-discounts-in-usd`, `--total-surcharges-in-usd`, `--total-shipping-cost-in-usd`, `--total-shipping-tax-in-usd`, `--total-amount-in-usd`, `--effective-to`, `--effective-from`, `--closed`, `--title`, `--price-list-id`, `--description`, `--individual-id`, `--payment-term-id`, `--organization-id`, `--receiver-tenant-id`, `--first-name`, `--last-name`, `--company-name`, `--billing-email`, `--address-line1`, `--address-line2`, `--postal-code`, `--country-id`, `--state-id`, `--city-id`, `--forex-rate`, `--currency-id`, `--total-detail`, `--total-detail-currency-id`, `--total-profit`, `--total-profit-currency-id`, `--total-discounts`, `--total-discounts-currency-id`, `--total-surcharges`, `--total-surcharges-currency-id`, `--total-shipping-cost`, `--total-shipping-cost-currency-id`, `--total-shipping-tax`, `--total-shipping-tax-currency-id`, `--total-withheld-tax`, `--total-withheld-tax-currency-id`, `--total-tax-base`, `--total-tax-base-currency-id`, `--total-taxes`, `--total-taxes-currency-id`, `--total-global-surcharges`, `--total-global-surcharges-currency-id`, `--total-global-discounts`, `--total-global-discounts-currency-id`, `--total`, `--total-currency-id`, `--cost-calculation-method`, `--tax-calculation-method`; `--json` `--file` `--dry-run` | Create a record in the workspace's orders. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/OrdersService/Orders` |
+| `absuite orders update` | Writes | `<id>` | `--cart-id`, `--total-amount-in-usd`, `--total-taxes-in-usd`, `--quote-status`, `--effective-to`, `--effective-from`, `--closed`, `--title`, `--price-list-id`, `--description`, `--individual-id`, `--payment-term-id`, `--organization-id`, `--receiver-tenant-id`, `--first-name`, `--last-name`, `--company-name`, `--billing-email`, `--address-line1`, `--address-line2`, `--postal-code`, `--country-id`, `--state-id`, `--city-id`, `--billing-location-id`, `--shipping-location-id`, `--shipping-method-id`, `--forex-rate`, `--currency-id`, `--total-detail`, `--total-detail-currency-id`, `--total-profit`, `--total-profit-currency-id`, `--total-discounts`, `--total-discounts-currency-id`, `--total-surcharges`, `--total-surcharges-currency-id`, `--total-shipping-tax`, `--total-shipping-tax-currency-id`, `--total-shipping-cost`, `--total-shipping-cost-currency-id`, `--total-global-discounts`, `--total-global-discounts-currency-id`, `--total-global-surcharges`, `--total-global-surcharges-currency-id`, `--total-withheld-tax`, `--total-withheld-tax-currency-id`, `--total-tax-base`, `--total-tax-base-currency-id`, `--total-taxes`, `--total-taxes-currency-id`, `--total`, `--total-currency-id`, `--cost-calculation-method`, `--tax-calculation-method`; `--json` `--file` `--dry-run` | Change one of the workspace's orders: reads it, applies --json/--file and the field flags, then saves it. Never set here: user-id (set by the server). `PUT /api/v2/OrdersService/Orders/{orderId}` |
+| `absuite orders delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's orders; it asks first unless --yes. `DELETE /api/v2/OrdersService/Orders/{orderId}` |
+
+## Example
+
+```bash
+absuite orders extended list --top 5 -o json --query "[].id"
+absuite orders create --cart-id <value> --quote-id <value> --dry-run   # prints the POST, sends nothing
+absuite orders create --cart-id <value> --quote-id <value> -o json --no-input
 ```
-absuite orders <verb> [<entity>] --Param value
-```
-
-- Verbs available: **list, count, get, create, update, delete** plus the service
-  actions **calculate**, **submit cart**, **send email**, **preview email-template**.
-- The canonical function-name form also works, mirroring the PowerShell SDK cmdlets
-  (e.g. `absuite orders Get-Orders`, `absuite orders New-Order`,
-  `absuite orders Measure-Order`, `absuite orders Invoke-DeleteOrder`,
-  `absuite orders Submit-Cart`). Calculate is `Measure-*`; delete is `Invoke-Delete*`.
-- JSON DTO parameters are passed as a single-quoted JSON string with the **same field
-  names** as the REST API (e.g. `--OrderCreateDto '{...}'`).
-
-### Enum values (authoritative — from the OpenAPI spec)
-
-- **`OrderStatus`**: `New | Processing | Accepted | Declined | Shipped | Delivered | OnHold | Failed | Fulfilled | Cancelled`
-- **`QuoteStatus`** (on create): `Draft | New | Accepted | Declined | Expired`
-- **`FreightTerms`**: `FOB | NoCharge`
-- **`CostCalculationMethod`**: `Automatic | Custom`
-- **`TaxCalculationMethod`**: `Included | Excluded`
-- **`AlertType`** (email dispatch): `None | Info | Error | Warning | Success | Action | Alert`
-
-## Orders
-
-### List orders
-
-```
-absuite orders list --TenantId <tenant-guid>
-```
-
-### List extended orders (with related data)
-
-```
-absuite orders list extended --TenantId <tenant-guid>
-```
-
-### Count orders
-
-```
-absuite orders count --TenantId <tenant-guid>
-```
-
-### Get an order by ID
-
-```
-absuite orders get --TenantId <tenant-guid> --OrderId <order-guid>
-```
-
-### Create an order
-
-```
-absuite orders create --TenantId <tenant-guid> --OrderCreateDto '{
-  "Title": "Order for a customer",
-  "Description": "Q2 software licenses",
-  "CurrencyId": "<currency-guid>",
-  "IndividualId": "<contact-guid>",
-  "OrganizationId": "<organization-guid>",
-  "FirstName": "<first-name>",
-  "LastName": "<last-name>",
-  "CompanyName": "<company-name>",
-  "BillingEmail": "<billing-email>",
-  "AddressLine1": "<address-line-1>",
-  "PostalCode": "<postal-code>",
-  "CountryId": "<country-guid>",
-  "StateId": "<state-guid>",
-  "CityId": "<city-guid>",
-  "OrderStatus": "New",
-  "CostCalculationMethod": "Automatic",
-  "TaxCalculationMethod": "Excluded"
-}'
-```
-
-**`OrderCreateDto`** fields are all optional. Beyond those above the spec also accepts:
-`PriceListId`, `PaymentTermId`, `ForexRate`, `CartId`, `QuoteId`, `WalletId`,
-`ParentOrderId`, `ShippingMethodId`, `BillingLocationId`, `ShippingLocationId`,
-`CustomerNotes`, `QuoteStatus`, `FreightTerms`, `ReceiverTenantId`,
-`QualifiedIdentifier`, `EffectiveFrom`, `EffectiveTo`, the full `Total*` /
-`Total*CurrencyId` / `Total*InUsd` set, and `OrderLines` (an inline array of order lines).
-
-### Create an order with inline lines
-
-```
-absuite orders create --TenantId <tenant-guid> --OrderCreateDto '{
-  "Title": "Bundled order",
-  "CurrencyId": "<currency-guid>",
-  "IndividualId": "<contact-guid>",
-  "OrderStatus": "New",
-  "CostCalculationMethod": "Automatic",
-  "TaxCalculationMethod": "Excluded",
-  "OrderLines": [
-    { "ItemId": "<item-guid-1>", "ItemTitle": "<item-title-1>", "Quantity": 5, "CurrencyId": "<currency-guid>", "ItemPriceId": "<price-guid-1>" },
-    { "ItemId": "<item-guid-2>", "ItemTitle": "<item-title-2>", "Quantity": 1, "CurrencyId": "<currency-guid>", "ItemPriceId": "<price-guid-2>" }
-  ]
-}'
-```
-
-### Update an order
-
-```
-absuite orders update --TenantId <tenant-guid> --OrderId <order-guid> --OrderUpdateDto '{
-  "Title": "Updated order title",
-  "Closed": true,
-  "Description": "Fulfilled and closed.",
-  "CurrencyId": "<currency-guid>",
-  "CostCalculationMethod": "Automatic",
-  "TaxCalculationMethod": "Excluded"
-}'
-```
-
-**`OrderUpdateDto`** differs from the create DTO: it adds `UserId`, `BillingLocationId`,
-`ShippingLocationId`, `ShippingMethodId`; `QuoteStatus` is a free string; and it has
-**no** `OrderStatus`, `OrderLines`, `QuoteId`, `WalletId`, `ParentOrderId`,
-`CustomerNotes`, `FreightTerms`, or `QualifiedIdentifier`. Changing `OrderStatus`
-requires a PATCH — use the `absuite-orders` REST skill for that.
-
-### Delete an order
-
-```
-absuite orders delete --TenantId <tenant-guid> --OrderId <order-guid>
-```
-
-### Calculate order totals
-
-```
-absuite orders calculate --TenantId <tenant-guid> --OrderId <order-guid>
-```
-Triggers server-side recalculation of all totals and USD equivalents. No DTO body.
-
-## Order Lines
-
-### List order lines
-
-```
-absuite orders list lines --TenantId <tenant-guid> --OrderId <order-guid>
-```
-Optional `--ItemId <item-guid>` filters lines to a single catalog item.
-
-### Count order lines
-
-```
-absuite orders count lines --TenantId <tenant-guid> --OrderId <order-guid>
-```
-
-### Get an order line by ID
-
-```
-absuite orders get line --TenantId <tenant-guid> --OrderId <order-guid> --OrderLineId <order-line-guid>
-```
-
-### Create an order line
-
-```
-absuite orders create line --TenantId <tenant-guid> --OrderId <order-guid> --OrderLineCreateDto '{
-  "ItemId": "<catalog-item-guid>",
-  "ItemTitle": "<item-title>",
-  "ItemShortDescription": "<short-description>",
-  "Quantity": 10,
-  "CurrencyId": "<currency-guid>",
-  "ItemPriceId": "<price-guid>",
-  "Description": "<line-description>"
-}'
-```
-
-**`OrderLineCreateDto`** key fields: `ItemId`, `ItemTitle`, `ItemShortDescription`,
-`ItemPrimaryImageUrl`, `Quantity`, `CurrencyId`, `ItemPriceId` or `PriceListItemId`,
-`UnitId`, `UnitGroupId`, `Free`/`FreeReason`/`FreeReasonCode`, `CostCalculationMethod`,
-`TaxCalculationMethod`. Policy refs: `ShippingPolicyId`, `ReturnPolicyId`,
-`RefundPolicyId`, `WarrantyPolicyId`, `ShipmentPolicyId`, `ShippingLocationId`,
-`LocationId`. Custom metadata: `Data` + `DataLabel`, and `Data1`–`Data9` each with a
-matching `Data{N}Label`. Plus the full `Total*` / `Total*CurrencyId` / `Total*InUsd`
-and `CustomGlobal*` sets, `ForexRate`, `ForexRatesSnapshot`, `QuoteItemRecordId`,
-`ParentBillingItemRecordId`.
-
-### Update an order line
-
-```
-absuite orders update line --TenantId <tenant-guid> --OrderId <order-guid> --OrderLineId <order-line-guid> --OrderLineUpdateDto '{
-  "Quantity": 15,
-  "Description": "Increased quantity to 15",
-  "CurrencyId": "<currency-guid>",
-  "CostCalculationMethod": "Automatic",
-  "TaxCalculationMethod": "Excluded"
-}'
-```
-**`OrderLineUpdateDto`** adds `UserId`; otherwise mirrors the create line DTO.
-
-### Delete an order line
-
-```
-absuite orders delete line --TenantId <tenant-guid> --OrderId <order-guid> --OrderLineId <order-line-guid>
-```
-
-### Calculate a single line's totals
-
-```
-absuite orders calculate line --TenantId <tenant-guid> --OrderId <order-guid> --OrderLineId <order-line-guid>
-```
-
-## Cart Submission
-
-Convert a shopping cart into an order for the authenticated user. This command is
-**user-scoped — it takes only `--CartId`, no `--TenantId`**:
-
-```
-absuite orders submit cart --CartId <cart-guid>
-```
-Returns the created order; the cart's items become order lines automatically.
-
-## Email Notifications
-
-Both email commands require the caller to hold the `send_email` permission.
-
-### Send an order email
-
-```
-absuite orders send email --TenantId <tenant-guid> --OrderId <order-guid> --EmailDispatchRequest '{
-  "Title": "Your order confirmation",
-  "Message": "Thank you for your order.",
-  "Culture": "en-US",
-  "UiCulture": "en-US",
-  "Recipients": ["<recipient-email>"]
-}'
-```
-
-**`EmailDispatchRequest`** required fields: `Title`, `Message`, `Culture`, `UiCulture`,
-`Recipients` (array). Optional: `ButtonLink`, `ButtonText`, `AlertMessage`, `AlertType`
-(`None|Info|Error|Warning|Success|Action|Alert`), `ContactIds`, `TenantIds`, `UserIds`,
-`TemplateUrl`, `EmailTemplateId`.
-
-### Preview an order email template
-
-```
-absuite orders preview email-template --TenantId <tenant-guid> --OrderId <order-guid> --EmailDispatchRequest '{
-  "Title": "Your order confirmation",
-  "Message": "Thank you for your order.",
-  "Culture": "en-US",
-  "UiCulture": "en-US",
-  "Recipients": ["<recipient-email>"]
-}'
-```
-Same `EmailDispatchRequest` body; returns the rendered preview instead of sending.
-
-## End-to-End Workflow
-
-```
-# 1. Authenticate
-absuite login --email <user-email>
-
-# 2. Set the default tenant
-absuite config set --tenant-id <tenant-guid>
-
-# 3. Create the order header (note the returned order ID)
-absuite orders create --OrderCreateDto '{
-  "Title": "Enterprise license order",
-  "CurrencyId": "<currency-guid>",
-  "IndividualId": "<contact-guid>",
-  "OrderStatus": "New",
-  "CostCalculationMethod": "Automatic",
-  "TaxCalculationMethod": "Excluded"
-}'
-
-# 4. Add line items
-absuite orders create line --OrderId <order-guid> --OrderLineCreateDto '{
-  "ItemId": "<item-guid>",
-  "ItemTitle": "<item-title>",
-  "Quantity": 5,
-  "CurrencyId": "<currency-guid>",
-  "ItemPriceId": "<price-guid>"
-}'
-
-# 5. Recalculate totals
-absuite orders calculate --OrderId <order-guid>
-
-# 6. Send the confirmation email
-absuite orders send email --OrderId <order-guid> --EmailDispatchRequest '{
-  "Title": "Order confirmation",
-  "Message": "Your order has been received and is being processed.",
-  "Culture": "en-US",
-  "UiCulture": "en-US",
-  "Recipients": ["<recipient-email>"]
-}'
-
-# 7. Verify
-absuite orders get --OrderId <order-guid>
-```
-
-> To change an order's `OrderStatus` (lifecycle transitions like Processing, Shipped,
-> Delivered, Fulfilled, Cancelled), use a PATCH via the REST skill `absuite-orders` —
-> the CLI's `update` (PUT) DTO does not include `OrderStatus`.
-
-## CLI Commands Quick Reference
-
-| Action | CLI command |
-|---|---|
-| List orders | `absuite orders list --TenantId <guid>` |
-| Count orders | `absuite orders count --TenantId <guid>` |
-| Extended orders | `absuite orders list extended --TenantId <guid>` |
-| Get order | `absuite orders get --TenantId <guid> --OrderId <guid>` |
-| Create order | `absuite orders create --TenantId <guid> --OrderCreateDto '{...}'` |
-| Update order | `absuite orders update --TenantId <guid> --OrderId <guid> --OrderUpdateDto '{...}'` |
-| Delete order | `absuite orders delete --TenantId <guid> --OrderId <guid>` |
-| Calculate order | `absuite orders calculate --TenantId <guid> --OrderId <guid>` |
-| Submit cart | `absuite orders submit cart --CartId <guid>` |
-| List lines | `absuite orders list lines --TenantId <guid> --OrderId <guid>` |
-| Count lines | `absuite orders count lines --TenantId <guid> --OrderId <guid>` |
-| Get line | `absuite orders get line --TenantId <guid> --OrderId <guid> --OrderLineId <guid>` |
-| Create line | `absuite orders create line --TenantId <guid> --OrderId <guid> --OrderLineCreateDto '{...}'` |
-| Update line | `absuite orders update line --TenantId <guid> --OrderId <guid> --OrderLineId <guid> --OrderLineUpdateDto '{...}'` |
-| Delete line | `absuite orders delete line --TenantId <guid> --OrderId <guid> --OrderLineId <guid>` |
-| Calculate line | `absuite orders calculate line --TenantId <guid> --OrderId <guid> --OrderLineId <guid>` |
-| Send email | `absuite orders send email --TenantId <guid> --OrderId <guid> --EmailDispatchRequest '{...}'` |
-| Preview email | `absuite orders preview email-template --TenantId <guid> --OrderId <guid> --EmailDispatchRequest '{...}'` |
-
-> `submit cart` is the only command **without** `--TenantId` (it is user-scoped and takes
-> only `--CartId`). For atomic partial updates (JSON Patch / lifecycle status changes),
-> use the REST skill `absuite-orders`. The `absuite` CLI does not support PATCH.

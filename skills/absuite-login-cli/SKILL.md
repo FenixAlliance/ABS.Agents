@@ -1,124 +1,80 @@
 ---
 name: absuite-login-cli
 key: fenixalliance.absuite.login-cli
-version: 1.0.0
+version: 1.1.0
 description: >
-  Authenticate with the Alliance Business Suite (ABS) using the `absuite` CLI and
-  verify your identity. Use when you need to log in with user credentials, configure
-  the CLI base URL and default tenant, or confirm your ABS identity via WhoAmI
-  through the CLI. Do NOT use for domain-specific ABS operations — only for
-  authentication, configuration, and identity verification. For REST/HTTP login,
-  see absuite-login.
+  Sign in to the Alliance Business Suite (ABS) with the absuite CLI: device-code login (the default),
+  password login for a server on this computer, run tokens for agents, the workspace choice, sign-out,
+  and the exit codes a script acts on.
 ---
 
-# Alliance Business Suite — Authentication Skill (CLI)
+# Alliance Business Suite — Sign-in Skill (CLI)
 
-Use this skill to establish and verify an authenticated ABS session with the **`absuite` CLI**. The CLI caches and manages the token for you. For the REST/HTTP equivalent, see `absuite-login`.
+Generated from the absuite CLI at Platform 9b72a00a47 (`absuite commands -o json` and `absuite --help`). Re-run `absuite commands -o json` before relying on a command.
 
-This skill is only for: logging in, configuring the CLI, and verifying identity. For domain operations, see `absuite-cli` (general) or the per-service `absuite-<domain>-cli` skills.
+## Install
 
-## Prerequisites
+`npm install -g @fenixalliance/absuite` installs a self-contained binary for your platform. `absuite --version` prints its version; `absuite --help` lists the commands.
 
-The `absuite` CLI must be installed and on `PATH`:
+## Sign in
 
-```bash
-absuite --version
-```
+- `absuite login --url https://<server>` opens a one-time code sign-in in your browser (`--device`, the default). `--timeout <seconds>` stops waiting (1 to 3600).
+- `--with-password` signs in with email and password, on servers that allow it; prefer the device flow. `--email` names the account; `--password-stdin` reads the password from standard input, for scripts, and only for a server on this computer (localhost).
+- The session is kept in the OS-protected credential store, never in plain text; without one, the command ends with exit 4. Sessions are per profile; `--profile <name>` or `ABS_PROFILE` picks the profile.
+- Then `absuite me` shows who you are, and `absuite account show` the profile, server and workspace.
 
-Expected: `absuite v1.0.0` (or later). The CLI is a self-contained executable — no runtime dependencies.
+## Choose the workspace
 
-## Environment variables
+Every service command acts in one workspace (tenant). `absuite account list` lists yours; `absuite account set --tenant <id|name>` (or `absuite tenants use <id|name>`) saves one in the profile; `absuite account clear` forgets it. `--tenant <id>` or `ABS_TENANT` overrides it for one command.
 
-Injected by the agent runtime — never hard-code these:
+## Commands
 
-| Variable | Description |
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite login` | Writes |  | `--device`, `--with-password`, `--email`, `--password-stdin`, `--timeout` | Sign in to the ABS server. |
+| `absuite logout` | Writes |  | `--all` | Sign out: revoke the session on the server and remove it from this computer. |
+| `absuite me` | Reads |  |  | Show who you are signed in as. |
+| `absuite account show` | Reads |  |  | Show the profile, the server, who you are signed in as and the workspace you act in. |
+| `absuite account list` | Reads |  |  | List the workspaces (tenants) you can use on this server. |
+| `absuite account set` | Writes |  |  | Act in this workspace from now on (saved in the profile): absuite account set --tenant <id\|name>. |
+| `absuite account use` | Writes | `<workspace>` |  | Act in this workspace from now on (same as absuite account set --tenant). |
+| `absuite account clear` | Writes |  |  | Forget the profile's saved workspace. |
+| `absuite tenants list` | Reads |  |  | List the workspaces (tenants) you can use (same as absuite account list). |
+| `absuite tenants use` | Writes | `<workspace>` |  | Act in this workspace from now on (same as absuite account set --tenant). |
+
+## Sign out
+
+`absuite logout` revokes the session on the server and removes it from this computer; `--all` does so for every profile and server.
+
+## Output and queries
+
+- `-o table` (the default; `human` also works), `json`, `jsonc`, `tsv`, `yaml` or `none`. `ABS_OUTPUT` sets the default.
+- `--query "<JMESPath>"` is applied to the result before it is printed, in every format: `absuite crm contacts list -o json --query "[].name"`. A bad expression is a usage error (exit 2).
+- `--columns a,b,c` picks the fields of the human table. `--only-show-errors` hides warnings and notices; `--verbose` says what the command runs with; `--debug` traces each HTTP call (method, address without its query, status, time; never headers, tokens or bodies).
+- Errors always print on standard error, whatever `-o` or `--only-show-errors` say. With `-o json` or `-o jsonc` they are one JSON document: `{"error":{"message","code","correlation","validation","exitCode"}}`. The API's error code and correlation id are always shown; quote them to support.
+
+## Exit codes
+
+Scripts can rely on these: a number never changes meaning.
+
+| Code | Meaning |
 |---|---|
-| `ABSUITE_USER_EMAIL` | Email for ABS login. |
-| `ABSUITE_USER_PASSWORD` | Password for ABS login. |
-| `ABSUITE_HOST_URL` | Base URL of the ABS instance. No trailing slash. |
+| 0 | Done. |
+| 1 | The API refused or failed the request for a reason no narrower code describes (a validation error, a feature that is off, an unexpected failure). |
+| 2 | A bad flag, argument, `--query` expression or configuration value; or input was needed under `--no-input`. |
+| 3 | Not signed in, or the session expired and could not be refreshed. |
+| 4 | No OS-protected credential store on this computer, so the session could not be kept (it is never kept in plain text). |
+| 5 | The record does not exist in this workspace. |
+| 6 | Signed in, but not allowed to do this (403). |
+| 7 | The server failed (5xx). |
+| 8 | The server could not be reached, or did not answer in time. |
 
-## Configuration
+## Agents: run tokens
 
-The CLI stores config in `~/.absuite/config.json` (tokens DPAPI-encrypted on Windows, user- and machine-scoped). These commands manage **local CLI state** and have no REST equivalent.
+An agent on its own computer uses its run token instead of `absuite login`:
 
-```bash
-# Set the base URL (only if not the default https://absuite.net)
-absuite config set --base-url $ABSUITE_HOST_URL
-
-# Set a default tenant so you don't pass --TenantId on every call
-absuite config set --tenant-id <tenant-guid>
-
-# View current configuration
-absuite config show
-```
-
-> The default tenant is auto-injected as `--TenantId` **only** on commands that take a tenant parameter. User-scoped / public commands (identity, `/Me` reads, global reference data) ignore it.
-
-## Step 1 — Log in
-
-```bash
-absuite login --email $ABSUITE_USER_EMAIL --password $ABSUITE_USER_PASSWORD
-```
-
-If the base URL is not the default, include it:
-
-```bash
-absuite login --email $ABSUITE_USER_EMAIL --password $ABSUITE_USER_PASSWORD --base-url $ABSUITE_HOST_URL
-```
-
-On success the CLI caches the token and uses it automatically for all subsequent calls. It tracks expiry and warns when the token has expired.
-
-> If `--password` is omitted the CLI prompts interactively. For agent use, always pass `--password` explicitly.
-
-## Step 2 — Verify identity (WhoAmI)
-
-```bash
-absuite identity Get-WhoAmIAsync
-```
-
-Returns the standard envelope; read `result` for `userId`, `tenantId`, `enrollmentId`, `applicationId`.
-
-To check identity within a specific tenant context:
-
-```bash
-absuite identity Get-WhoAmIAsync --TenantId <tenant-guid>
-```
-
-## Step 3 — Token expiry
-
-The CLI checks expiry before each call and warns:
-
-```
-Access token expired. Run 'absuite login' to re-authenticate.
-```
-
-When you see this, re-run Step 1.
-
-## Quick identity-check procedure
-
-Run on wake-up or before any ABS-dependent workflow:
-
-1. `absuite --version` — confirm the CLI is available.
-2. `absuite identity Get-WhoAmIAsync`.
-   - Success → session valid.
-   - Token-expired / auth error → `absuite login --email $ABSUITE_USER_EMAIL --password $ABSUITE_USER_PASSWORD`, then retry.
-3. Record the identity context for downstream use.
-
-## Identity-adjacent reads via CLI
-
-| Action | CLI command |
-|---|---|
-| My profile | `absuite users Get-MeAsync` |
-| My tenants | `absuite users Get-CurrentUserTenantsAsync` |
-| My enrollments | `absuite users Get-CurrentUserEnrollmentsAsync` |
-| My pending invitations | `absuite users Get-CurrentUserInvitationAsync` |
-
-> Discover exact commands with `absuite <service> list-commands` and `absuite <service> <command> --help`.
-
-## Critical rules
-
-- **Never hard-code credentials or host.** Use `ABSUITE_USER_EMAIL`, `ABSUITE_USER_PASSWORD`, `ABSUITE_HOST_URL`.
-- **Never log or print credentials or tokens** unless deliberately debugging auth.
-- **Always verify identity after login** — run `absuite identity Get-WhoAmIAsync`.
-- **The CLI manages the token automatically** — no need to pass `Authorization` headers.
-- This skill is for authentication only. For tenant onboarding, see `absuite-onboarding-cli`; for domain operations, see `absuite-cli` and the `absuite-<domain>-cli` skills.
+- Set `ABS_TOKEN` (the token) or `ABS_TOKEN_FILE` (an absolute path to a file holding only the token; read fresh on every command, so rotation needs no restart). Set one, never both: both is a usage error.
+- The token is used only with `--url` or `ABS_URL`; otherwise the CLI says it is ignored. It is never sent over plain http:// except to a server on the same computer (localhost, 127.0.0.1 or ::1).
+- The token says who the agent is; the workspace's roles decide what it may do (CEO ruling, 2026-11-10). A read passes the run-token check; the workspace's roles still decide what it can see. A write meets the same permission checks as a person's, and a governed capability goes to Approvals, whose answer is returned as-is.
+- Refusals a run token can meet, with the API code shown in the error: `trust.agent_api.unbound_run` (the token names no run or workspace), `trust.agent_api.unpermissioned_write` (a write whose use case names no permission and no role, the one write roles cannot govern), `trust.agent_api.gate_unavailable` (the check could not decide, so it refused). They end with exit 6 or 1. `trust.agent_api.unclassified_write` is no longer returned; older audit rows may still show it.
+- Always pass `--no-input` and `-o json`, and act on the exit code, not on the text.

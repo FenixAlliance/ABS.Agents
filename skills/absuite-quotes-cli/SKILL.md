@@ -1,69 +1,79 @@
 ---
 name: absuite-quotes-cli
 key: fenixalliance.absuite.quotes-cli
-version: 1.0.0
+version: 1.1.0
 description: >
-  Manage sales quotes in the Alliance Business Suite (ABS) Quotes Service using the
-  `absuite` CLI. Covers quotes, quote lines, calculations, lifecycle actions (close,
-  reopen, convert to order), and transactional email — via list/count/get/create/
-  update/delete commands and service actions. Requires an authenticated CLI session
-  (see absuite-login-cli). For atomic PATCH updates or raw HTTP, use the absuite-quotes
-  (REST) skill.
+  Drive the Alliance Business Suite (ABS) Quotes area with the absuite CLI: 18 commands (13 read, 5
+  write) under `absuite quotes`, each generated from the platform's ServiceClients and checked against
+  `absuite commands -o json`. For routes the CLI does not cover, use the absuite-quotes REST skill.
 ---
 
 # Alliance Business Suite — Quotes Skill (CLI)
 
-Manage sales quotes through the `absuite` CLI's `quotes` service. All quote operations
-are tenant-scoped and require an authenticated session. The CLI does not support PATCH
-(JSON Patch) — for partial atomic updates use the `absuite-quotes` REST skill.
+Generated from the absuite CLI at Platform 9b72a00a47 (`absuite commands -o json`). The commands, arguments and options below are the CLI's own; re-run `absuite commands -o json` before relying on one.
 
-## API usage essentials
+> **Coverage:** the `absuite-quotes` REST skill documents 27 routes; 15 of them have no CLI command (a write the CLI keeps to Studio, a call that is not workspace-scoped, or a field shape it cannot take yet). Use the REST skill for those.
 
-> Full detail in `absuite-cli`.
+## Before you start
 
-- **`update` replaces the ENTIRE object** (it maps to HTTP `PUT`) — a full overwrite, not a merge. **`get` the entity first, change only what you need on the complete object, then `update` with the full body.** A partial `update` (or an incomplete `create`) blanks the omitted fields -> silent data loss.
-- **No atomic partial update in the CLI.** For a safe single-field change, use the `absuite-quotes` REST skill's `PATCH` (JSON Patch), where that service exposes one.
-- Use **`count <entity>`** (a dedicated operation) to size a collection. OData filtering/paging (`$filter`, `$top`, ...) is REST-only — the CLI does not expose it; use `absuite-quotes` for filtered queries or a filtered count.
+- Install: `npm install -g @fenixalliance/absuite` (a self-contained binary per platform). `absuite --version` prints the version.
+- Sign in: `absuite login` (a one-time code in your browser, the default). `absuite me` shows who you are; `absuite account show` shows the profile, server and workspace.
+- Workspace: `absuite account list` lists yours; `absuite account set --tenant <id|name>` saves one. `--tenant <id>` or `ABS_TENANT` picks one for a single command.
+- Agents on their computer: the run token comes from `ABS_TOKEN` or `ABS_TOKEN_FILE` (one of them, never both), used only with `--url` or `ABS_URL`, and only over https:// or to a server on the same computer. The token says who the agent is; the workspace's roles decide what it may do.
+- Scripts and agents: pass `--no-input` (it is also on when stdin is not a terminal, or CI or ABS_NO_TUI is set). Anything that needs input then fails with exit 2 and names the flag to pass.
+- Output: `-o table|json|jsonc|tsv|yaml|none`; `--query "<JMESPath>"` filters the result before it is printed.
+- `absuite commands -o json` lists every command with its options and whether it only reads. Check it before you rely on a command; `absuite <command> --help` shows one.
+- Full sign-in, output, exit-code and run-token rules: the `absuite-cli` skill. Anything not listed here: the `absuite-quotes` REST skill.
 
-## Prerequisites
+## Commands
 
-1. **Authenticate first** — run `absuite login` (see `absuite-login-cli`). For general
-   CLI usage and configuration, see `absuite-cli`.
-2. **Set your tenant** — every quotes command requires a tenant. Either set a default:
-   ```powershell
-   absuite config set --tenant-id <tenant-guid>
-   ```
-   …and reference it as `$TENANT_ID`, or pass `--TenantId <tenant-guid>` on each call.
-3. **Discover commands:**
-   ```powershell
-   absuite quotes list-commands
-   absuite quotes create quote --help
-   ```
+18 commands, from `absuite commands -o json`. "Reads" commands never change data. Writes take field flags or `--json`/`--file` with the same fields, and `--dry-run` prints the request without sending it. Deletes ask first unless `--yes` (with `--no-input` and no `--yes`, a delete fails with exit 2).
 
-## Command Structure
+### Extended (`absuite quotes extended`)
 
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite quotes extended list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's extended. `GET /api/v2/QuotesService/Quotes/Extended` |
+
+### Lines (`absuite quotes lines`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite quotes lines list` | Reads |  | `--quote-id` (required); `--columns` | List the workspace's lines. `GET /api/v2/QuotesService/Quotes/{quoteId}/Lines` |
+| `absuite quotes lines count` | Reads |  | `--quote-id` (required) | Count the workspace's lines. `GET /api/v2/QuotesService/Quotes/{quoteId}/Lines/Count` |
+| `absuite quotes lines get` | Reads | `<id>` | `--quote-id` (required); `--columns` | Show one of the workspace's lines. `GET /api/v2/QuotesService/Quotes/{quoteId}/Lines/{quoteLineId}` |
+| `absuite quotes lines show` | Reads |  | `--quote-id` (required); `--columns` | Show the workspace's lines. `GET /api/v2/QuotesService/Quotes/{quoteId}/Lines` |
+| `absuite quotes lines create` | Writes |  | `--quote-id` (required), `--item-id`, `--unit-id`, `--currency-id`, `--price-list-id`, `--unit-group-id`, `--discount-list-id`, `--rounding-policy-id`, `--price`, `--percent`; `--json` `--file` `--dry-run` | Create a record in the workspace's lines. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/QuotesService/Quotes/{quoteId}/Lines` |
+| `absuite quotes lines delete` | Writes | `<id>` | `--quote-id` (required); `--yes` `--dry-run` | Delete one of the workspace's lines; it asks first unless --yes. `DELETE /api/v2/QuotesService/Quotes/{quoteId}/Lines/{quoteLineId}` |
+| `absuite quotes lines exists show` | Reads |  | `--quote-id` (required), `--quote-line-id` (required) | Show the workspace's lines exists. `GET /api/v2/QuotesService/Quotes/{quoteId}/Lines/Exists` |
+
+### Received (`absuite quotes received`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite quotes received list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's received. `GET /api/v2/QuotesService/Quotes/Received` |
+| `absuite quotes received count` | Reads |  |  | Count the workspace's received. `GET /api/v2/QuotesService/Quotes/Received/Count` |
+| `absuite quotes received get` | Reads | `<id>` | `--columns` | Show one of the workspace's received. `GET /api/v2/QuotesService/Quotes/Received/{quoteId}` |
+| `absuite quotes received lines list` | Reads |  | `--quote-id` (required); `--top` `--skip` `--columns` | List the workspace's received lines. `GET /api/v2/QuotesService/Quotes/Received/{quoteId}/Lines` |
+
+### Quotes (`absuite quotes`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite quotes list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's quotes. `GET /api/v2/QuotesService/Quotes` |
+| `absuite quotes count` | Reads |  |  | Count the workspace's quotes. `GET /api/v2/QuotesService/Quotes/Count` |
+| `absuite quotes get` | Reads | `<id>` | `--columns` | Show one of the workspace's quotes. `GET /api/v2/QuotesService/Quotes/{quoteId}` |
+| `absuite quotes create` | Writes |  | `--cart-id`, `--deal-unit-id`, `--effective-to`, `--effective-from`, `--quote-status`, `--closed`, `--title`, `--price-list-id`, `--description`, `--individual-id`, `--payment-term-id`, `--organization-id`, `--receiver-tenant-id`, `--first-name`, `--last-name`, `--company-name`, `--billing-email`, `--address-line1`, `--address-line2`, `--postal-code`, `--country-id`, `--state-id`, `--city-id`, `--forex-rate`, `--currency-id`, `--total-detail`, `--total-detail-currency-id`, `--total-profit`, `--total-profit-currency-id`, `--total-discounts`, `--total-discounts-currency-id`, `--total-surcharges`, `--total-surcharges-currency-id`, `--total-shipping-cost`, `--total-shipping-cost-currency-id`, `--total-shipping-tax`, `--total-shipping-tax-currency-id`, `--total-withheld-tax`, `--total-withheld-tax-currency-id`, `--total-tax-base`, `--total-tax-base-currency-id`, `--total-taxes`, `--total-taxes-currency-id`, `--total-global-surcharges`, `--total-global-surcharges-currency-id`, `--total-global-discounts`, `--total-global-discounts-currency-id`, `--total`, `--total-currency-id`, `--cost-calculation-method`, `--tax-calculation-method`; `--json` `--file` `--dry-run` | Create a record in the workspace's quotes. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/QuotesService/Quotes` |
+| `absuite quotes update` | Writes | `<id>` | `--cart-id`, `--quote-status`, `--freight-terms`, `--effective-to`, `--effective-from`, `--custom-tax-amount`, `--custom-total-amount`, `--custom-detail-amount`, `--custom-profit-amount`, `--custom-discounts-amount`, `--custom-surcharges-amount`, `--custom-shipping-cost-amount`, `--custom-shipping-tax-amount`, `--custom-withholding-tax-amount`, `--closed`, `--title`, `--price-list-id`, `--description`, `--individual-id`, `--payment-term-id`, `--organization-id`, `--receiver-tenant-id`, `--first-name`, `--last-name`, `--company-name`, `--billing-email`, `--address-line1`, `--address-line2`, `--postal-code`, `--country-id`, `--state-id`, `--city-id`, `--billing-location-id`, `--shipping-location-id`, `--shipping-method-id`, `--forex-rate`, `--currency-id`, `--total-detail`, `--total-detail-currency-id`, `--total-profit`, `--total-profit-currency-id`, `--total-discounts`, `--total-discounts-currency-id`, `--total-surcharges`, `--total-surcharges-currency-id`, `--total-shipping-tax`, `--total-shipping-tax-currency-id`, `--total-shipping-cost`, `--total-shipping-cost-currency-id`, `--total-global-discounts`, `--total-global-discounts-currency-id`, `--total-global-surcharges`, `--total-global-surcharges-currency-id`, `--total-withheld-tax`, `--total-withheld-tax-currency-id`, `--total-tax-base`, `--total-tax-base-currency-id`, `--total-taxes`, `--total-taxes-currency-id`, `--total`, `--total-currency-id`, `--cost-calculation-method`, `--tax-calculation-method`; `--json` `--file` `--dry-run` | Change one of the workspace's quotes: reads it, applies --json/--file and the field flags, then saves it. Never set here: user-id (set by the server). `PUT /api/v2/QuotesService/Quotes/{quoteId}` |
+| `absuite quotes delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's quotes; it asks first unless --yes. `DELETE /api/v2/QuotesService/Quotes/{quoteId}` |
+
+## Example
+
+```bash
+absuite quotes extended list --top 5 -o json --query "[].id"
+absuite quotes create --cart-id <value> --deal-unit-id <value> --dry-run   # prints the POST, sends nothing
+absuite quotes create --cart-id <value> --deal-unit-id <value> -o json --no-input
 ```
-absuite quotes <verb> <entity> --Param value
-```
-
-- **Verbs:** `list`, `count`, `get`, `create`, `update`, `delete`, plus service actions
-  (`calculate`, `close`, `reopen`, `upsert`, `exists`, `send`, `preview`, and
-  `create order-from`).
-- **Entities:** `quote`, `quote-line`, `extended-quote`.
-- The canonical PowerShell function-name form also works as the command, e.g.
-  `absuite quotes New-Quote --TenantId <tenant-guid> --QuoteCreateDto '{...}'`
-  is equivalent to `absuite quotes create quote ...`. The function names map to
-  PowerShell-approved verbs:
-  - create quote → `New-Quote`; create line → `New-QuoteLine`; create order from quote → `New-OrderFromQuote`
-  - list/get/count → `Get-Quotes`, `Get-Quote`, `Get-QuotesCount`, `Get-ExtendedQuotes`, `Get-QuoteLines`, `Get-QuoteLine`, `Get-QuoteLinesCount`
-  - update → `Update-Quote`, `Update-QuoteLine`
-  - delete → `Invoke-DeleteQuote`, `Invoke-DeleteQuoteLine`
-  - calculate → `Measure-Quote`, `Measure-QuoteLine`
-  - close → `Close-Quote`; reopen → `Invoke-ReopenQuote`
-  - upsert line → `Invoke-UpsertQuoteLine`; line exists → `Invoke-QuoteLineExists`
-  - send email → `Send-QuoteEmail`; preview email → `Invoke-PreviewQuoteEmailTemplate`
-- **JSON DTO params** are passed as a single-quoted JSON string (`--<Dto> '{...}'`) using
-  the **same PascalCase field names** as the REST API.
 
 ## Key Concepts
 
@@ -77,326 +87,3 @@ absuite quotes <verb> <entity> --Param value
 - The Quotes Service exposes **quotes and quote lines only** — there are no quote-line
   tax or adjustment sub-resources; line-level tax and discount/surcharge figures are
   carried inline on the quote-line body, and computed by the `calculate` actions.
-
-## Quotes
-
-### Create Quote
-
-```powershell
-absuite quotes create quote --TenantId $TENANT_ID --QuoteCreateDto '{
-  "Title": "Quote - Website Redesign",
-  "Description": "Quote for a complete website redesign project",
-  "CurrencyId": "<currency-guid>",
-  "IndividualId": "<contact-guid>",
-  "OrganizationId": "<organization-guid>",
-  "PriceListId": "<price-list-guid>",
-  "PaymentTermId": "<payment-term-guid>",
-  "CompanyName": "<company-name>",
-  "BillingEmail": "<billing-email>",
-  "AddressLine1": "<address-line-1>",
-  "CountryId": "<country-guid>",
-  "CostCalculationMethod": "Automatic",
-  "TaxCalculationMethod": "Excluded",
-  "QuoteStatus": "Draft",
-  "EffectiveFrom": "2026-06-12T00:00:00Z",
-  "EffectiveTo": "2026-07-12T00:00:00Z"
-}'
-```
-
-**Common `QuoteCreateDto` fields:** `Title`, `Description`, `CurrencyId`, `IndividualId`,
-`OrganizationId`, `ReceiverTenantId`, `PriceListId`, `PaymentTermId`, `FirstName`, `LastName`,
-`CompanyName`, `BillingEmail`, `AddressLine1`, `AddressLine2`, `PostalCode`, `CountryId`,
-`StateId`, `CityId`, `ForexRate`, `CartId`, `DealUnitId`, `EffectiveFrom`, `EffectiveTo`,
-the monetary value/`…CurrencyId` pairs (`TotalDetail`, `TotalProfit`, `TotalDiscounts`,
-`TotalSurcharges`, `TotalShippingCost`, `TotalShippingTax`, `TotalWithheldTax`, `TotalTaxBase`,
-`TotalTaxes`, `TotalGlobalSurcharges`, `TotalGlobalDiscounts`, `Total`), `CostCalculationMethod`,
-`TaxCalculationMethod`, `QuoteStatus`, `Closed`, and the inline array `QuoteLines`.
-
-### Create Quote with Inline Lines
-
-```powershell
-absuite quotes create quote --TenantId $TENANT_ID --QuoteCreateDto '{
-  "Title": "Quote - Acme",
-  "CurrencyId": "<currency-guid>",
-  "IndividualId": "<contact-guid>",
-  "CostCalculationMethod": "Automatic",
-  "TaxCalculationMethod": "Excluded",
-  "QuoteStatus": "Draft",
-  "QuoteLines": [
-    { "ItemId": "<item-guid-1>", "Quantity": 5, "CurrencyId": "<currency-guid>", "ItemPriceId": "<price-guid-1>", "Title": "Design consultation" },
-    { "ItemId": "<item-guid-2>", "Quantity": 1, "CurrencyId": "<currency-guid>", "ItemPriceId": "<price-guid-2>", "Title": "Premium hosting" }
-  ]
-}'
-```
-
-### List Quotes
-
-```powershell
-absuite quotes list quotes --TenantId $TENANT_ID
-```
-
-### Count Quotes
-
-```powershell
-absuite quotes count quotes --TenantId $TENANT_ID
-```
-
-### List Extended Quotes (with related data)
-
-```powershell
-absuite quotes list extended-quotes --TenantId $TENANT_ID
-```
-
-### Get Quote by ID
-
-```powershell
-absuite quotes get quote --TenantId $TENANT_ID --QuoteId <quote-guid>
-```
-
-### Update Quote (full replace)
-
-```powershell
-absuite quotes update quote --TenantId $TENANT_ID --QuoteId <quote-guid> --QuoteUpdateDto '{
-  "Title": "Quote - Website Redesign (revised)",
-  "CurrencyId": "<currency-guid>",
-  "QuoteStatus": "New",
-  "Description": "Revised scope and pricing"
-}'
-```
-
-`QuoteUpdateDto` carries the same header/monetary fields as create, plus `UserId`,
-`BillingLocationId`, `ShippingLocationId`, `ShippingMethodId`, `FreightTerms`
-(`FOB`|`NoCharge`), and the `Custom*Amount` overrides (`CustomTaxAmount`, `CustomTotalAmount`,
-`CustomDetailAmount`, `CustomProfitAmount`, `CustomDiscountsAmount`, `CustomSurchargesAmount`,
-`CustomShippingCostAmount`, `CustomShippingTaxAmount`, `CustomWithholdingTaxAmount`). It does
-not carry `Id`, `DealUnitId`, or the inline `QuoteLines` array.
-
-### Delete Quote
-
-```powershell
-absuite quotes delete quote --TenantId $TENANT_ID --QuoteId <quote-guid>
-```
-
-### Calculate Quote
-
-Recompute server-side totals after editing lines.
-
-```powershell
-absuite quotes calculate quote --TenantId $TENANT_ID --QuoteId <quote-guid>
-```
-
-## Quote Lifecycle Actions
-
-### Close Quote
-
-```powershell
-absuite quotes close quote --TenantId $TENANT_ID --QuoteId <quote-guid>
-```
-
-### Reopen Quote
-
-```powershell
-absuite quotes reopen quote --TenantId $TENANT_ID --QuoteId <quote-guid>
-```
-
-### Create Order from Quote
-
-```powershell
-absuite quotes create order-from --TenantId $TENANT_ID --QuoteId <quote-guid>
-```
-
-## Quote Lines
-
-### List Lines
-
-```powershell
-# Optionally filter by item with --ItemId <item-guid>
-absuite quotes list quote-lines --TenantId $TENANT_ID --QuoteId <quote-guid>
-```
-
-### Count Lines
-
-```powershell
-absuite quotes count quote-lines --TenantId $TENANT_ID --QuoteId <quote-guid>
-```
-
-### Check if a Line Exists
-
-Check by quote-line ID or by item ID (pass one of `--QuoteLineId` / `--ItemId`).
-
-```powershell
-absuite quotes exists quote-line --TenantId $TENANT_ID --QuoteId <quote-guid> --QuoteLineId <quote-line-guid>
-# …or by item:
-absuite quotes exists quote-line --TenantId $TENANT_ID --QuoteId <quote-guid> --ItemId <item-guid>
-```
-
-### Get Line by ID
-
-```powershell
-absuite quotes get quote-line --TenantId $TENANT_ID --QuoteId <quote-guid> --QuoteLineId <quote-line-guid>
-```
-
-### Create Line
-
-```powershell
-absuite quotes create quote-line --TenantId $TENANT_ID --QuoteId <quote-guid> --QuoteLineCreateDto '{
-  "Title": "Design consultation",
-  "Description": "Design consultation hours",
-  "ItemId": "<item-guid>",
-  "ItemPriceId": "<price-guid>",
-  "Quantity": 5,
-  "CurrencyId": "<currency-guid>",
-  "CostCalculationMethod": "Automatic",
-  "TaxCalculationMethod": "Excluded"
-}'
-```
-
-`QuoteLineCreateDto` shares the quote header/monetary fields and adds the item/quantity
-line fields: `ItemId`, `ItemTitle`, `ItemShortDescription`, `ItemPrimaryImageUrl`,
-`ShippingPolicyId`, `Quantity`, `Free`, `FreeReason`, `FreeReasonCode`, the `Data`/`DataLabel`
-… `Data9`/`Data9Label` custom slots, `ItemPriceId`, `PriceListItemId`, `UnitId`, `UnitGroupId`,
-`ForexRatesSnapshot`, the `…InUsd` snapshot totals, `CustomGlobalSurchargesAmount`(+`…CurrencyId`),
-`CustomGlobalDiscountsAmount`(+`…CurrencyId`), `ReturnPolicyId`, `RefundPolicyId`,
-`WarrantyPolicyId`, `ShipmentPolicyId`, `ShippingLocationId`, `LocationId`, `QuoteItemRecordId`,
-`ParentBillingItemRecordId`, and `QuoteId`.
-
-### Update Line
-
-```powershell
-absuite quotes update quote-line --TenantId $TENANT_ID --QuoteId <quote-guid> --QuoteLineId <quote-line-guid> --QuoteLineUpdateDto '{
-  "Quantity": 8,
-  "Description": "Increased to 8 hours",
-  "CurrencyId": "<currency-guid>"
-}'
-```
-
-`QuoteLineUpdateDto` carries the same line fields as create plus `UserId`,
-`BillingLocationId`, `ShippingMethodId`. It does not carry `Id`.
-
-### Upsert Line (create or update)
-
-Create-or-update a line in one call. `QuoteLineUpsertDto` adds `Id` and `QuoteId` on top
-of the update fields.
-
-```powershell
-absuite quotes upsert quote-line --TenantId $TENANT_ID --QuoteId <quote-guid> --QuoteLineId <quote-line-guid> --QuoteLineUpsertDto '{
-  "QuoteId": "<quote-guid>",
-  "ItemId": "<item-guid>",
-  "Quantity": 10,
-  "CurrencyId": "<currency-guid>"
-}'
-```
-
-### Delete Line
-
-```powershell
-absuite quotes delete quote-line --TenantId $TENANT_ID --QuoteId <quote-guid> --QuoteLineId <quote-line-guid>
-```
-
-### Calculate a Single Line
-
-```powershell
-absuite quotes calculate quote-line --TenantId $TENANT_ID --QuoteId <quote-guid> --QuoteLineId <quote-line-guid>
-```
-
-## Email Notifications
-
-### Preview Quote Email
-
-Renders the email without sending. Same body as Send (an `EmailDispatchRequest`).
-
-```powershell
-absuite quotes preview quote-email --TenantId $TENANT_ID --QuoteId <quote-guid> --EmailDispatchRequest '{
-  "Title": "Your quote",
-  "Message": "Please review the attached quote.",
-  "Culture": "en-US",
-  "UiCulture": "en-US",
-  "Recipients": ["<billing-email>"]
-}'
-```
-
-### Send Quote Email
-
-```powershell
-absuite quotes send quote-email --TenantId $TENANT_ID --QuoteId <quote-guid> --EmailDispatchRequest '{
-  "Title": "Your quote",
-  "Message": "Please review the attached quote. It is valid until 2026-07-12.",
-  "Culture": "en-US",
-  "UiCulture": "en-US",
-  "Recipients": ["<billing-email>"]
-}'
-```
-
-**`EmailDispatchRequest` fields** (`Title`, `Message`, `Culture`, `UiCulture`, `Recipients` are **required**):
-`Title`, `Message`, `Culture`, `UiCulture`, `Recipients` (array of emails), `ContactIds`
-(array of contact GUIDs), `TenantIds` (array), `UserIds` (array), `ButtonLink`, `ButtonText`,
-`AlertMessage`, `AlertType` (`None`|`Info`|`Error`|`Warning`|`Success`|`Action`|`Alert`),
-`TemplateUrl`, `EmailTemplateId`.
-
-## End-to-End Workflow
-
-```powershell
-# 1. Create the quote header (note the returned quote ID)
-absuite quotes create quote --TenantId $TENANT_ID --QuoteCreateDto '{
-  "Title": "Quote - Website Redesign",
-  "CurrencyId": "<currency-guid>",
-  "IndividualId": "<contact-guid>",
-  "BillingEmail": "<billing-email>",
-  "CostCalculationMethod": "Automatic",
-  "TaxCalculationMethod": "Excluded",
-  "QuoteStatus": "Draft",
-  "EffectiveFrom": "2026-06-12T00:00:00Z",
-  "EffectiveTo": "2026-07-12T00:00:00Z"
-}'
-
-# 2. Add a line
-absuite quotes create quote-line --TenantId $TENANT_ID --QuoteId <quote-guid> --QuoteLineCreateDto '{
-  "Title": "Design consultation", "ItemId": "<item-guid>", "Quantity": 5, "CurrencyId": "<currency-guid>", "ItemPriceId": "<price-guid>"
-}'
-
-# 3. Calculate totals
-absuite quotes calculate quote --TenantId $TENANT_ID --QuoteId <quote-guid>
-
-# 4. Send to the customer
-absuite quotes send quote-email --TenantId $TENANT_ID --QuoteId <quote-guid> --EmailDispatchRequest '{
-  "Title": "Your quote", "Message": "Please review the attached quote.", "Culture": "en-US", "UiCulture": "en-US", "Recipients": ["<billing-email>"]
-}'
-
-# 5. Mark accepted, close, and convert to an order
-absuite quotes update quote --TenantId $TENANT_ID --QuoteId <quote-guid> --QuoteUpdateDto '{ "QuoteStatus": "Accepted" }'
-absuite quotes close quote --TenantId $TENANT_ID --QuoteId <quote-guid>
-absuite quotes create order-from --TenantId $TENANT_ID --QuoteId <quote-guid>
-
-# 6. Verify
-absuite quotes get quote --TenantId $TENANT_ID --QuoteId <quote-guid>
-```
-
-## CLI Commands Quick Reference
-
-| Action | CLI command |
-|---|---|
-| List quotes | `absuite quotes list quotes` |
-| Count quotes | `absuite quotes count quotes` |
-| List extended quotes | `absuite quotes list extended-quotes` |
-| Create quote | `absuite quotes create quote --QuoteCreateDto '{...}'` |
-| Get quote | `absuite quotes get quote --QuoteId <quote-guid>` |
-| Update quote | `absuite quotes update quote --QuoteId <quote-guid> --QuoteUpdateDto '{...}'` |
-| Delete quote | `absuite quotes delete quote --QuoteId <quote-guid>` |
-| Calculate quote | `absuite quotes calculate quote --QuoteId <quote-guid>` |
-| Close quote | `absuite quotes close quote --QuoteId <quote-guid>` |
-| Reopen quote | `absuite quotes reopen quote --QuoteId <quote-guid>` |
-| Create order from quote | `absuite quotes create order-from --QuoteId <quote-guid>` |
-| List lines | `absuite quotes list quote-lines --QuoteId <quote-guid>` |
-| Count lines | `absuite quotes count quote-lines --QuoteId <quote-guid>` |
-| Check line exists | `absuite quotes exists quote-line --QuoteId <quote-guid> --QuoteLineId <quote-line-guid>` |
-| Create line | `absuite quotes create quote-line --QuoteId <quote-guid> --QuoteLineCreateDto '{...}'` |
-| Get line | `absuite quotes get quote-line --QuoteId <quote-guid> --QuoteLineId <quote-line-guid>` |
-| Update line | `absuite quotes update quote-line --QuoteId <quote-guid> --QuoteLineId <quote-line-guid> --QuoteLineUpdateDto '{...}'` |
-| Upsert line | `absuite quotes upsert quote-line --QuoteId <quote-guid> --QuoteLineId <quote-line-guid> --QuoteLineUpsertDto '{...}'` |
-| Delete line | `absuite quotes delete quote-line --QuoteId <quote-guid> --QuoteLineId <quote-line-guid>` |
-| Calculate line | `absuite quotes calculate quote-line --QuoteId <quote-guid> --QuoteLineId <quote-line-guid>` |
-| Preview email | `absuite quotes preview quote-email --QuoteId <quote-guid> --EmailDispatchRequest '{...}'` |
-| Send email | `absuite quotes send quote-email --QuoteId <quote-guid> --EmailDispatchRequest '{...}'` |
-
-> Every command also accepts `--TenantId <tenant-guid>` (omit it if you set a default tenant
-> with `absuite config set --tenant-id <tenant-guid>`).
