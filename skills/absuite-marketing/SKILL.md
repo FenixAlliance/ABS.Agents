@@ -1,4 +1,6 @@
 ---
+apiVersion: abs.fenixalliance.com/v1alpha1
+kind: Skill
 name: absuite-marketing
 description: >
   Create, read, update, patch, and delete marketing records in the Alliance Business

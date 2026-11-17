@@ -1,4 +1,6 @@
 ---
+apiVersion: abs.fenixalliance.com/v1alpha1
+kind: Skill
 name: absuite-emails-cli
 key: fenixalliance.absuite.emails-cli
 version: 1.1.0

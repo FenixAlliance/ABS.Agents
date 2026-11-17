@@ -1,4 +1,6 @@
 ---
+apiVersion: abs.fenixalliance.com/v1alpha1
+kind: Skill
 name: absuite-accounting
 key: fenixalliance.absuite.accounting
 version: 1.1.0

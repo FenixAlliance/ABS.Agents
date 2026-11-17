@@ -1,4 +1,6 @@
 ---
+apiVersion: abs.fenixalliance.com/v1alpha1
+kind: Skill
 name: absuite-globe
 key: fenixalliance.absuite.globe
 version: 1.1.0

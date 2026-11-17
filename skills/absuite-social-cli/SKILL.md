@@ -1,4 +1,6 @@
 ---
+apiVersion: abs.fenixalliance.com/v1alpha1
+kind: Skill
 name: absuite-social-cli
 key: fenixalliance.absuite.social-cli
 version: 1.1.0
