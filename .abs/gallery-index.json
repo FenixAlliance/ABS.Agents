@@ -284,9 +284,9 @@
       "key": "fenixalliance.absuite.accounting-cli",
       "path": "skills/absuite-accounting-cli/SKILL.md",
       "name": "absuite-accounting-cli",
-      "version": "1.0.0",
-      "description": "Manage the Alliance Business Suite (ABS) accounting system using the `absuite` CLI. Covers chart of accounts, account entries, journals/ledgers, tax classes/policies/rates, fiscal authorities/years/periods/regimes, billing profiles, banks/bank-accounts/guarantees/ transactions, budgets, cost centres, commissions, receipts, grants, loans, shares, and invoice enumeration ranges via list/count/search/get/create/update/delete commands and service actions. Requires an authenticated CLI session (see absuite-login-cli). For atomic PATCH updates or raw HTTP, use the absuite-accounting (REST) skill.",
-      "contentHash": "2d76950c011395a95463be3b5c8af65944d5ff4fc5524a00fa16456bc21d654e"
+      "version": "1.1.0",
+      "description": "Drive the Alliance Business Suite (ABS) Accounting area with the absuite CLI: 224 commands (127 read, 97 write) under `absuite accounting`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-accounting REST skill.",
+      "contentHash": "4ebd87959f8f4038361da05692d9fce8387e61692a1af5b139038b229ed378ee"
     },
     {
       "kind": "Skill",
@@ -302,9 +302,9 @@
       "key": "fenixalliance.absuite.assets-cli",
       "path": "skills/absuite-assets-cli/SKILL.md",
       "name": "absuite-assets-cli",
-      "version": "1.0.0",
-      "description": "Manage fixed and moveable assets using the `absuite` CLI. Covers assets, asset categories, asset types, depreciation records, repairs, value amendments, and asset transfers via list/count/get/create/update/delete commands. Requires an authenticated CLI session (see absuite-login-cli). For atomic PATCH updates or raw HTTP, use the absuite-assets (REST) skill.",
-      "contentHash": "d8892c5ec095eb79312c183e8c4c58f02ab6012952427fef9f281e9d02d84953"
+      "version": "1.1.0",
+      "description": "Drive the Alliance Business Suite (ABS) Assets area with the absuite CLI: 39 commands (21 read, 18 write) under `absuite assets`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-assets REST skill.",
+      "contentHash": "47863575eb9ed12270f60c172568baafe9078d74eddfa789f661156f8aacefaa"
     },
     {
       "kind": "Skill",
@@ -320,9 +320,9 @@
       "key": "fenixalliance.absuite.blog-cli",
       "path": "skills/absuite-blog-cli/SKILL.md",
       "name": "absuite-blog-cli",
-      "version": "1.0.0",
-      "description": "Manage blog content in the Alliance Business Suite (ABS) Content Service using the `absuite` CLI. Covers blog posts, categories, tags, comments, and authors via list/count/search/get/create/update/delete commands under the `content` service. Requires an authenticated CLI session (see absuite-login-cli). For atomic PATCH updates or raw HTTP, use the absuite-blog (REST) skill.",
-      "contentHash": "59245492ca55b9fdfa40969c8d28ac28292470ca4db34e9293ec6a4f332bbf5b"
+      "version": "1.1.0",
+      "description": "Drive the Alliance Business Suite (ABS) Blog area with the absuite CLI: 14 commands (9 read, 5 write) under `absuite content`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-blog REST skill.",
+      "contentHash": "dd7ff67e9f5936fb40130da48de79a9a5753e7457e0e52a0d19fd31c4136d1c0"
     },
     {
       "kind": "Skill",
@@ -338,9 +338,9 @@
       "key": "fenixalliance.absuite.cart-cli",
       "path": "skills/absuite-cart-cli/SKILL.md",
       "name": "absuite-cart-cli",
-      "version": "1.0.0",
-      "description": "Manage shopping carts, cart records/lines, wish lists, and compare tables in the Alliance Business Suite (ABS) Cart Service using the `absuite` CLI. Covers reading ambient carts (guest/user/acting/business), adding/removing items, updating quantities, submitting carts, wish lists, and product comparison — via get/list/count/create/update/delete commands and service actions. Requires an authenticated CLI session (see absuite-login-cli). For atomic PATCH updates or raw HTTP, use the absuite-cart (REST) skill.",
-      "contentHash": "5e55bc331880b6189cba3f3db144a47f4583f2187e162e4d75be6d665761998d"
+      "version": "1.1.0",
+      "description": "How the Cart area relates to the absuite CLI: the CLI has no cart commands today, so this skill says what the CLI does cover and points to the absuite-cart skill for the rest.",
+      "contentHash": "539f7835acc838541edf9bf280bd51d15c4440d2433276e5cff5324394349744"
     },
     {
       "kind": "Skill",
@@ -356,18 +356,18 @@
       "key": "fenixalliance.absuite.catalog-cli",
       "path": "skills/absuite-catalog-cli/SKILL.md",
       "name": "absuite-catalog-cli",
-      "version": "1.0.0",
-      "description": "Manage the product catalog in the Alliance Business Suite (ABS) using the `absuite` CLI. Covers stock items (products), categories, types, families, brands, tags, images, attachments, attributes & options, bundles, reviews, questions, policy relationships (tax / shipping / return / refund / warranty), price-rule relationships, Google categories, and merchants via list / count / get / create / update / delete / relate commands. Requires an authenticated CLI session (see absuite-login-cli). For atomic PATCH updates or raw HTTP, use the absuite-catalog (REST) skill.",
-      "contentHash": "89db56e66dfc7b3cc8e79249932bfdbe8cfdc8de134ca0cebf87da982d7ff1e1"
+      "version": "1.1.0",
+      "description": "Drive the Alliance Business Suite (ABS) Catalog area with the absuite CLI: 85 commands (37 read, 48 write) under `absuite catalog`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-catalog REST skill.",
+      "contentHash": "dff3b1846aad1a834e595daf742a628160123d04f8943117a67316ed3532425e"
     },
     {
       "kind": "Skill",
       "key": "fenixalliance.absuite.cli",
       "path": "skills/absuite-cli/SKILL.md",
       "name": "absuite-cli",
-      "version": "1.0.0",
-      "description": "General-purpose usage of the `absuite` CLI for interacting with the Alliance Business Suite (ABS) API. Covers service discovery, command discovery, calling API functions, passing parameters and JSON bodies, reading help and output schemas, OData queries, tenant scoping, and interpreting responses. Use for any ABS domain operation (tenants, invoices, contacts, catalog, CRM, etc.) after authentication. Do NOT use for login/authentication — use the `absuite-login` skill instead.",
-      "contentHash": "920f0a14c09661b78f511c7db71d8e5164a9ba59216c6b5912782ecdbe95126e"
+      "version": "1.1.0",
+      "description": "The absuite command line for the Alliance Business Suite (ABS): install, sign in, pick a workspace, find commands, shape output with -o and JMESPath --query, read exit codes, and run as an agent with a run token. Start here; each area has its own absuite-<area>-cli skill.",
+      "contentHash": "19f1cdc64aa58a30f0cbc0e9cab4de9d4da50c67b8e3dcb20628713d34c96e3e"
     },
     {
       "kind": "Skill",
@@ -383,9 +383,9 @@
       "key": "fenixalliance.absuite.contacts-cli",
       "path": "skills/absuite-contacts-cli/SKILL.md",
       "name": "absuite-contacts-cli",
-      "version": "1.0.0",
-      "description": "Manage contacts in the Alliance Business Suite (ABS) CRM Service using the `absuite` CLI. Covers contacts (individuals & organizations), extended views, relationship graphs, avatars, wallets, carts, social profiles, contact options (key-value metadata), transactional email, and user/tenant sync — via list/count/get/create/ update/delete commands and service actions. Requires an authenticated CLI session (see absuite-login-cli). For atomic PATCH updates, raw HTTP, or the contact groups / profiles / relations / relation-types / sources resources, use the absuite-contacts (REST) skill.",
-      "contentHash": "5532808e860af00cb853a9c7f8152debca8867aeaefeec1bc8d6b6488023dc49"
+      "version": "1.1.0",
+      "description": "Drive the Alliance Business Suite (ABS) Contacts area with the absuite CLI: 58 commands (39 read, 19 write) under `absuite crm`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-contacts REST skill.",
+      "contentHash": "ee95295c9da562e1ffd105d6fd4b0353aa6971f8a9f1f138fc6058441ee88865"
     },
     {
       "kind": "Skill",
@@ -401,9 +401,9 @@
       "key": "fenixalliance.absuite.content-cli",
       "path": "skills/absuite-content-cli/SKILL.md",
       "name": "absuite-content-cli",
-      "version": "1.0.0",
-      "description": "Manage web content in the Alliance Business Suite (ABS) using the `absuite` CLI — web portals, web pages, web-page categories/tags, web content blocks, web templates, website themes, web components, menu contexts, localization strings, business domains, and the full blog system (posts, authors, categories, tags, comments). Covers list/ count/search/get/create/update/delete plus service actions. Requires an authenticated CLI session (see absuite-login-cli). For atomic PATCH updates or raw HTTP, use the absuite-content (REST) skill.",
-      "contentHash": "0f384c958e0b37d7bb2f1f5ee96a1eb9b53fe5b854e67deaa774419d753871d9"
+      "version": "1.1.0",
+      "description": "Drive the Alliance Business Suite (ABS) Content area with the absuite CLI: 74 commands (43 read, 31 write) under `absuite content`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-content REST skill.",
+      "contentHash": "9dd900d752848c62ff9acdbc8aed689c05912955761a457e63a14c2d9cb1b787"
     },
     {
       "kind": "Skill",
@@ -419,9 +419,9 @@
       "key": "fenixalliance.absuite.deals-cli",
       "path": "skills/absuite-deals-cli/SKILL.md",
       "name": "absuite-deals-cli",
-      "version": "1.0.0",
-      "description": "Manage deal units (sales opportunities), deal unit lines, deal unit flows (sales pipelines) with their stages, and sales literature using the `absuite` CLI's `deals` service. Covers list / count / get / create / update / delete / calculate commands. Requires an authenticated CLI session (see `absuite-login-cli`). For atomic PATCH updates or raw HTTP, use the `absuite-deals` (REST) skill.",
-      "contentHash": "77cdcb0d469f9b88c98d3317523f292779ff990404b76df7f61aa61adac4538a"
+      "version": "1.1.0",
+      "description": "Drive the Alliance Business Suite (ABS) Deals area with the absuite CLI: 29 commands (16 read, 13 write) under `absuite deals`, `absuite sales`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-deals REST skill.",
+      "contentHash": "50c20bf47348d5fa65e002bc425317eccfd478b6966e18b54708e72a291e9357"
     },
     {
       "kind": "Skill",
@@ -437,9 +437,9 @@
       "key": "fenixalliance.absuite.emails-cli",
       "path": "skills/absuite-emails-cli/SKILL.md",
       "name": "absuite-emails-cli",
-      "version": "1.0.0",
-      "description": "Manage email templates and dispatch transactional emails using the `absuite` CLI. Covers marketing email templates / groups / signatures / newsletters (the `marketing` service) and admin email sending & previewing to recipients, tenants, and users (the `system` service), via list/count/get/create/update/delete and send/preview commands. Requires an authenticated CLI session (see absuite-login-cli). For atomic PATCH updates or raw HTTP, use the absuite-emails (REST) skill. For broad marketing campaigns/lists, see absuite-marketing.",
-      "contentHash": "58fb98cc8c867e30a3b34abffb4882a30262c61220a89ce16af410d25c5f77f1"
+      "version": "1.1.0",
+      "description": "Drive the Alliance Business Suite (ABS) Emails area with the absuite CLI: 20 commands (12 read, 8 write) under `absuite marketing`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-emails REST skill.",
+      "contentHash": "4467e2d517a61bf330c6f3b5f42c685c7a404ee36756bf0a1f20720bfafc1655"
     },
     {
       "kind": "Skill",
@@ -455,9 +455,9 @@
       "key": "fenixalliance.absuite.forex-cli",
       "path": "skills/absuite-forex-cli/SKILL.md",
       "name": "absuite-forex-cli",
-      "version": "1.0.0",
-      "description": "Retrieve foreign-exchange rates and convert currency amounts in the Alliance Business Suite (ABS) ForexService using the `absuite` CLI. Covers latest and historical rate lookups (all currencies or a single currency) and currency exchange at latest or historical rates (v2 and v3), via get/list and exchange commands. ForexService is PUBLIC reference data and is NOT tenant-scoped. Requires an authenticated CLI session (see absuite-login-cli). For raw HTTP, use the absuite-forex (REST) skill.",
-      "contentHash": "0a974a21e8b84e97c3f8a68765d0179c2bd573d657a710e0c2387b872069f289"
+      "version": "1.1.0",
+      "description": "How the Forex area relates to the absuite CLI: the CLI has no forex commands today, so this skill says what the CLI does cover and points to the absuite-forex skill for the rest.",
+      "contentHash": "4fd213e0210e76dc2292a28a550fe7d7e424ab6a620e8c587428f7b1b9a60667"
     },
     {
       "kind": "Skill",
@@ -473,9 +473,9 @@
       "key": "fenixalliance.absuite.globe-cli",
       "path": "skills/absuite-globe-cli/SKILL.md",
       "name": "absuite-globe-cli",
-      "version": "1.0.0",
-      "description": "Look up global reference data — countries, states, cities, currencies, languages, and timezones — using the `absuite` CLI's `globe` service. This is PUBLIC, read-only reference data, so only list/get-style commands exist (no create/update/delete). Requires an authenticated CLI session (see absuite-login-cli). For raw HTTP, use the absuite-globe (REST) skill.",
-      "contentHash": "c44c18310d2fdd882d518b3e937a138ad5ff550d9e79bd6db33fe0ce5d6995ff"
+      "version": "1.1.0",
+      "description": "How the Globe area relates to the absuite CLI: the CLI has no globe commands today, so this skill says what the CLI does cover and points to the absuite-globe skill for the rest.",
+      "contentHash": "e531c1e8ddb6caea99ba2bfef7ac7b286ec01582f98dc5cfa325720e25bd8bea"
     },
     {
       "kind": "Skill",
@@ -491,9 +491,9 @@
       "key": "fenixalliance.absuite.hrms-cli",
       "path": "skills/absuite-hrms-cli/SKILL.md",
       "name": "absuite-hrms-cli",
-      "version": "1.0.0",
-      "description": "Manage human resources in the Alliance Business Suite (ABS) using the `absuite` CLI. Covers employees, employers, employee types, job titles, salaries, payrolls, payroll periods, gigs, job offers, shifts, schedules, time intervals, leave management, training programs, and performance appraisals via list/count/get/create/update/delete commands. Requires an authenticated CLI session (see absuite-login-cli). For atomic PATCH updates or raw HTTP, use the absuite-hrms (REST) skill.",
-      "contentHash": "827cf50b3a1b602b836364e98c0bad39d5f84915ece9e8a2c29e5616af662bb8"
+      "version": "1.1.0",
+      "description": "Drive the Alliance Business Suite (ABS) Hrms area with the absuite CLI: 150 commands (81 read, 69 write) under `absuite hrms`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-hrms REST skill.",
+      "contentHash": "77ca45660b9fa81b941e2a9ac807978319222d669ed56a0d21c71973a3d08af2"
     },
     {
       "kind": "Skill",
@@ -509,9 +509,9 @@
       "key": "fenixalliance.absuite.identity-cli",
       "path": "skills/absuite-identity-cli/SKILL.md",
       "name": "absuite-identity-cli",
-      "version": "1.0.0",
-      "description": "Manage OAuth, OpenID Connect, and user identity in the Alliance Business Suite (ABS) using the `absuite` CLI (service token `identity`). Covers password sign-in, OAuth tokens, WhoAmI, user permissions, OIDC discovery/JWKS, and application permission/role grants. Most identity/auth flows are NOT tenant-scoped; a few reads are. Requires an authenticated CLI session for protected reads (see absuite-login-cli). The identity service has NO PATCH and no partial-update commands — for raw HTTP, use the absuite-identity (REST) skill.",
-      "contentHash": "02f1137cacc83b5e0b537d7ca20fbb915b2968e7179c05b00cde177d192eb310"
+      "version": "1.1.0",
+      "description": "How the Identity area relates to the absuite CLI: the CLI has no identity commands today, so this skill says what the CLI does cover and points to the absuite-identity skill for the rest.",
+      "contentHash": "19bd6bb674528442f9e1f3f3d780a673459223e591f8218c9ac892422ce4be52"
     },
     {
       "kind": "Skill",
@@ -527,9 +527,9 @@
       "key": "fenixalliance.absuite.invoicing-cli",
       "path": "skills/absuite-invoicing-cli/SKILL.md",
       "name": "absuite-invoicing-cli",
-      "version": "1.0.0",
-      "description": "Manage invoices in the Alliance Business Suite (ABS) Invoicing Service using the `absuite` CLI. Covers invoices, invoice lines, line taxes, adjustments (discounts/surcharges), references (credit/debit notes), payments, calculations, aggregations, and transactional email — via list/count/get/create/update/delete commands and service actions. Requires an authenticated CLI session (see absuite-login-cli). For atomic PATCH updates or raw HTTP, use the absuite-invoicing (REST) skill.",
-      "contentHash": "96dff65e5d632395531fa31cc10c7c3c3dc2b17ea4b209b643c5f3bd2cf36bc8"
+      "version": "1.1.0",
+      "description": "Drive the Alliance Business Suite (ABS) Invoicing area with the absuite CLI: 37 commands (21 read, 16 write) under `absuite invoicing`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-invoicing REST skill.",
+      "contentHash": "6d79b5627f28549943c4872c6d740591550fd5d608a73b45e5713470f21c70ac"
     },
     {
       "kind": "Skill",
@@ -545,9 +545,9 @@
       "key": "fenixalliance.absuite.learning-cli",
       "path": "skills/absuite-learning-cli/SKILL.md",
       "name": "absuite-learning-cli",
-      "version": "1.0.0",
-      "description": "Manage learning and e-learning in the Alliance Business Suite (ABS) using the `absuite` CLI. Covers courses and their content tree (sections, units, unit components, content groups), assignments, problem sets, grading rubrics, cohorts, enrollments, certificates and templates, forums, wikis, articles, pages, updates, handouts, files, libraries, team memberships, instructor/student profiles, and per-user \"Me\" reads — via list/count/get/create/update/delete commands. Requires an authenticated CLI session (see absuite-login-cli). For atomic PATCH updates or raw HTTP, use the absuite-learning (REST) skill.",
-      "contentHash": "f38ae07d9bc6f690fd209ad2312e96082f3c06e63e5c9484562c29c3277ef92c"
+      "version": "1.1.0",
+      "description": "Drive the Alliance Business Suite (ABS) Learning area with the absuite CLI: 99 commands (75 read, 24 write) under `absuite learning`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-learning REST skill.",
+      "contentHash": "eea36dadb85b36d5bf166c651db8a64f70cd82c3c24bfd2174de0c569ccef100"
     },
     {
       "kind": "Skill",
@@ -563,9 +563,9 @@
       "key": "fenixalliance.absuite.locations-cli",
       "path": "skills/absuite-locations-cli/SKILL.md",
       "name": "absuite-locations-cli",
-      "version": "1.0.0",
-      "description": "Manage business locations and addresses using the `absuite` CLI. Covers tenant-scoped Locations and wallet-scoped Locations via list/count/get/create/update/delete commands. Requires an authenticated CLI session (see absuite-login-cli). For atomic PATCH updates or raw HTTP, use the absuite-locations (REST) skill.",
-      "contentHash": "186986c15f4aaa911eafae8ad3a7d4abaeb9968050806dc20f77a93d49beb0d5"
+      "version": "1.1.0",
+      "description": "Drive the Alliance Business Suite (ABS) Locations area with the absuite CLI: 6 commands (3 read, 3 write) under `absuite locations`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-locations REST skill.",
+      "contentHash": "9bcbdb6dcf90d4b2aae8ced3746398ee439e5c21bca15aa8b82dc5ce06f89c24"
     },
     {
       "kind": "Skill",
@@ -581,9 +581,9 @@
       "key": "fenixalliance.absuite.login-cli",
       "path": "skills/absuite-login-cli/SKILL.md",
       "name": "absuite-login-cli",
-      "version": "1.0.0",
-      "description": "Authenticate with the Alliance Business Suite (ABS) using the `absuite` CLI and verify your identity. Use when you need to log in with user credentials, configure the CLI base URL and default tenant, or confirm your ABS identity via WhoAmI through the CLI. Do NOT use for domain-specific ABS operations — only for authentication, configuration, and identity verification. For REST/HTTP login, see absuite-login.",
-      "contentHash": "035aa4a738ce30e01c53ad86a261bdd1d4479aa0c250fa4dafee5211d2c26607"
+      "version": "1.1.0",
+      "description": "Sign in to the Alliance Business Suite (ABS) with the absuite CLI: device-code login (the default), password login for a server on this computer, run tokens for agents, the workspace choice, sign-out, and the exit codes a script acts on.",
+      "contentHash": "2ac28cfaaccdc1cfada5d36c2b5fa38f4e2b4eaaaa8eb025fd0036be37ca5ee5"
     },
     {
       "kind": "Skill",
@@ -599,9 +599,9 @@
       "key": "fenixalliance.absuite.marketing-cli",
       "path": "skills/absuite-marketing-cli/SKILL.md",
       "name": "absuite-marketing-cli",
-      "version": "1.0.0",
-      "description": "Manage marketing records in the Alliance Business Suite (ABS) Marketing Service using the `absuite` CLI. Covers marketing campaigns, marketing areas, marketing lists, marketing leads, newsletters, email groups, email signatures, email templates, social media posts, social post buckets, and tracking-pixel retrieval — via list/count/get/create/update/delete commands. Requires an authenticated CLI session (see absuite-login-cli). For atomic PATCH updates or raw HTTP, use the absuite-marketing (REST) skill.",
-      "contentHash": "0e4aa1e38edce294f14c25a3ca3e96da3440fda7d98a98116f683a2d8f08be3d"
+      "version": "1.1.0",
+      "description": "Drive the Alliance Business Suite (ABS) Marketing area with the absuite CLI: 56 commands (30 read, 26 write) under `absuite marketing`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-marketing REST skill.",
+      "contentHash": "2b49de58fd3f8e000acc9880575f29b393505790e92b59d0bc7bef1d98f0dcff"
     },
     {
       "kind": "Skill",
@@ -617,9 +617,9 @@
       "key": "fenixalliance.absuite.misc-cli",
       "path": "skills/absuite-misc-cli/SKILL.md",
       "name": "absuite-misc-cli",
-      "version": "1.0.0",
-      "description": "Manage inventory, logistics, shipments, and sales resources using the `absuite` CLI. Covers warehouses, ports, vessels, voyages, waybills, trucks, proofs of delivery, shipments, bills of lading, shipping methods/couriers/zones/classes, stores, point-of-sales, loyalty programs and sales literature via list/count/get/create/ update/delete commands plus lifecycle actions. Requires an authenticated CLI session (see absuite-login-cli). For atomic PATCH updates or raw HTTP, use the absuite-misc (REST) skill.",
-      "contentHash": "cca33a853d0ad6195e3cb7bcbac2822b97af0290aa3a16b2e448a9fcdb637d8f"
+      "version": "1.1.0",
+      "description": "Drive the Alliance Business Suite (ABS) Misc area with the absuite CLI: 173 commands (87 read, 86 write) under `absuite logistics`, `absuite sales`, `absuite shipments`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-misc REST skill.",
+      "contentHash": "6fa38e1519e9040ebe9c2234c891698d4ad674705445c225e193a85727dff715"
     },
     {
       "kind": "Skill",
@@ -635,9 +635,9 @@
       "key": "fenixalliance.absuite.onboarding-cli",
       "path": "skills/absuite-onboarding-cli/SKILL.md",
       "name": "absuite-onboarding-cli",
-      "version": "1.0.0",
-      "description": "Onboard a user into an Alliance Business Suite (ABS) tenant using the `absuite` CLI: authenticate, initialize the portal (which surfaces/stages the tenant invitation), accept the invitation, and verify enrollment. Use when an agent or user needs to join a tenant for the first time via the CLI. Encodes the correct Initialize-FIRST order and the domain-based auto-invitation rule. For the REST version, see absuite-onboarding.",
-      "contentHash": "597582d6397436f9305825c52fb399b3e3552e57c94053ee3400e650066e13d0"
+      "version": "1.1.0",
+      "description": "How the Onboarding area relates to the absuite CLI: the CLI has no onboarding commands today, so this skill says what the CLI does cover and points to the absuite-onboarding skill for the rest.",
+      "contentHash": "369cefc99bbaeb20be28e9aefa29216b86b704b1d37c97b97160fad24f6fcb93"
     },
     {
       "kind": "Skill",
@@ -653,9 +653,9 @@
       "key": "fenixalliance.absuite.orders-cli",
       "path": "skills/absuite-orders-cli/SKILL.md",
       "name": "absuite-orders-cli",
-      "version": "1.0.0",
-      "description": "Create, read, update, delete, and calculate orders and order lines in the Alliance Business Suite (ABS) Orders Service using the `absuite` CLI. Covers direct order creation, cart-to-order submission, line items, totals calculation, and transactional email via list/count/get/create/update/delete commands. Requires an authenticated CLI session (see absuite-login-cli). For atomic PATCH updates or raw HTTP, use the absuite-orders (REST) skill.",
-      "contentHash": "e4de1cb92b8cfd3242f85302447a2045e171d0fb5e777a4f2d8a0ef493450590"
+      "version": "1.1.0",
+      "description": "Drive the Alliance Business Suite (ABS) Orders area with the absuite CLI: 16 commands (11 read, 5 write) under `absuite orders`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-orders REST skill.",
+      "contentHash": "dbf3838e98196809ce2a47c6869b87fa5086b755cd8f30a34a50b27f1462ecb1"
     },
     {
       "kind": "Skill",
@@ -671,9 +671,9 @@
       "key": "fenixalliance.absuite.payments-cli",
       "path": "skills/absuite-payments-cli/SKILL.md",
       "name": "absuite-payments-cli",
-      "version": "1.0.0",
-      "description": "Manage payments in the Alliance Business Suite (ABS) Payments Service using the `absuite` CLI. Covers payments and their lifecycle (status transitions) plus the supporting configuration — payment methods, payment modes, and payment terms — via list/count/get/create/update/delete commands. Requires an authenticated CLI session (see absuite-login-cli). For atomic PATCH updates or raw HTTP, use the absuite-payments (REST) skill.",
-      "contentHash": "3b6972d012aaf5c918339560ec03d5aca063f66a50d9fdd7dd753bdabf32a3c1"
+      "version": "1.1.0",
+      "description": "Drive the Alliance Business Suite (ABS) Payments area with the absuite CLI: 13 commands (13 read, 0 write) under `absuite payments`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-payments REST skill.",
+      "contentHash": "ae193627c0c28d9f82b931cb0667b069d63091619e406d3e806e51fabdb4da5a"
     },
     {
       "kind": "Skill",
@@ -689,9 +689,9 @@
       "key": "fenixalliance.absuite.pricing-cli",
       "path": "skills/absuite-pricing-cli/SKILL.md",
       "name": "absuite-pricing-cli",
-      "version": "1.0.0",
-      "description": "Manage pricing in the Alliance Business Suite (ABS) Pricing Service using the `absuite` CLI. Covers price lists and their price entries, discount lists and their discount entries, pricing rules, rounding policies, and item price calculations — via list/count/get/create/update/delete commands and the price-calculation reads. Requires an authenticated CLI session (see absuite-login-cli). For atomic PATCH updates or raw HTTP, use the absuite-pricing (REST) skill.",
-      "contentHash": "a42b0fdddd4ff8010082e494949e2756521a5c43990d466c184f04296947f15f"
+      "version": "1.1.0",
+      "description": "Drive the Alliance Business Suite (ABS) Pricing area with the absuite CLI: 35 commands (18 read, 17 write) under `absuite pricing`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-pricing REST skill.",
+      "contentHash": "228b37b64bee1d5574077c5dc4176b08a9888a42e6c88ddc05e5c48a9f3b430d"
     },
     {
       "kind": "Skill",
@@ -707,9 +707,9 @@
       "key": "fenixalliance.absuite.projects-cli",
       "path": "skills/absuite-projects-cli/SKILL.md",
       "name": "absuite-projects-cli",
-      "version": "1.0.0",
-      "description": "Manage projects, project periods, project tasks, task categories, and task types in the Alliance Business Suite (ABS) Projects Service using the `absuite` CLI. Covers list/count/get/create/update (PUT)/delete commands plus the project-scoped task and time-log reads. Requires an authenticated CLI session (see absuite-login-cli). For atomic PATCH updates, raw HTTP, or the top-level ProjectTasks / TimeLogs / TimeLogApprovals endpoints, use the absuite-projects (REST) skill.",
-      "contentHash": "93e37543f4271ee26ce76e506f6d69f2afa25f0f616fd55f99ae831178255c8e"
+      "version": "1.1.0",
+      "description": "Drive the Alliance Business Suite (ABS) Projects area with the absuite CLI: 7 commands (7 read, 0 write) under `absuite projects`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-projects REST skill.",
+      "contentHash": "5d406611e5e5aa9210fbfae9efa45924a18af8c90deed4bcad35098f5011ee89"
     },
     {
       "kind": "Skill",
@@ -725,9 +725,9 @@
       "key": "fenixalliance.absuite.quotes-cli",
       "path": "skills/absuite-quotes-cli/SKILL.md",
       "name": "absuite-quotes-cli",
-      "version": "1.0.0",
-      "description": "Manage sales quotes in the Alliance Business Suite (ABS) Quotes Service using the `absuite` CLI. Covers quotes, quote lines, calculations, lifecycle actions (close, reopen, convert to order), and transactional email — via list/count/get/create/ update/delete commands and service actions. Requires an authenticated CLI session (see absuite-login-cli). For atomic PATCH updates or raw HTTP, use the absuite-quotes (REST) skill.",
-      "contentHash": "b503f68243e87b34d24871737f76940beba10e72f43aaad93239b98c9da368bd"
+      "version": "1.1.0",
+      "description": "Drive the Alliance Business Suite (ABS) Quotes area with the absuite CLI: 18 commands (13 read, 5 write) under `absuite quotes`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-quotes REST skill.",
+      "contentHash": "3d2d1952770be1bd5099a9415ec7d84dd17274ba5f2570dacff9514d1db3f737"
     },
     {
       "kind": "Skill",
@@ -752,9 +752,9 @@
       "key": "fenixalliance.absuite.security-cli",
       "path": "skills/absuite-security-cli/SKILL.md",
       "name": "absuite-security-cli",
-      "version": "1.0.0",
-      "description": "Manage security roles, permissions, business applications, OAuth applications, OAuth authorizations, certificates, security/tenant logs, and webhook requests using the `absuite` CLI. Covers full RBAC assignment/revocation via list/count/get/create/ update/delete commands plus assign/revoke actions. Requires an authenticated CLI session (see absuite-login-cli). For atomic PATCH updates or raw HTTP, use the absuite-security (REST) skill.",
-      "contentHash": "4c54a8d51168bb87153fba3cf1a09ac614b669e5ac5112ccd5354ffa366a74e7"
+      "version": "1.1.0",
+      "description": "How the Security area relates to the absuite CLI: the CLI has no security commands today, so this skill says what the CLI does cover and points to the absuite-security skill for the rest.",
+      "contentHash": "924097429aa82e5c1f373d6e4b51f302347bc015ed58423985cf1af8315044d9"
     },
     {
       "kind": "Skill",
@@ -770,9 +770,9 @@
       "key": "fenixalliance.absuite.social-cli",
       "path": "skills/absuite-social-cli/SKILL.md",
       "name": "absuite-social-cli",
-      "version": "1.0.0",
-      "description": "Manage the social network (profiles, posts, comments, reactions, attachments, groups, feeds, conversations, messages, notifications, and follow relationships) in the Alliance Business Suite (ABS) using the `absuite` CLI. Covers list/count/get/ create/update/delete plus social actions (follow, unfollow, message, post). Social commands are scoped by `--SocialProfileId`, not by tenant. Requires an authenticated CLI session (see absuite-login-cli). For atomic PATCH updates or raw HTTP, use the absuite-social (REST) skill.",
-      "contentHash": "bd2dcda473b07b96bdac077d2841ce1432e51c56c4b29e819e83fadd4838f81b"
+      "version": "1.1.0",
+      "description": "Drive the Alliance Business Suite (ABS) Social area with the absuite CLI: 8 commands (5 read, 3 write) under `absuite social`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-social REST skill.",
+      "contentHash": "e818fcd773285cc645e3bca787a2f7de95a7e468d2fcbab0607d9e75a1c7bc57"
     },
     {
       "kind": "Skill",
@@ -788,9 +788,9 @@
       "key": "fenixalliance.absuite.storage-cli",
       "path": "skills/absuite-storage-cli/SKILL.md",
       "name": "absuite-storage-cli",
-      "version": "1.0.0",
-      "description": "Manage file storage, uploads, downloads, and avatars in the Alliance Business Suite (ABS) using the `absuite` CLI (storage service). Covers file records, raw downloads, blob browsing, RadzenEditor uploads, and avatars for social profiles, contacts, users, and tenants via list/get/create/update/delete commands. Requires an authenticated CLI session (see absuite-login-cli). For raw HTTP, use the absuite-storage (REST) skill.",
-      "contentHash": "8cbdac07d6ba1ea6cd930dc1f78e08f19c710aa64cf8d2d0c3521467314a8dab"
+      "version": "1.1.0",
+      "description": "Drive the Alliance Business Suite (ABS) Storage area with the absuite CLI: 4 commands (3 read, 1 write) under `absuite storage`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-storage REST skill.",
+      "contentHash": "d8b50870fdfbc145bcf9baadd7d8cbcb0a6a61e6be3318f0b7f85aa59652e588"
     },
     {
       "kind": "Skill",
@@ -806,9 +806,9 @@
       "key": "fenixalliance.absuite.subscriptions-cli",
       "path": "skills/absuite-subscriptions-cli/SKILL.md",
       "name": "absuite-subscriptions-cli",
-      "version": "1.0.0",
-      "description": "Manage subscription plans and customer subscriptions using the `absuite` CLI. Covers subscription plans and subscriptions via list/count/get/create/update/delete commands. Requires an authenticated CLI session (see absuite-login-cli). For atomic PATCH updates or raw HTTP, use the absuite-subscriptions (REST) skill.",
-      "contentHash": "b057ee6ce202b1ef902181388ca58a6e6ea48d8cd7f013865714fdcebfd23dad"
+      "version": "1.1.0",
+      "description": "Drive the Alliance Business Suite (ABS) Subscriptions area with the absuite CLI: 6 commands (6 read, 0 write) under `absuite subscriptions`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-subscriptions REST skill.",
+      "contentHash": "0e6855ba01f5b44461d498f77ff8c7a91dd66ca4de17b7034925f564701d05e8"
     },
     {
       "kind": "Skill",
@@ -824,9 +824,9 @@
       "key": "fenixalliance.absuite.support-cli",
       "path": "skills/absuite-support-cli/SKILL.md",
       "name": "absuite-support-cli",
-      "version": "1.0.0",
-      "description": "Manage customer support — tickets, support requests, request attachments, ticket conversations, ticket priorities, ticket types, entitlements, refund/return/warranty requests and policies, knowledge articles, inquiry requests, and maintenance visits — using the `absuite` CLI. Covers these entities via list/count/search/get/create/update/ delete commands plus ticket-conversation and request-attachment actions. Requires an authenticated CLI session (see absuite-login-cli). For atomic PATCH updates or raw HTTP, use the absuite-support (REST) skill.",
-      "contentHash": "1c70dfd3afa794ecbe6bcff1f372fa7c4b9ebcd2e5001fa46fae33569a757d16"
+      "version": "1.1.0",
+      "description": "Drive the Alliance Business Suite (ABS) Support area with the absuite CLI: 82 commands (48 read, 34 write) under `absuite support`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-support REST skill.",
+      "contentHash": "b6cf9ba403a975c8ff7496ec0b4e40d2b25873b9324dfd9f7887efb2bb595587"
     },
     {
       "kind": "Skill",
@@ -842,9 +842,9 @@
       "key": "fenixalliance.absuite.system-cli",
       "path": "skills/absuite-system-cli/SKILL.md",
       "name": "absuite-system-cli",
-      "version": "1.0.0",
-      "description": "Manage Alliance Business Suite (ABS) system administration using the `absuite` CLI. Covers cross-tenant admin (tenants, users), system/tenant/user/contact options, licensing, system portals, overview, IP lookups, carts, business domains, modules, system emails, migrations and antiforgery — via list/count/get/create/update/delete commands and service actions. Requires an authenticated CLI session with admin privileges (see absuite-login-cli). For atomic PATCH updates or raw HTTP, use the absuite-system (REST) skill.",
-      "contentHash": "720beaf8b853bd200e39d09232fef7da639078cd09d6754d1ebe30b280469035"
+      "version": "1.1.0",
+      "description": "How the System area relates to the absuite CLI: the CLI has no system commands today, so this skill says what the CLI does cover and points to the absuite-system skill for the rest.",
+      "contentHash": "42c6c1995cb119d8bbe68e20b31a2206d5da4e89d8b89965376fe06fe2b8d6da"
     },
     {
       "kind": "Skill",
@@ -860,9 +860,9 @@
       "key": "fenixalliance.absuite.tenants-cli",
       "path": "skills/absuite-tenants-cli/SKILL.md",
       "name": "absuite-tenants-cli",
-      "version": "1.0.0",
-      "description": "Manage tenant configuration in the Alliance Business Suite (ABS) using the `absuite` CLI. The largest service — covers tenant CRUD, departments, enrollments (standard, extended, employee), industries, invitations, options, positions, segments, sizes, teams, team records, team contact/project enrollments, territories, types, units, unit groups, licenses, notifications, web portals, avatars, carts, wallets, and social profiles — via list/count/get/create/update/delete commands and service actions. Requires an authenticated CLI session (see absuite-login-cli). For atomic PATCH updates or raw HTTP, use the absuite-tenants (REST) skill.",
-      "contentHash": "8fde8654c6423c52e4c6bd40ed66b957e70c297c3e552897564c4a6d52e31f9c"
+      "version": "1.1.0",
+      "description": "Drive the Alliance Business Suite (ABS) Tenants area with the absuite CLI: 54 commands (0 read, 54 write) under `absuite tenants`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-tenants REST skill.",
+      "contentHash": "2d30110890278819d4b172b996cab0227712146dca9974bf59126a4d7cfeafbd"
     },
     {
       "kind": "Skill",
@@ -878,9 +878,9 @@
       "key": "fenixalliance.absuite.users-cli",
       "path": "skills/absuite-users-cli/SKILL.md",
       "name": "absuite-users-cli",
-      "version": "1.0.0",
-      "description": "Read and manage the current user's account in the Alliance Business Suite (ABS) using the `absuite` CLI. Covers the `/Me` surface — profile, extended profile, avatar, settings, addresses, cart, wallet, social profile, followers/follows, notifications, tenant memberships, enrollments, invitations, and user options (key-value metadata) — via get/list/count/create/update/delete commands and service actions. These operations are user-scoped (resolved from your session); they take NO tenant. Requires an authenticated CLI session (see absuite-login-cli). For atomic PATCH updates or raw HTTP, use the absuite-users (REST) skill.",
-      "contentHash": "8e87fb5478b01e2fe3c2fa17544203ffe468b32f4ec4edb39068c274a2c7f6ca"
+      "version": "1.1.0",
+      "description": "How the Users area relates to the absuite CLI: the CLI has no users commands today, so this skill says what the CLI does cover and points to the absuite-users skill for the rest.",
+      "contentHash": "25e6ccdce33ba90c9312e4497e84bfee80ffed7a061db163157cf8cf9dfd2cef"
     },
     {
       "kind": "Skill",
@@ -896,9 +896,9 @@
       "key": "fenixalliance.absuite.wallets-cli",
       "path": "skills/absuite-wallets-cli/SKILL.md",
       "name": "absuite-wallets-cli",
-      "version": "1.0.0",
-      "description": "Manage wallets and their sub-resources — bank accounts, payment tokens, payments, withdraws, locations — plus read access to orders, invoices, quotes, refunds and chargebacks, using the `absuite` CLI. Covers list / count / get / create / update / delete. Wallets are scoped by walletId (ownership-keyed), not by tenant. Requires an authenticated CLI session (see absuite-login-cli). For atomic PATCH updates or raw HTTP, use the absuite-wallets (REST) skill.",
-      "contentHash": "244bd780e546c5d4e7438e146dc4e6996f76ca0c79aa389ac20698ec3c206b63"
+      "version": "1.1.0",
+      "description": "Drive the Alliance Business Suite (ABS) Wallets area with the absuite CLI: 6 commands (6 read, 0 write) under `absuite wallets`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-wallets REST skill.",
+      "contentHash": "2ac164deb55a29081315d1152a8a7ab794e25e099956902a005282a33ad976ea"
     },
     {
       "kind": "Skill",
