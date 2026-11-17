@@ -1,65 +1,84 @@
 ---
 name: absuite-invoicing-cli
 key: fenixalliance.absuite.invoicing-cli
-version: 1.0.0
+version: 1.1.0
 description: >
-  Manage invoices in the Alliance Business Suite (ABS) Invoicing Service using the
-  `absuite` CLI. Covers invoices, invoice lines, line taxes, adjustments
-  (discounts/surcharges), references (credit/debit notes), payments, calculations,
-  aggregations, and transactional email — via list/count/get/create/update/delete
-  commands and service actions. Requires an authenticated CLI session (see
-  absuite-login-cli). For atomic PATCH updates or raw HTTP, use the absuite-invoicing
-  (REST) skill.
+  Drive the Alliance Business Suite (ABS) Invoicing area with the absuite CLI: 37 commands (21 read,
+  16 write) under `absuite invoicing`, each generated from the platform's ServiceClients and checked
+  against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-invoicing
+  REST skill.
 ---
 
 # Alliance Business Suite — Invoicing Skill (CLI)
 
-Manage invoices through the `absuite` CLI's `invoicing` service. All invoicing
-operations are tenant-scoped and require an authenticated session. The CLI does not
-support PATCH (JSON Patch) — for partial atomic updates use the `absuite-invoicing`
-REST skill.
+Generated from the absuite CLI at Platform 9b72a00a47 (`absuite commands -o json`). The commands, arguments and options below are the CLI's own; re-run `absuite commands -o json` before relying on one.
 
-## API usage essentials
+> **Coverage:** the `absuite-invoicing` REST skill documents 33 routes; 13 of them have no CLI command (a write the CLI keeps to Studio, a call that is not workspace-scoped, or a field shape it cannot take yet). Use the REST skill for those.
 
-> Full detail in `absuite-cli`.
+## Before you start
 
-- **`update` replaces the ENTIRE object** (it maps to HTTP `PUT`) — a full overwrite, not a merge. **`get` the entity first, change only what you need on the complete object, then `update` with the full body.** A partial `update` (or an incomplete `create`) blanks the omitted fields -> silent data loss.
-- **No atomic partial update in the CLI.** For a safe single-field change, use the `absuite-invoicing` REST skill's `PATCH` (JSON Patch), where that service exposes one.
-- Use **`count <entity>`** (a dedicated operation) to size a collection. OData filtering/paging (`$filter`, `$top`, ...) is REST-only — the CLI does not expose it; use `absuite-invoicing` for filtered queries or a filtered count.
+- Install: `npm install -g @fenixalliance/absuite` (a self-contained binary per platform). `absuite --version` prints the version.
+- Sign in: `absuite login` (a one-time code in your browser, the default). `absuite me` shows who you are; `absuite account show` shows the profile, server and workspace.
+- Workspace: `absuite account list` lists yours; `absuite account set --tenant <id|name>` saves one. `--tenant <id>` or `ABS_TENANT` picks one for a single command.
+- Agents on their computer: the run token comes from `ABS_TOKEN` or `ABS_TOKEN_FILE` (one of them, never both), used only with `--url` or `ABS_URL`, and only over https:// or to a server on the same computer. The token says who the agent is; the workspace's roles decide what it may do.
+- Scripts and agents: pass `--no-input` (it is also on when stdin is not a terminal, or CI or ABS_NO_TUI is set). Anything that needs input then fails with exit 2 and names the flag to pass.
+- Output: `-o table|json|jsonc|tsv|yaml|none`; `--query "<JMESPath>"` filters the result before it is printed.
+- `absuite commands -o json` lists every command with its options and whether it only reads. Check it before you rely on a command; `absuite <command> --help` shows one.
+- Full sign-in, output, exit-code and run-token rules: the `absuite-cli` skill. Anything not listed here: the `absuite-invoicing` REST skill.
 
-## Prerequisites
+## Commands
 
-1. **Authenticate first** — run `absuite login` (see `absuite-login-cli`). For general
-   CLI usage and configuration, see `absuite-cli`.
-2. **Set your tenant** — every invoicing command requires a tenant. Either set a default:
-   ```powershell
-   absuite config set --tenant-id <tenant-guid>
-   ```
-   …and reference it as `$TENANT_ID`, or pass `--TenantId <tenant-guid>` on each call.
-3. **Discover commands:**
-   ```powershell
-   absuite invoicing list-commands
-   absuite invoicing create invoice --help
-   ```
+37 commands, from `absuite commands -o json`. "Reads" commands never change data. Writes take field flags or `--json`/`--file` with the same fields, and `--dry-run` prints the request without sending it. Deletes ask first unless `--yes` (with `--no-input` and no `--yes`, a delete fails with exit 2).
 
-## Command Structure
+### Invoices (`absuite invoicing invoices`)
 
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite invoicing invoices list` | Reads |  | `--top` `--skip` | List the invoices in the workspace. |
+| `absuite invoicing invoices count` | Reads |  |  | Count the workspace's invoices. `GET /api/v2/InvoicingService/Invoices/Count` |
+| `absuite invoicing invoices get` | Reads | `<id>` |  | Show one invoice. |
+| `absuite invoicing invoices create` | Writes |  | `--paid`, `--number`, `--notes`, `--order-id`, `--enumeration`, `--payment-mode-id`, `--enumeration-range-id`, `--emisor-billing-profile-id`, `--receiver-billing-profile-id`, `--emisor-wallet-account-id`, `--receiver-wallet-account-id`, `--customer-notes`, `--invoice-type`, `--document-type`, `--invoice-status`, `--payment-due`, `--valid-from`, `--valid-to`, `--closed`, `--title`, `--price-list-id`, `--description`, `--individual-id`, `--payment-term-id`, `--organization-id`, `--receiver-tenant-id`, `--first-name`, `--last-name`, `--company-name`, `--billing-email`, `--address-line1`, `--address-line2`, `--postal-code`, `--country-id`, `--state-id`, `--city-id`, `--forex-rate`, `--currency-id`, `--total-detail`, `--total-detail-currency-id`, `--total-profit`, `--total-profit-currency-id`, `--total-discounts`, `--total-discounts-currency-id`, `--total-surcharges`, `--total-surcharges-currency-id`, `--total-shipping-cost`, `--total-shipping-cost-currency-id`, `--total-shipping-tax`, `--total-shipping-tax-currency-id`, `--total-withheld-tax`, `--total-withheld-tax-currency-id`, `--total-tax-base`, `--total-tax-base-currency-id`, `--total-taxes`, `--total-taxes-currency-id`, `--total-global-surcharges`, `--total-global-surcharges-currency-id`, `--total-global-discounts`, `--total-global-discounts-currency-id`, `--total`, `--total-currency-id`, `--cost-calculation-method`, `--tax-calculation-method`; `--json` `--file` `--dry-run` | Create a record in the workspace's invoices. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/InvoicingService/Invoices` |
+| `absuite invoicing invoices update` | Writes | `<id>` | `--paid`, `--number`, `--notes`, `--order-id`, `--enumeration`, `--payment-mode-id`, `--enumeration-range-id`, `--emisor-billing-profile-id`, `--receiver-billing-profile-id`, `--emisor-wallet-account-id`, `--receiver-wallet-account-id`, `--customer-notes`, `--invoice-type`, `--document-type`, `--invoice-status`, `--payment-due`, `--valid-from`, `--valid-to`, `--closed`, `--title`, `--price-list-id`, `--description`, `--individual-id`, `--payment-term-id`, `--organization-id`, `--receiver-tenant-id`, `--first-name`, `--last-name`, `--company-name`, `--billing-email`, `--address-line1`, `--address-line2`, `--postal-code`, `--country-id`, `--state-id`, `--city-id`, `--billing-location-id`, `--shipping-location-id`, `--shipping-method-id`, `--forex-rate`, `--currency-id`, `--total-detail`, `--total-detail-currency-id`, `--total-profit`, `--total-profit-currency-id`, `--total-discounts`, `--total-discounts-currency-id`, `--total-surcharges`, `--total-surcharges-currency-id`, `--total-shipping-tax`, `--total-shipping-tax-currency-id`, `--total-shipping-cost`, `--total-shipping-cost-currency-id`, `--total-global-discounts`, `--total-global-discounts-currency-id`, `--total-global-surcharges`, `--total-global-surcharges-currency-id`, `--total-withheld-tax`, `--total-withheld-tax-currency-id`, `--total-tax-base`, `--total-tax-base-currency-id`, `--total-taxes`, `--total-taxes-currency-id`, `--total`, `--total-currency-id`, `--cost-calculation-method`, `--tax-calculation-method`; `--json` `--file` `--dry-run` | Change one of the workspace's invoices: reads it, applies --json/--file and the field flags, then saves it. Never set here: user-id (set by the server). `PUT /api/v2/InvoicingService/Invoices/{invoiceId}` |
+| `absuite invoicing invoices delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's invoices; it asks first unless --yes. `DELETE /api/v2/InvoicingService/Invoices/{invoiceId}` |
+| `absuite invoicing invoices adjustments list` | Reads |  | `--invoice-id` (required); `--top` `--skip` `--columns` | List the workspace's invoices adjustments. `GET /api/v2/InvoicingService/Invoices/{invoiceId}/Adjustments` |
+| `absuite invoicing invoices extended list` | Reads |  | `--columns` | List the workspace's invoices extended. `GET /api/v2/InvoicingService/Invoices/Extended` |
+| `absuite invoicing invoices lines list` | Reads |  | `--invoice-id` (required); `--top` `--skip` `--columns` | List the workspace's invoices lines. `GET /api/v2/InvoicingService/Invoices/{invoiceId}/Lines` |
+| `absuite invoicing invoices references list` | Reads |  | `--invoice-id` (required); `--top` `--skip` `--columns` | List the workspace's invoices references. `GET /api/v2/InvoicingService/Invoices/{invoiceId}/References` |
+| `absuite invoicing invoices adjustments count` | Reads |  | `--invoice-id` (required) | Count the workspace's invoices adjustments. `GET /api/v2/InvoicingService/Invoices/{invoiceId}/Adjustments/Count` |
+| `absuite invoicing invoices lines count` | Reads |  | `--invoice-id` (required) | Count the workspace's invoices lines. `GET /api/v2/InvoicingService/Invoices/{invoiceId}/Lines/Count` |
+| `absuite invoicing invoices references count` | Reads |  | `--invoice-id` (required) | Count the workspace's invoices references. `GET /api/v2/InvoicingService/Invoices/{invoiceId}/References/Count` |
+| `absuite invoicing invoices adjustments get` | Reads | `<id>` | `--invoice-id` (required); `--columns` | Show one of the workspace's invoices adjustments. `GET /api/v2/InvoicingService/Invoices/{invoiceId}/Adjustments/{adjustmentId}` |
+| `absuite invoicing invoices lines get` | Reads | `<id>` | `--invoice-id` (required); `--columns` | Show one of the workspace's invoices lines. `GET /api/v2/InvoicingService/Invoices/{invoiceId}/Lines/{invoiceLineId}` |
+| `absuite invoicing invoices references get` | Reads | `<id>` | `--invoice-id` (required); `--columns` | Show one of the workspace's invoices references. `GET /api/v2/InvoicingService/Invoices/{invoiceId}/References/{invoiceReferenceId}` |
+| `absuite invoicing invoices creditable-amount show` | Reads |  | `--invoice-id` (required); `--columns` | Show the workspace's invoices creditable-amount. `GET /api/v2/InvoicingService/Invoices/{invoiceId}/CreditableAmount` |
+| `absuite invoicing invoices extended show` | Reads |  | `--invoice-id` (required); `--columns` | Show the workspace's invoices extended. `GET /api/v2/InvoicingService/Invoices/{invoiceId}/Extended` |
+| `absuite invoicing invoices lines show` | Reads |  | `--invoice-id` (required); `--columns` | Show the workspace's invoices lines. `GET /api/v2/InvoicingService/Invoices/{invoiceId}/Lines` |
+| `absuite invoicing invoices adjustments create` | Writes |  | `--invoice-id` (required), `--currency-id`, `--priority`, `--code`, `--description`, `--surcharge-percent`, `--surcharge-amount`, `--discount-percent`, `--discount-amount`, `--total-surcharge`, `--total-discount`; `--json` `--file` `--dry-run` | Create a record in the workspace's invoices adjustments. Never set here: type (not settable: discriminator (TPH rule)); id (set by the server); timestamp (set by the server). `POST /api/v2/InvoicingService/Invoices/{invoiceId}/Adjustments` |
+| `absuite invoicing invoices credit-notes create` | Writes |  | `--invoice-id` (required), `--amount`, `--reason`, `--reason-description`; `--json` `--file` `--dry-run` | Create a record in the workspace's invoices credit-notes. `POST /api/v2/InvoicingService/Invoices/{invoiceId}/CreditNotes` |
+| `absuite invoicing invoices debit-notes create` | Writes |  | `--invoice-id` (required), `--amount`, `--reason`, `--reason-description`; `--json` `--file` `--dry-run` | Create a record in the workspace's invoices debit-notes. `POST /api/v2/InvoicingService/Invoices/{invoiceId}/DebitNotes` |
+| `absuite invoicing invoices lines create` | Writes |  | `--invoice-id` (required), `--item-id`, `--unit-id`, `--currency-id`, `--price-list-id`, `--unit-group-id`, `--discount-list-id`, `--rounding-policy-id`, `--price`, `--percent`; `--json` `--file` `--dry-run` | Create a record in the workspace's invoices lines. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/InvoicingService/Invoices/{invoiceId}/Lines` |
+| `absuite invoicing invoices references create` | Writes |  | `--invoice-id` (required), `--referenced-invoice-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's invoices references. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/InvoicingService/Invoices/{invoiceId}/References` |
+| `absuite invoicing invoices adjustments update` | Writes | `<id>` | `--invoice-id` (required), `--currency-id`, `--priority`, `--code`, `--description`, `--surcharge-percent`, `--surcharge-amount`, `--discount-percent`, `--discount-amount`, `--total-surcharge`, `--total-discount`; `--json` `--file` `--dry-run` | Change one of the workspace's invoices adjustments: reads it, applies --json/--file and the field flags, then saves it. Never set here: type (not settable: discriminator (TPH rule)). `PUT /api/v2/InvoicingService/Invoices/{invoiceId}/Adjustments/{adjustmentId}` |
+| `absuite invoicing invoices references update` | Writes | `<id>` | `--invoice-id` (required), `--referenced-invoice-id`; `--json` `--file` `--dry-run` | Change one of the workspace's invoices references: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/InvoicingService/Invoices/{invoiceId}/References/{invoiceReferenceId}` |
+| `absuite invoicing invoices adjustments delete` | Writes | `<id>` | `--invoice-id` (required); `--yes` `--dry-run` | Delete one of the workspace's invoices adjustments; it asks first unless --yes. `DELETE /api/v2/InvoicingService/Invoices/{invoiceId}/Adjustments/{adjustmentId}` |
+| `absuite invoicing invoices lines delete` | Writes | `<id>` | `--invoice-id` (required); `--yes` `--dry-run` | Delete one of the workspace's invoices lines; it asks first unless --yes. `DELETE /api/v2/InvoicingService/Invoices/{invoiceId}/Lines/{invoiceLineId}` |
+| `absuite invoicing invoices references delete` | Writes | `<id>` | `--invoice-id` (required); `--yes` `--dry-run` | Delete one of the workspace's invoices references; it asks first unless --yes. `DELETE /api/v2/InvoicingService/Invoices/{invoiceId}/References/{invoiceReferenceId}` |
+| `absuite invoicing invoices lines taxes list` | Reads |  | `--invoice-id` (required), `--invoice-line-id` (required); `--top` `--skip` `--columns` | List the workspace's invoices lines taxes. `GET /api/v2/InvoicingService/Invoices/{invoiceId}/Lines/{invoiceLineId}/Taxes` |
+| `absuite invoicing invoices lines taxes count` | Reads |  | `--invoice-id` (required), `--invoice-line-id` (required) | Count the workspace's invoices lines taxes. `GET /api/v2/InvoicingService/Invoices/{invoiceId}/Lines/{invoiceLineId}/Taxes/Count` |
+| `absuite invoicing invoices lines taxes get` | Reads | `<id>` | `--invoice-id` (required), `--invoice-line-id` (required); `--columns` | Show one of the workspace's invoices lines taxes. `GET /api/v2/InvoicingService/Invoices/{invoiceId}/Lines/{invoiceLineId}/Taxes/{invoiceLineTaxId}` |
+| `absuite invoicing invoices purchase-invoices sum show` | Reads |  | `--columns` | Show the workspace's invoices purchase-invoices sum. `GET /api/v2/InvoicingService/Invoices/PurchaseInvoices/Sum` |
+| `absuite invoicing invoices sales-invoices sum show` | Reads |  | `--columns` | Show the workspace's invoices sales-invoices sum. `GET /api/v2/InvoicingService/Invoices/SalesInvoices/Sum` |
+| `absuite invoicing invoices lines taxes create` | Writes |  | `--invoice-id` (required), `--invoice-line-id` (required), `--tax-policy-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's invoices lines taxes. Only in --json: invoice-id. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/InvoicingService/Invoices/{invoiceId}/Lines/{invoiceLineId}/Taxes` |
+| `absuite invoicing invoices lines taxes update` | Writes | `<id>` | `--invoice-id` (required), `--invoice-line-id` (required), `--tax-policy-id`; `--json` `--file` `--dry-run` | Change one of the workspace's invoices lines taxes: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/InvoicingService/Invoices/{invoiceId}/Lines/{invoiceLineId}/Taxes/{invoiceLineTaxId}` |
+| `absuite invoicing invoices lines taxes delete` | Writes | `<id>` | `--invoice-id` (required), `--invoice-line-id` (required); `--yes` `--dry-run` | Delete one of the workspace's invoices lines taxes; it asks first unless --yes. `DELETE /api/v2/InvoicingService/Invoices/{invoiceId}/Lines/{invoiceLineId}/Taxes/{invoiceLineTaxId}` |
+
+## Example
+
+```bash
+absuite invoicing invoices extended list -o json --query "[].id"
+absuite invoicing invoices create --paid <value> --number <value> --dry-run   # prints the POST, sends nothing
+absuite invoicing invoices create --paid <value> --number <value> -o json --no-input
 ```
-absuite invoicing <verb> <entity> --Param value
-```
-
-- **Verbs:** `list`, `count`, `search`, `get`, `create`, `update`, `delete`, plus
-  service actions (`calculate`, `send`, `preview`, and the `aggregate-*` commands).
-- **Entities:** `invoice`, `invoice-line`, `invoice-line-tax`, `invoice-adjustment`,
-  `invoice-reference`, `invoice-payment`, `extended-invoice`.
-- The canonical PowerShell function-name form also works as the command, e.g.
-  `absuite invoicing New-Invoice --TenantId <tenant-guid> --InvoiceCreateDto '{...}'`
-  is equivalent to `absuite invoicing create invoice ...`. The function names map to
-  PowerShell-approved verbs: create → `New-`, get/list/count → `Get-`, update → `Update-`,
-  delete → `Invoke-Delete...`, calculate → `Measure-`, send email → `Send-InvoiceEmail`,
-  preview email → `Invoke-PreviewInvoiceEmail`, aggregate → `Invoke-AggregateInvoice...`.
-- **JSON DTO params** are passed as a single-quoted JSON string (`--<Dto> '{...}'`) using
-  the **same PascalCase field names** as the REST API.
 
 ## Key Concepts
 
@@ -71,543 +90,3 @@ absuite invoicing <verb> <entity> --Param value
 - **Adjustment `Type`** — `Discount` | `Surcharge`.
 - Monetary amounts are split into a value field and a matching `…CurrencyId` field
   (e.g. `Total` + `TotalCurrencyId`).
-
-## Invoices
-
-### Create Invoice
-
-```powershell
-absuite invoicing create invoice --TenantId $TENANT_ID --InvoiceCreateDto '{
-  "Title": "Invoice - Q2 Enterprise License",
-  "Description": "Enterprise license and support services",
-  "CurrencyId": "<currency-guid>",
-  "IndividualId": "<contact-guid>",
-  "OrganizationId": "<organization-guid>",
-  "CompanyName": "<company-name>",
-  "BillingEmail": "<billing-email>",
-  "AddressLine1": "<address-line-1>",
-  "CountryId": "<country-guid>",
-  "InvoiceType": "SalesInvoice",
-  "DocumentType": "Standard",
-  "InvoiceStatus": "Draft",
-  "CostCalculationMethod": "Automatic",
-  "TaxCalculationMethod": "Excluded",
-  "PaymentDue": "2026-07-15T00:00:00Z",
-  "Notes": "Net 30 payment terms apply.",
-  "OrderId": "<order-guid>"
-}'
-```
-
-**Common `InvoiceCreateDto` fields:** `Title`, `Description`, `CurrencyId`, `IndividualId`,
-`OrganizationId`, `ReceiverTenantId`, `FirstName`, `LastName`, `CompanyName`, `BillingEmail`,
-`AddressLine1`, `AddressLine2`, `PostalCode`, `CountryId`, `StateId`, `CityId`, `ForexRate`,
-`PriceListId`, `PaymentTermId`, `Number`, `Notes`, `CustomerNotes`, `OrderId`, `Enumeration`,
-`EnumerationRangeId`, `PaymentModeId`, `EmisorBillingProfileId`, `ReceiverBillingProfileId`,
-`EmisorWalletAccountId`, `ReceiverWalletAccountId`, `Closed`, `Paid`, the monetary
-value/`…CurrencyId` pairs (`TotalDetail`, `TotalProfit`, `TotalDiscounts`, `TotalSurcharges`,
-`TotalShippingCost`, `TotalShippingTax`, `TotalWithheldTax`, `TotalTaxBase`, `TotalTaxes`,
-`TotalGlobalSurcharges`, `TotalGlobalDiscounts`, `Total`), `InvoiceType`, `DocumentType`,
-`InvoiceStatus`, `CostCalculationMethod`, `TaxCalculationMethod`, `PaymentDue`, `ValidFrom`,
-`ValidTo`, and the inline arrays `InvoiceLines`, `InvoiceReferences`, `InvoiceAdjustments`.
-
-### Create Invoice with Inline Lines and Adjustments
-
-```powershell
-absuite invoicing create invoice --TenantId $TENANT_ID --InvoiceCreateDto '{
-  "Title": "Invoice - Acme",
-  "CurrencyId": "<currency-guid>",
-  "IndividualId": "<contact-guid>",
-  "InvoiceType": "SalesInvoice",
-  "InvoiceStatus": "Draft",
-  "CostCalculationMethod": "Automatic",
-  "TaxCalculationMethod": "Excluded",
-  "InvoiceLines": [
-    { "ItemId": "<item-guid-1>", "Quantity": 5, "CurrencyId": "<currency-guid>", "ItemPriceId": "<price-guid-1>", "Title": "Enterprise License" },
-    { "ItemId": "<item-guid-2>", "Quantity": 1, "CurrencyId": "<currency-guid>", "ItemPriceId": "<price-guid-2>", "Title": "Premium Support" }
-  ],
-  "InvoiceAdjustments": [
-    { "Description": "Volume discount", "DiscountPercent": 10, "Type": "Discount", "CurrencyId": "<currency-guid>" }
-  ]
-}'
-```
-
-### List Invoices
-
-```powershell
-absuite invoicing list invoices --TenantId $TENANT_ID
-```
-
-### Count Invoices
-
-```powershell
-absuite invoicing count invoices --TenantId $TENANT_ID
-```
-
-### List Extended Invoices (with related data)
-
-```powershell
-absuite invoicing list extended-invoices --TenantId $TENANT_ID
-```
-
-### Count Extended Invoices
-
-```powershell
-absuite invoicing count extended-invoices --TenantId $TENANT_ID
-```
-
-### Get Invoice by ID
-
-```powershell
-absuite invoicing get invoice --TenantId $TENANT_ID --InvoiceId <invoice-guid>
-```
-
-### Get Extended Invoice by ID
-
-```powershell
-absuite invoicing get extended-invoice --TenantId $TENANT_ID --InvoiceId <invoice-guid>
-```
-
-### Update Invoice (full replace)
-
-```powershell
-absuite invoicing update invoice --TenantId $TENANT_ID --InvoiceId <invoice-guid> --InvoiceUpdateDto '{
-  "Title": "Invoice - Q2 Enterprise License (revised)",
-  "CurrencyId": "<currency-guid>",
-  "InvoiceStatus": "Closed",
-  "Notes": "Revised payment terms"
-}'
-```
-
-`InvoiceUpdateDto` carries the same header/monetary fields as create, plus `UserId`,
-`BillingLocationId`, `ShippingLocationId`, `ShippingMethodId` (and the inline arrays). It
-does not carry `Id`.
-
-### Delete Invoice
-
-```powershell
-absuite invoicing delete invoice --TenantId $TENANT_ID --InvoiceId <invoice-guid>
-```
-
-### Calculate Invoice
-
-Recompute server-side totals after editing lines, taxes, or adjustments.
-
-```powershell
-absuite invoicing calculate invoice --TenantId $TENANT_ID --InvoiceId <invoice-guid>
-```
-
-## Invoice Lines
-
-### List Lines
-
-```powershell
-# Optionally filter by item with --ItemId <item-guid>
-absuite invoicing list invoice-lines --TenantId $TENANT_ID --InvoiceId <invoice-guid>
-```
-
-### Count Lines
-
-```powershell
-absuite invoicing count invoice-lines --TenantId $TENANT_ID --InvoiceId <invoice-guid>
-```
-
-### Get Line by ID
-
-```powershell
-absuite invoicing get invoice-line --TenantId $TENANT_ID --InvoiceId <invoice-guid> --InvoiceLineId <invoice-line-guid>
-```
-
-### Create Line
-
-```powershell
-absuite invoicing create invoice-line --TenantId $TENANT_ID --InvoiceId <invoice-guid> --InvoiceLineCreateDto '{
-  "Title": "Enterprise License",
-  "Description": "Annual platform license, 10 seats",
-  "ItemId": "<item-guid>",
-  "ItemPriceId": "<price-guid>",
-  "Quantity": 10,
-  "CurrencyId": "<currency-guid>",
-  "CostCalculationMethod": "Automatic",
-  "TaxCalculationMethod": "Excluded"
-}'
-```
-
-`InvoiceLineCreateDto` shares the invoice header/monetary fields and adds `Quantity`,
-`ItemId`, `InvoiceId`, `ItemPriceId`.
-
-### Update Line
-
-```powershell
-absuite invoicing update invoice-line --TenantId $TENANT_ID --InvoiceId <invoice-guid> --InvoiceLineId <invoice-line-guid> --InvoiceLineUpdateDto '{
-  "Quantity": 15,
-  "Description": "Increased to 15 seats",
-  "CurrencyId": "<currency-guid>"
-}'
-```
-
-`InvoiceLineUpdateDto` adds `UserId`, `BillingLocationId`, `ShippingLocationId`,
-`ShippingMethodId`, `Quantity`, `ItemId`, `ItemPriceId`, `InvoiceLineId`, `TaxAmountInUsd`,
-`TaxBaseAmountInUsd` on top of the shared fields.
-
-### Delete Line
-
-```powershell
-absuite invoicing delete invoice-line --TenantId $TENANT_ID --InvoiceId <invoice-guid> --InvoiceLineId <invoice-line-guid>
-```
-
-### Calculate a Single Line
-
-```powershell
-absuite invoicing calculate invoice-line --TenantId $TENANT_ID --InvoiceId <invoice-guid> --InvoiceLineId <invoice-line-guid>
-```
-
-## Invoice Line Taxes
-
-Apply tax policies to individual invoice lines.
-
-### List Taxes for a Line
-
-```powershell
-absuite invoicing list invoice-line-taxes --TenantId $TENANT_ID --InvoiceId <invoice-guid> --InvoiceLineId <invoice-line-guid>
-```
-
-### Count Taxes for a Line
-
-```powershell
-absuite invoicing count invoice-line-taxes --TenantId $TENANT_ID --InvoiceId <invoice-guid> --InvoiceLineId <invoice-line-guid>
-```
-
-### Add a Tax to a Line
-
-```powershell
-absuite invoicing create invoice-line-tax --TenantId $TENANT_ID --InvoiceId <invoice-guid> --InvoiceLineId <invoice-line-guid> --InvoiceLineAppliedTaxCreateDto '{
-  "TaxPolicyId": "<tax-policy-guid>",
-  "InvoiceId": "<invoice-guid>"
-}'
-```
-
-`InvoiceLineAppliedTaxCreateDto` fields: `Id`, `Timestamp`, `InvoiceId`, `TaxPolicyId`.
-
-### Update a Line Tax
-
-```powershell
-absuite invoicing update invoice-line-tax --TenantId $TENANT_ID --InvoiceId <invoice-guid> --InvoiceLineId <invoice-line-guid> --InvoiceLineTaxId <invoice-line-tax-guid> --InvoiceLineAppliedTaxUpdateDto '{
-  "TaxPolicyId": "<new-tax-policy-guid>"
-}'
-```
-
-`InvoiceLineAppliedTaxUpdateDto` has a single field: `TaxPolicyId`.
-
-### Remove a Line Tax
-
-```powershell
-absuite invoicing delete invoice-line-tax --TenantId $TENANT_ID --InvoiceId <invoice-guid> --InvoiceLineId <invoice-line-guid> --InvoiceLineTaxId <invoice-line-tax-guid>
-```
-
-## Adjustments (Discounts / Surcharges)
-
-Invoice-level discounts or surcharges.
-
-### List Adjustments
-
-```powershell
-absuite invoicing list invoice-adjustments --TenantId $TENANT_ID --InvoiceId <invoice-guid>
-```
-
-### Count Adjustments
-
-```powershell
-absuite invoicing count invoice-adjustments --TenantId $TENANT_ID --InvoiceId <invoice-guid>
-```
-
-### Get Adjustment by ID
-
-```powershell
-absuite invoicing get invoice-adjustment --TenantId $TENANT_ID --InvoiceId <invoice-guid> --InvoiceAdjustmentId <invoice-adjustment-guid>
-```
-
-### Create Adjustment
-
-```powershell
-# Percentage discount
-absuite invoicing create invoice-adjustment --TenantId $TENANT_ID --InvoiceId <invoice-guid> --InvoiceAdjustmentCreateDto '{
-  "Description": "Early payment discount",
-  "DiscountPercent": 5,
-  "Type": "Discount",
-  "CurrencyId": "<currency-guid>",
-  "Priority": 1,
-  "Code": "EARLY5"
-}'
-
-# Fixed surcharge
-absuite invoicing create invoice-adjustment --TenantId $TENANT_ID --InvoiceId <invoice-guid> --InvoiceAdjustmentCreateDto '{
-  "Description": "Rush processing fee",
-  "SurchargeAmount": 150.00,
-  "Type": "Surcharge",
-  "CurrencyId": "<currency-guid>"
-}'
-```
-
-`InvoiceAdjustmentCreateDto` fields: `Id`, `Timestamp`, `CurrencyId`, `Priority`, `Code`,
-`Description`, `SurchargePercent`, `SurchargeAmount`, `DiscountPercent`, `DiscountAmount`,
-`TotalSurcharge`, `TotalDiscount`, `Type` (`Discount`|`Surcharge`).
-
-### Update Adjustment
-
-```powershell
-absuite invoicing update invoice-adjustment --TenantId $TENANT_ID --InvoiceId <invoice-guid> --InvoiceAdjustmentId <invoice-adjustment-guid> --InvoiceAdjustmentUpdateDto '{
-  "DiscountPercent": 8,
-  "Description": "Loyalty discount increased",
-  "Type": "Discount",
-  "CurrencyId": "<currency-guid>"
-}'
-```
-
-`InvoiceAdjustmentUpdateDto` fields: `CurrencyId`, `Priority`, `Code`, `Description`,
-`SurchargePercent`, `SurchargeAmount`, `DiscountPercent`, `DiscountAmount`, `TotalSurcharge`,
-`TotalDiscount`, `Type`.
-
-### Delete Adjustment
-
-```powershell
-absuite invoicing delete invoice-adjustment --TenantId $TENANT_ID --InvoiceId <invoice-guid> --InvoiceAdjustmentId <invoice-adjustment-guid>
-```
-
-## Invoice References
-
-Link invoices together (e.g. a credit note → the original invoice).
-
-### List References
-
-```powershell
-absuite invoicing list invoice-references --TenantId $TENANT_ID --InvoiceId <invoice-guid>
-```
-
-### Count References
-
-```powershell
-absuite invoicing count invoice-references --TenantId $TENANT_ID --InvoiceId <invoice-guid>
-```
-
-### Get Reference by ID
-
-```powershell
-absuite invoicing get invoice-reference --TenantId $TENANT_ID --InvoiceId <invoice-guid> --InvoiceReferenceId <invoice-reference-guid>
-```
-
-### Create Reference
-
-```powershell
-absuite invoicing create invoice-reference --TenantId $TENANT_ID --InvoiceId <credit-note-guid> --InvoiceReferenceCreateDto '{
-  "ReferencedInvoiceId": "<original-invoice-guid>"
-}'
-```
-
-`InvoiceReferenceCreateDto` fields: `Id`, `Timestamp`, `ReferencedInvoiceId`.
-
-### Update Reference
-
-```powershell
-absuite invoicing update invoice-reference --TenantId $TENANT_ID --InvoiceId <invoice-guid> --InvoiceReferenceId <invoice-reference-guid> --InvoiceReferenceUpdateDto '{
-  "ReferencedInvoiceId": "<different-invoice-guid>"
-}'
-```
-
-`InvoiceReferenceUpdateDto` has a single field: `ReferencedInvoiceId`.
-
-### Delete Reference
-
-```powershell
-absuite invoicing delete invoice-reference --TenantId $TENANT_ID --InvoiceId <invoice-guid> --InvoiceReferenceId <invoice-reference-guid>
-```
-
-## Payments (read-only)
-
-### List Payments for an Invoice
-
-```powershell
-absuite invoicing list invoice-payments --TenantId $TENANT_ID --InvoiceId <invoice-guid>
-```
-
-### Count Payments
-
-```powershell
-absuite invoicing count invoice-payments --TenantId $TENANT_ID --InvoiceId <invoice-guid>
-```
-
-## Aggregations
-
-Aggregate financial figures across a set of invoices. The request body (`RequestBody`) is a
-**JSON array of invoice GUIDs**; pass an optional `--CurrencyId <currency-guid>` to convert
-the result into that currency.
-
-```powershell
-# Aggregate totals
-absuite invoicing aggregate-invoice-totals --TenantId $TENANT_ID --RequestBody '["<invoice-guid-1>", "<invoice-guid-2>"]' --CurrencyId <currency-guid>
-
-# Aggregate taxes
-absuite invoicing aggregate-invoice-taxes --TenantId $TENANT_ID --RequestBody '["<invoice-guid-1>", "<invoice-guid-2>"]'
-
-# Aggregate tax bases
-absuite invoicing aggregate-invoice-tax-bases --TenantId $TENANT_ID --RequestBody '["<invoice-guid-1>", "<invoice-guid-2>"]'
-
-# Aggregate discounts
-absuite invoicing aggregate-invoice-discounts --TenantId $TENANT_ID --RequestBody '["<invoice-guid-1>", "<invoice-guid-2>"]'
-
-# Aggregate global surcharges
-absuite invoicing aggregate-invoice-global-surcharges --TenantId $TENANT_ID --RequestBody '["<invoice-guid-1>", "<invoice-guid-2>"]'
-```
-
-## Email Notifications
-
-### Preview Invoice Email
-
-Renders the email without sending. Same body as Send (an `EmailDispatchRequest`).
-
-```powershell
-absuite invoicing preview invoice-email --TenantId $TENANT_ID --InvoiceId <invoice-guid> --EmailDispatchRequest '{
-  "Title": "Your invoice",
-  "Message": "Please find your invoice below.",
-  "Culture": "en-US",
-  "UiCulture": "en-US",
-  "Recipients": ["<billing-email>"]
-}'
-```
-
-### Send Invoice Email
-
-```powershell
-absuite invoicing send invoice-email --TenantId $TENANT_ID --InvoiceId <invoice-guid> --EmailDispatchRequest '{
-  "Title": "Your invoice",
-  "Message": "Please find your invoice below. Payment is due by 2026-07-15.",
-  "Culture": "en-US",
-  "UiCulture": "en-US",
-  "Recipients": ["<billing-email>"]
-}'
-```
-
-**`EmailDispatchRequest` fields** (`Title`, `Message`, `Culture`, `UiCulture`, `Recipients` are **required**):
-`Title`, `Message`, `Culture`, `UiCulture`, `Recipients` (array of emails), `ContactIds`
-(array of contact GUIDs), `TenantIds` (array), `UserIds` (array), `ButtonLink`, `ButtonText`,
-`AlertMessage`, `AlertType` (`None`|`Info`|`Error`|`Warning`|`Success`|`Action`|`Alert`),
-`TemplateUrl`, `EmailTemplateId`.
-
-## Recipe: Issue a Credit Note
-
-```powershell
-# 1. Create a credit note referencing the original invoice (inline reference)
-absuite invoicing create invoice --TenantId $TENANT_ID --InvoiceCreateDto '{
-  "Title": "Credit Note for original invoice",
-  "CurrencyId": "<currency-guid>",
-  "IndividualId": "<contact-guid>",
-  "InvoiceType": "CreditNote",
-  "DocumentType": "CreditNote",
-  "InvoiceStatus": "Draft",
-  "InvoiceReferences": [ { "ReferencedInvoiceId": "<original-invoice-guid>" } ]
-}'
-
-# 2. Add a credit line (negative quantity)
-absuite invoicing create invoice-line --TenantId $TENANT_ID --InvoiceId <credit-note-guid> --InvoiceLineCreateDto '{
-  "Title": "License (Credit)", "ItemId": "<item-guid>", "Quantity": -2, "CurrencyId": "<currency-guid>", "ItemPriceId": "<price-guid>"
-}'
-
-# 3. Calculate
-absuite invoicing calculate invoice --TenantId $TENANT_ID --InvoiceId <credit-note-guid>
-```
-
-## End-to-End Workflow
-
-```powershell
-# 1. Create the invoice header (note the returned invoice ID)
-absuite invoicing create invoice --TenantId $TENANT_ID --InvoiceCreateDto '{
-  "Title": "Invoice - Q2 Enterprise License",
-  "CurrencyId": "<currency-guid>",
-  "IndividualId": "<contact-guid>",
-  "BillingEmail": "<billing-email>",
-  "InvoiceType": "SalesInvoice",
-  "InvoiceStatus": "Draft",
-  "CostCalculationMethod": "Automatic",
-  "TaxCalculationMethod": "Excluded",
-  "PaymentDue": "2026-07-15T00:00:00Z"
-}'
-
-# 2. Add a line
-absuite invoicing create invoice-line --TenantId $TENANT_ID --InvoiceId <invoice-guid> --InvoiceLineCreateDto '{
-  "Title": "Enterprise License", "ItemId": "<item-guid>", "Quantity": 10, "CurrencyId": "<currency-guid>", "ItemPriceId": "<price-guid>"
-}'
-
-# 3. Apply a tax to the line
-absuite invoicing create invoice-line-tax --TenantId $TENANT_ID --InvoiceId <invoice-guid> --InvoiceLineId <invoice-line-guid> --InvoiceLineAppliedTaxCreateDto '{
-  "TaxPolicyId": "<tax-policy-guid>", "InvoiceId": "<invoice-guid>"
-}'
-
-# 4. Add an invoice-level discount
-absuite invoicing create invoice-adjustment --TenantId $TENANT_ID --InvoiceId <invoice-guid> --InvoiceAdjustmentCreateDto '{
-  "Description": "Volume discount", "DiscountPercent": 10, "Type": "Discount", "CurrencyId": "<currency-guid>"
-}'
-
-# 5. Calculate totals
-absuite invoicing calculate invoice --TenantId $TENANT_ID --InvoiceId <invoice-guid>
-
-# 6. Update status to Signed
-absuite invoicing update invoice --TenantId $TENANT_ID --InvoiceId <invoice-guid> --InvoiceUpdateDto '{ "InvoiceStatus": "Signed" }'
-
-# 7. Send the invoice email
-absuite invoicing send invoice-email --TenantId $TENANT_ID --InvoiceId <invoice-guid> --EmailDispatchRequest '{
-  "Title": "Your invoice", "Message": "Please find your invoice below.", "Culture": "en-US", "UiCulture": "en-US", "Recipients": ["<billing-email>"]
-}'
-
-# 8. Verify
-absuite invoicing get invoice --TenantId $TENANT_ID --InvoiceId <invoice-guid>
-```
-
-## CLI Commands Quick Reference
-
-| Action | CLI command |
-|---|---|
-| List invoices | `absuite invoicing list invoices` |
-| Count invoices | `absuite invoicing count invoices` |
-| List extended invoices | `absuite invoicing list extended-invoices` |
-| Count extended invoices | `absuite invoicing count extended-invoices` |
-| Create invoice | `absuite invoicing create invoice --InvoiceCreateDto '{...}'` |
-| Get invoice | `absuite invoicing get invoice --InvoiceId <invoice-guid>` |
-| Get extended invoice | `absuite invoicing get extended-invoice --InvoiceId <invoice-guid>` |
-| Update invoice | `absuite invoicing update invoice --InvoiceId <invoice-guid> --InvoiceUpdateDto '{...}'` |
-| Delete invoice | `absuite invoicing delete invoice --InvoiceId <invoice-guid>` |
-| Calculate invoice | `absuite invoicing calculate invoice --InvoiceId <invoice-guid>` |
-| List lines | `absuite invoicing list invoice-lines --InvoiceId <invoice-guid>` |
-| Count lines | `absuite invoicing count invoice-lines --InvoiceId <invoice-guid>` |
-| Create line | `absuite invoicing create invoice-line --InvoiceId <invoice-guid> --InvoiceLineCreateDto '{...}'` |
-| Get line | `absuite invoicing get invoice-line --InvoiceId <invoice-guid> --InvoiceLineId <invoice-line-guid>` |
-| Update line | `absuite invoicing update invoice-line --InvoiceId <invoice-guid> --InvoiceLineId <invoice-line-guid> --InvoiceLineUpdateDto '{...}'` |
-| Delete line | `absuite invoicing delete invoice-line --InvoiceId <invoice-guid> --InvoiceLineId <invoice-line-guid>` |
-| Calculate line | `absuite invoicing calculate invoice-line --InvoiceId <invoice-guid> --InvoiceLineId <invoice-line-guid>` |
-| List line taxes | `absuite invoicing list invoice-line-taxes --InvoiceId <invoice-guid> --InvoiceLineId <invoice-line-guid>` |
-| Count line taxes | `absuite invoicing count invoice-line-taxes --InvoiceId <invoice-guid> --InvoiceLineId <invoice-line-guid>` |
-| Create line tax | `absuite invoicing create invoice-line-tax --InvoiceId <invoice-guid> --InvoiceLineId <invoice-line-guid> --InvoiceLineAppliedTaxCreateDto '{...}'` |
-| Update line tax | `absuite invoicing update invoice-line-tax --InvoiceId <invoice-guid> --InvoiceLineId <invoice-line-guid> --InvoiceLineTaxId <invoice-line-tax-guid> --InvoiceLineAppliedTaxUpdateDto '{...}'` |
-| Delete line tax | `absuite invoicing delete invoice-line-tax --InvoiceId <invoice-guid> --InvoiceLineId <invoice-line-guid> --InvoiceLineTaxId <invoice-line-tax-guid>` |
-| List adjustments | `absuite invoicing list invoice-adjustments --InvoiceId <invoice-guid>` |
-| Count adjustments | `absuite invoicing count invoice-adjustments --InvoiceId <invoice-guid>` |
-| Create adjustment | `absuite invoicing create invoice-adjustment --InvoiceId <invoice-guid> --InvoiceAdjustmentCreateDto '{...}'` |
-| Get adjustment | `absuite invoicing get invoice-adjustment --InvoiceId <invoice-guid> --InvoiceAdjustmentId <invoice-adjustment-guid>` |
-| Update adjustment | `absuite invoicing update invoice-adjustment --InvoiceId <invoice-guid> --InvoiceAdjustmentId <invoice-adjustment-guid> --InvoiceAdjustmentUpdateDto '{...}'` |
-| Delete adjustment | `absuite invoicing delete invoice-adjustment --InvoiceId <invoice-guid> --InvoiceAdjustmentId <invoice-adjustment-guid>` |
-| List references | `absuite invoicing list invoice-references --InvoiceId <invoice-guid>` |
-| Count references | `absuite invoicing count invoice-references --InvoiceId <invoice-guid>` |
-| Create reference | `absuite invoicing create invoice-reference --InvoiceId <invoice-guid> --InvoiceReferenceCreateDto '{...}'` |
-| Get reference | `absuite invoicing get invoice-reference --InvoiceId <invoice-guid> --InvoiceReferenceId <invoice-reference-guid>` |
-| Update reference | `absuite invoicing update invoice-reference --InvoiceId <invoice-guid> --InvoiceReferenceId <invoice-reference-guid> --InvoiceReferenceUpdateDto '{...}'` |
-| Delete reference | `absuite invoicing delete invoice-reference --InvoiceId <invoice-guid> --InvoiceReferenceId <invoice-reference-guid>` |
-| List payments | `absuite invoicing list invoice-payments --InvoiceId <invoice-guid>` |
-| Count payments | `absuite invoicing count invoice-payments --InvoiceId <invoice-guid>` |
-| Preview email | `absuite invoicing preview invoice-email --InvoiceId <invoice-guid> --EmailDispatchRequest '{...}'` |
-| Send email | `absuite invoicing send invoice-email --InvoiceId <invoice-guid> --EmailDispatchRequest '{...}'` |
-| Aggregate totals | `absuite invoicing aggregate-invoice-totals --RequestBody '[...]'` |
-| Aggregate taxes | `absuite invoicing aggregate-invoice-taxes --RequestBody '[...]'` |
-| Aggregate tax bases | `absuite invoicing aggregate-invoice-tax-bases --RequestBody '[...]'` |
-| Aggregate discounts | `absuite invoicing aggregate-invoice-discounts --RequestBody '[...]'` |
-| Aggregate global surcharges | `absuite invoicing aggregate-invoice-global-surcharges --RequestBody '[...]'` |
-
-> Every command also accepts `--TenantId <tenant-guid>` (omit it if you set a default tenant
-> with `absuite config set --tenant-id <tenant-guid>`).

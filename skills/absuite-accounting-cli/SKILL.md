@@ -1,72 +1,386 @@
 ---
 name: absuite-accounting-cli
 key: fenixalliance.absuite.accounting-cli
-version: 1.0.0
+version: 1.1.0
 description: >
-  Manage the Alliance Business Suite (ABS) accounting system using the `absuite` CLI.
-  Covers chart of accounts, account entries, journals/ledgers, tax classes/policies/rates,
-  fiscal authorities/years/periods/regimes, billing profiles, banks/bank-accounts/guarantees/
-  transactions, budgets, cost centres, commissions, receipts, grants, loans, shares, and
-  invoice enumeration ranges via list/count/search/get/create/update/delete commands and
-  service actions. Requires an authenticated CLI session (see absuite-login-cli). For atomic
-  PATCH updates or raw HTTP, use the absuite-accounting (REST) skill.
+  Drive the Alliance Business Suite (ABS) Accounting area with the absuite CLI: 224 commands (127
+  read, 97 write) under `absuite accounting`, each generated from the platform's ServiceClients and
+  checked against `absuite commands -o json`. For routes the CLI does not cover, use the
+  absuite-accounting REST skill.
 ---
 
 # Alliance Business Suite — Accounting Skill (CLI)
 
-Drive the ABS `AccountingService` through the `absuite` CLI. The CLI service token is
-**`accounting`**. Every accounting command is tenant-scoped — set or pass a tenant on each
-call. For atomic partial updates (JSON Patch) or raw HTTP, switch to the `absuite-accounting`
-REST skill; the CLI does **not** support patch operations.
+Generated from the absuite CLI at Platform 9b72a00a47 (`absuite commands -o json`). The commands, arguments and options below are the CLI's own; re-run `absuite commands -o json` before relying on one.
 
-For general CLI usage and configuration, see `absuite-cli`.
+> **Coverage:** the `absuite-accounting` REST skill documents 61 routes; 17 of them have no CLI command (a write the CLI keeps to Studio, a call that is not workspace-scoped, or a field shape it cannot take yet). Use the REST skill for those.
 
-## API usage essentials
+## Before you start
 
-> Full detail in `absuite-cli`.
+- Install: `npm install -g @fenixalliance/absuite` (a self-contained binary per platform). `absuite --version` prints the version.
+- Sign in: `absuite login` (a one-time code in your browser, the default). `absuite me` shows who you are; `absuite account show` shows the profile, server and workspace.
+- Workspace: `absuite account list` lists yours; `absuite account set --tenant <id|name>` saves one. `--tenant <id>` or `ABS_TENANT` picks one for a single command.
+- Agents on their computer: the run token comes from `ABS_TOKEN` or `ABS_TOKEN_FILE` (one of them, never both), used only with `--url` or `ABS_URL`, and only over https:// or to a server on the same computer. The token says who the agent is; the workspace's roles decide what it may do.
+- Scripts and agents: pass `--no-input` (it is also on when stdin is not a terminal, or CI or ABS_NO_TUI is set). Anything that needs input then fails with exit 2 and names the flag to pass.
+- Output: `-o table|json|jsonc|tsv|yaml|none`; `--query "<JMESPath>"` filters the result before it is printed.
+- `absuite commands -o json` lists every command with its options and whether it only reads. Check it before you rely on a command; `absuite <command> --help` shows one.
+- Full sign-in, output, exit-code and run-token rules: the `absuite-cli` skill. Anything not listed here: the `absuite-accounting` REST skill.
 
-- **`update` replaces the ENTIRE object** (it maps to HTTP `PUT`) — a full overwrite, not a merge. **`get` the entity first, change only what you need on the complete object, then `update` with the full body.** A partial `update` (or an incomplete `create`) blanks the omitted fields -> silent data loss.
-- **No atomic partial update in the CLI.** For a safe single-field change, use the `absuite-accounting` REST skill's `PATCH` (JSON Patch), where that service exposes one.
-- Use **`count <entity>`** (a dedicated operation) to size a collection. OData filtering/paging (`$filter`, `$top`, ...) is REST-only — the CLI does not expose it; use `absuite-accounting` for filtered queries or a filtered count.
+## Commands
 
-## Prerequisites
+224 commands, from `absuite commands -o json`. "Reads" commands never change data. Writes take field flags or `--json`/`--file` with the same fields, and `--dry-run` prints the request without sending it. Deletes ask first unless `--yes` (with `--no-input` and no `--yes`, a delete fails with exit 2).
 
-1. **Authenticate** — run `absuite login` first (see `absuite-login-cli`).
-2. **Set your tenant** — accounting requires a tenant on every call. Set a default:
-   ```bash
-   absuite config set --tenant-id <tenant-guid>
-   ```
-   or pass `--TenantId <tenant-guid>` explicitly. Examples below use `$TENANT_ID`.
-3. **Discover commands**:
-   ```bash
-   absuite accounting list-commands
-   absuite accounting list-commands | grep -i account
-   absuite accounting list-commands | grep -i tax
-   absuite accounting <verb> <entity> --help    # full parameter + output schema
-   ```
+### Account Groups (`absuite accounting account-groups`)
 
-## Command structure
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite accounting account-groups list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's account-groups. `GET /api/v2/AccountingService/AccountGroups` |
+| `absuite accounting account-groups count` | Reads |  |  | Count the workspace's account-groups. `GET /api/v2/AccountingService/AccountGroups/Count` |
+| `absuite accounting account-groups get` | Reads | `<id>` | `--columns` | Show one of the workspace's account-groups. `GET /api/v2/AccountingService/AccountGroups/{accountGroupId}` |
+| `absuite accounting account-groups create` | Writes |  | `--title`, `--description`, `--parent-account-group-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's account-groups. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/AccountingService/AccountGroups` |
+| `absuite accounting account-groups update` | Writes | `<id>` | `--title`, `--description`, `--parent-account-group-id`; `--json` `--file` `--dry-run` | Change one of the workspace's account-groups: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/AccountingService/AccountGroups/{accountGroupId}` |
+| `absuite accounting account-groups delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's account-groups; it asks first unless --yes. `DELETE /api/v2/AccountingService/AccountGroups/{accountGroupId}` |
 
+### Accounting Periods (`absuite accounting accounting-periods`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite accounting accounting-periods list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's accounting-periods. `GET /api/v2/AccountingService/AccountingPeriods` |
+| `absuite accounting accounting-periods count` | Reads |  |  | Count the workspace's accounting-periods. `GET /api/v2/AccountingService/AccountingPeriods/Count` |
+| `absuite accounting accounting-periods get` | Reads | `<id>` | `--columns` | Show one of the workspace's accounting-periods. `GET /api/v2/AccountingService/AccountingPeriods/{accountingPeriodId}` |
+| `absuite accounting accounting-periods create` | Writes |  | `--name`, `--date-start`, `--date-end`; `--json` `--file` `--dry-run` | Create a record in the workspace's accounting-periods. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/AccountingService/AccountingPeriods` |
+| `absuite accounting accounting-periods update` | Writes | `<id>` | `--name`, `--date-start`, `--date-end`; `--json` `--file` `--dry-run` | Change one of the workspace's accounting-periods: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/AccountingService/AccountingPeriods/{accountingPeriodId}` |
+| `absuite accounting accounting-periods delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's accounting-periods; it asks first unless --yes. `DELETE /api/v2/AccountingService/AccountingPeriods/{accountingPeriodId}` |
+
+### Accounts (`absuite accounting accounts`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite accounting accounts list` | Reads |  | `--top` `--skip` | List the accounts in the workspace. |
+| `absuite accounting accounts count` | Reads |  |  | Count the workspace's accounts. `GET /api/v2/AccountingService/Accounts/Count` |
+| `absuite accounting accounts get` | Reads | `<id>` |  | Show one account. |
+| `absuite accounting accounts create` | Writes |  | `--group`, `--frozen`, `--name`, `--code`, `--path`, `--prefix`, `--currency-id`, `--contact-id`, `--account-type-id`, `--parent-account-id`, `--account-category`, `--is-contra`, `--is-monetary`, `--income-statement-sub-type`; `--json` `--file` `--dry-run` | Create a record in the workspace's accounts. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/AccountingService/Accounts` |
+| `absuite accounting accounts update` | Writes | `<id>` | `--group`, `--frozen`, `--name`, `--code`, `--path`, `--prefix`, `--currency-id`, `--contact-id`, `--account-type-id`, `--parent-account-id`, `--account-category`, `--is-contra`, `--is-monetary`, `--income-statement-sub-type`; `--json` `--file` `--dry-run` | Change one of the workspace's accounts: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/AccountingService/Accounts/{accountId}` |
+| `absuite accounting accounts delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's accounts; it asks first unless --yes. `DELETE /api/v2/AccountingService/Accounts/{accountId}` |
+| `absuite accounting accounts children list` | Reads |  | `--account-id` (required); `--columns` | List the workspace's accounts children. `GET /api/v2/AccountingService/Accounts/{accountId}/Children` |
+| `absuite accounting accounts credits list` | Reads |  | `--account-id` (required); `--top` `--skip` `--columns` | List the workspace's accounts credits. `GET /api/v2/AccountingService/Accounts/{accountId}/Credits` |
+| `absuite accounting accounts debits list` | Reads |  | `--account-id` (required); `--top` `--skip` `--columns` | List the workspace's accounts debits. `GET /api/v2/AccountingService/Accounts/{accountId}/Debits` |
+| `absuite accounting accounts entries list` | Reads |  | `--account-id` (required); `--columns` | List the workspace's accounts entries. `GET /api/v2/AccountingService/Accounts/{accountId}/Entries` |
+| `absuite accounting accounts root list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's accounts root. `GET /api/v2/AccountingService/Accounts/Root` |
+| `absuite accounting accounts types list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's accounts types. `GET /api/v2/AccountingService/Accounts/Types` |
+| `absuite accounting accounts credits count` | Reads |  | `--account-id` (required) | Count the workspace's accounts credits. `GET /api/v2/AccountingService/Accounts/{accountId}/Credits/Count` |
+| `absuite accounting accounts debits count` | Reads |  | `--account-id` (required) | Count the workspace's accounts debits. `GET /api/v2/AccountingService/Accounts/{accountId}/Debits/Count` |
+| `absuite accounting accounts entries count` | Reads |  | `--account-id` (required) | Count the workspace's accounts entries. `GET /api/v2/AccountingService/Accounts/{accountId}/Entries/Count` |
+| `absuite accounting accounts types count` | Reads |  |  | Count the workspace's accounts types. `GET /api/v2/AccountingService/Accounts/Types/Count` |
+| `absuite accounting accounts types get` | Reads | `<id>` | `--columns` | Show one of the workspace's accounts types. `GET /api/v2/AccountingService/Accounts/Types/{accountTypeId}` |
+| `absuite accounting accounts types create` | Writes |  | `--name`, `--description`; `--json` `--file` `--dry-run` | Create a record in the workspace's accounts types. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/AccountingService/Accounts/Types` |
+| `absuite accounting accounts types update` | Writes | `<id>` | `--name`, `--description`; `--json` `--file` `--dry-run` | Change one of the workspace's accounts types: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/AccountingService/Accounts/Types/{accountTypeId}` |
+| `absuite accounting accounts types delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's accounts types; it asks first unless --yes. `DELETE /api/v2/AccountingService/Accounts/Types/{accountTypeId}` |
+| `absuite accounting accounts entries credit list` | Reads |  | `--account-id` (required); `--columns` | List the workspace's accounts entries credit. `GET /api/v2/AccountingService/Accounts/{accountId}/Entries/Credit` |
+| `absuite accounting accounts entries debit list` | Reads |  | `--account-id` (required); `--columns` | List the workspace's accounts entries debit. `GET /api/v2/AccountingService/Accounts/{accountId}/Entries/Debit` |
+| `absuite accounting accounts aggregate balance show` | Reads |  | `--currency-id` (required); `--columns` | Show the workspace's accounts aggregate balance. `GET /api/v2/AccountingService/Accounts/Aggregate/Balance` |
+
+### Bank Profiles (`absuite accounting bank-profiles`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite accounting bank-profiles list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's bank-profiles. `GET /api/v2/AccountingService/BankProfiles` |
+| `absuite accounting bank-profiles count` | Reads |  |  | Count the workspace's bank-profiles. `GET /api/v2/AccountingService/BankProfiles/Count` |
+
+### Banking (`absuite accounting banking`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite accounting banking list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's banking. `GET /api/v2/AccountingService/Banking` |
+| `absuite accounting banking count` | Reads |  |  | Count the workspace's banking. `GET /api/v2/AccountingService/Banking/Count` |
+| `absuite accounting banking get` | Reads | `<id>` | `--columns` | Show one of the workspace's banking. `GET /api/v2/AccountingService/Banking/{bankId}` |
+| `absuite accounting banking create` | Writes |  | `--name`, `--image`, `--country-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's banking. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/AccountingService/Banking` |
+| `absuite accounting banking update` | Writes | `<id>` | `--name`, `--image`, `--country-id`; `--json` `--file` `--dry-run` | Change one of the workspace's banking: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/AccountingService/Banking/{bankId}` |
+| `absuite accounting banking delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's banking; it asks first unless --yes. `DELETE /api/v2/AccountingService/Banking/{bankId}` |
+| `absuite accounting banking accounts list` | Reads |  | `--bank-id` (required); `--top` `--skip` `--columns` | List the workspace's banking accounts. `GET /api/v2/AccountingService/Banking/{bankId}/Accounts` |
+| `absuite accounting banking guarantees list` | Reads |  | `--bank-id` (required); `--top` `--skip` `--columns` | List the workspace's banking guarantees. `GET /api/v2/AccountingService/Banking/{bankId}/Guarantees` |
+| `absuite accounting banking transactions list` | Reads |  | `--bank-id` (required); `--top` `--skip` `--columns` | List the workspace's banking transactions. `GET /api/v2/AccountingService/Banking/{bankId}/Transactions` |
+| `absuite accounting banking accounts count` | Reads |  | `--bank-id` (required) | Count the workspace's banking accounts. `GET /api/v2/AccountingService/Banking/{bankId}/Accounts/Count` |
+| `absuite accounting banking guarantees count` | Reads |  | `--bank-id` (required) | Count the workspace's banking guarantees. `GET /api/v2/AccountingService/Banking/{bankId}/Guarantees/Count` |
+| `absuite accounting banking transactions count` | Reads |  | `--bank-id` (required) | Count the workspace's banking transactions. `GET /api/v2/AccountingService/Banking/{bankId}/Transactions/Count` |
+| `absuite accounting banking accounts get` | Reads | `<id>` | `--bank-id` (required); `--columns` | Show one of the workspace's banking accounts. `GET /api/v2/AccountingService/Banking/{bankId}/Accounts/{accountId}` |
+| `absuite accounting banking guarantees get` | Reads | `<id>` | `--bank-id` (required); `--columns` | Show one of the workspace's banking guarantees. `GET /api/v2/AccountingService/Banking/{bankId}/Guarantees/{guaranteeId}` |
+| `absuite accounting banking transactions get` | Reads | `<id>` | `--bank-id` (required); `--columns` | Show one of the workspace's banking transactions. `GET /api/v2/AccountingService/Banking/{bankId}/Transactions/{transactionId}` |
+| `absuite accounting banking guarantees create` | Writes |  | `--bank-id` (required), `--margin`, `--charges`, `--beneficiary-name`, `--guarantee-number`, `--guarantee-conditions`, `--fixed-deposit-number`, `--start-date`, `--end-date`, `--validity-in-days`, `--bank-guarantee-type`, `--contact-id`, `--project-id`, `--order-id`, `--bank-profile-id`, `--bank-account-id`, `--currency-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's banking guarantees. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/AccountingService/Banking/{bankId}/Guarantees` |
+| `absuite accounting banking transactions create` | Writes |  | `--bank-id` (required), `--bank-profile-id`, `--bank-account-id`, `--description`, `--price`, `--quantity`, `--external-description`, `--basis-quantity`, `--basis-amount`, `--percent`, `--unit-group-id`, `--unit-id`, `--transaction-category-id`, `--currency-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's banking transactions. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/AccountingService/Banking/{bankId}/Transactions` |
+| `absuite accounting banking guarantees update` | Writes | `<id>` | `--bank-id` (required), `--margin`, `--charges`, `--beneficiary-name`, `--guarantee-number`, `--guarantee-conditions`, `--fixed-deposit-number`, `--start-date`, `--end-date`, `--validity-in-days`, `--bank-guarantee-type`, `--contact-id`, `--project-id`, `--order-id`, `--bank-profile-id`, `--bank-account-id`, `--currency-id`; `--json` `--file` `--dry-run` | Change one of the workspace's banking guarantees: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/AccountingService/Banking/{bankId}/Guarantees/{guaranteeId}` |
+| `absuite accounting banking transactions update` | Writes | `<id>` | `--bank-id` (required), `--bank-profile-id`, `--bank-account-id`, `--description`, `--price`, `--quantity`, `--external-description`, `--basis-quantity`, `--basis-amount`, `--percent`, `--unit-group-id`, `--unit-id`, `--transaction-category-id`, `--currency-id`; `--json` `--file` `--dry-run` | Change one of the workspace's banking transactions: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/AccountingService/Banking/{bankId}/Transactions/{transactionId}` |
+| `absuite accounting banking accounts delete` | Writes | `<id>` | `--bank-id` (required); `--yes` `--dry-run` | Delete one of the workspace's banking accounts; it asks first unless --yes. `DELETE /api/v2/AccountingService/Banking/{bankId}/Accounts/{accountId}` |
+| `absuite accounting banking guarantees delete` | Writes | `<id>` | `--bank-id` (required); `--yes` `--dry-run` | Delete one of the workspace's banking guarantees; it asks first unless --yes. `DELETE /api/v2/AccountingService/Banking/{bankId}/Guarantees/{guaranteeId}` |
+| `absuite accounting banking transactions delete` | Writes | `<id>` | `--bank-id` (required); `--yes` `--dry-run` | Delete one of the workspace's banking transactions; it asks first unless --yes. `DELETE /api/v2/AccountingService/Banking/{bankId}/Transactions/{transactionId}` |
+
+### Billing Profiles (`absuite accounting billing-profiles`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite accounting billing-profiles list` | Reads |  | `--columns` | List the workspace's billing-profiles. `GET /api/v2/AccountingService/BillingProfiles` |
+| `absuite accounting billing-profiles count` | Reads |  |  | Count the workspace's billing-profiles. `GET /api/v2/AccountingService/BillingProfiles/Count` |
+| `absuite accounting billing-profiles get` | Reads | `<id>` | `--columns` | Show one of the workspace's billing-profiles. `GET /api/v2/AccountingService/BillingProfiles/{billingProfileId}` |
+| `absuite accounting billing-profiles create` | Writes |  | `--contact-id`, `--tax-id`, `--phone`, `--email`, `--address`, `--address1`, `--address2`, `--postal-code`, `--business-name`, `--commercial-name`, `--verification-digit`, `--economic-activity-code`, `--economic-activity-scheme`, `--is-primary`, `--establishment-code`, `--ticker`, `--duns`, `--is-public-company`, `--is-facta-customer`, `--tax-payer-type`, `--country-id`, `--state-id`, `--city-id`, `--fiscal-identification-type-id`, `--fiscal-authority-id`, `--fiscal-regime-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's billing-profiles. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/AccountingService/BillingProfiles` |
+| `absuite accounting billing-profiles update` | Writes | `<id>` | `--contact-id`, `--tax-id`, `--phone`, `--email`, `--address`, `--address1`, `--address2`, `--postal-code`, `--business-name`, `--commercial-name`, `--verification-digit`, `--economic-activity-code`, `--economic-activity-scheme`, `--is-primary`, `--establishment-code`, `--ticker`, `--duns`, `--is-public-company`, `--is-facta-customer`, `--tax-payer-type`, `--country-id`, `--state-id`, `--city-id`, `--fiscal-identification-type-id`, `--fiscal-authority-id`, `--fiscal-regime-id`; `--json` `--file` `--dry-run` | Change one of the workspace's billing-profiles: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/AccountingService/BillingProfiles/{billingProfileId}` |
+| `absuite accounting billing-profiles delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's billing-profiles; it asks first unless --yes. `DELETE /api/v2/AccountingService/BillingProfiles/{billingProfileId}` |
+
+### Budgets (`absuite accounting budgets`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite accounting budgets list` | Reads |  | `--columns` | List the workspace's budgets. `GET /api/v2/AccountingService/Budgets` |
+| `absuite accounting budgets count` | Reads |  |  | Count the workspace's budgets. `GET /api/v2/AccountingService/Budgets/Count` |
+| `absuite accounting budgets get` | Reads | `<id>` | `--columns` | Show one of the workspace's budgets. `GET /api/v2/AccountingService/Budgets/{budgetId}` |
+| `absuite accounting budgets create` | Writes |  | `--name`, `--fiscal-year-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's budgets. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/AccountingService/Budgets` |
+| `absuite accounting budgets update` | Writes | `<id>` | `--name`, `--fiscal-year-id`; `--json` `--file` `--dry-run` | Change one of the workspace's budgets: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/AccountingService/Budgets/{budgetId}` |
+| `absuite accounting budgets delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's budgets; it asks first unless --yes. `DELETE /api/v2/AccountingService/Budgets/{budgetId}` |
+| `absuite accounting budgets account-entries list` | Reads |  | `--budget-id` (required); `--top` `--skip` `--columns` | List the workspace's budgets account-entries. `GET /api/v2/AccountingService/Budgets/{budgetId}/AccountEntries` |
+| `absuite accounting budgets account-entries create` | Writes |  | `--budget-id` (required), `--description`, `--planned-amount`, `--currency-id`, `--debit-account-id`, `--credit-account-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's budgets account-entries. Only in --json: budget-id. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/AccountingService/Budgets/{budgetId}/AccountEntries` |
+| `absuite accounting budgets account-entries delete` | Writes | `<id>` | `--budget-id` (required); `--yes` `--dry-run` | Delete one of the workspace's budgets account-entries; it asks first unless --yes. `DELETE /api/v2/AccountingService/Budgets/{budgetId}/AccountEntries/{entryId}` |
+
+### Cost Centres (`absuite accounting cost-centres`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite accounting cost-centres list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's cost-centres. `GET /api/v2/AccountingService/CostCentres` |
+| `absuite accounting cost-centres count` | Reads |  |  | Count the workspace's cost-centres. `GET /api/v2/AccountingService/CostCentres/Count` |
+| `absuite accounting cost-centres get` | Reads | `<id>` | `--columns` | Show one of the workspace's cost-centres. `GET /api/v2/AccountingService/CostCentres/{costCentreId}` |
+| `absuite accounting cost-centres create` | Writes |  | `--name`, `--disabled`, `--description`, `--cost-centre-type`, `--cost-centres-group-id`, `--parent-cost-centre-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's cost-centres. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/AccountingService/CostCentres` |
+| `absuite accounting cost-centres update` | Writes | `<id>` | `--name`, `--disabled`, `--description`, `--cost-centre-type`, `--cost-centres-group-id`, `--parent-cost-centre-id`; `--json` `--file` `--dry-run` | Change one of the workspace's cost-centres: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/AccountingService/CostCentres/{costCentreId}` |
+| `absuite accounting cost-centres delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's cost-centres; it asks first unless --yes. `DELETE /api/v2/AccountingService/CostCentres/{costCentreId}` |
+| `absuite accounting cost-centres cost-centre-groups list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's cost-centres cost-centre-groups. `GET /api/v2/AccountingService/CostCentres/CostCentreGroups` |
+| `absuite accounting cost-centres cost-centre-groups count` | Reads |  |  | Count the workspace's cost-centres cost-centre-groups. `GET /api/v2/AccountingService/CostCentres/CostCentreGroups/Count` |
+| `absuite accounting cost-centres cost-centre-groups get` | Reads | `<id>` | `--columns` | Show one of the workspace's cost-centres cost-centre-groups. `GET /api/v2/AccountingService/CostCentres/CostCentreGroups/{groupId}` |
+| `absuite accounting cost-centres cost-centre-groups create` | Writes |  | `--name`, `--description`, `--disabled`, `--parent-cost-centres-group-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's cost-centres cost-centre-groups. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/AccountingService/CostCentres/CostCentreGroups` |
+| `absuite accounting cost-centres cost-centre-groups update` | Writes | `<id>` | `--name`, `--description`, `--disabled`, `--parent-cost-centres-group-id`; `--json` `--file` `--dry-run` | Change one of the workspace's cost-centres cost-centre-groups: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/AccountingService/CostCentres/CostCentreGroups/{groupId}` |
+| `absuite accounting cost-centres cost-centre-groups delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's cost-centres cost-centre-groups; it asks first unless --yes. `DELETE /api/v2/AccountingService/CostCentres/CostCentreGroups/{groupId}` |
+
+### Expense Claims (`absuite accounting expense-claims`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite accounting expense-claims list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's expense-claims. `GET /api/v2/AccountingService/ExpenseClaims` |
+| `absuite accounting expense-claims count` | Reads |  |  | Count the workspace's expense-claims. `GET /api/v2/AccountingService/ExpenseClaims/Count` |
+| `absuite accounting expense-claims get` | Reads | `<id>` | `--columns` | Show one of the workspace's expense-claims. `GET /api/v2/AccountingService/ExpenseClaims/{expenseClaimId}` |
+| `absuite accounting expense-claims create` | Writes |  | `--expense-type-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's expense-claims. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/AccountingService/ExpenseClaims` |
+| `absuite accounting expense-claims update` | Writes | `<id>` | `--expense-type-id`; `--json` `--file` `--dry-run` | Change one of the workspace's expense-claims: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/AccountingService/ExpenseClaims/{expenseClaimId}` |
+| `absuite accounting expense-claims delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's expense-claims; it asks first unless --yes. `DELETE /api/v2/AccountingService/ExpenseClaims/{expenseClaimId}` |
+
+### Expense Types (`absuite accounting expense-types`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite accounting expense-types list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's expense-types. `GET /api/v2/AccountingService/ExpenseTypes` |
+| `absuite accounting expense-types count` | Reads |  |  | Count the workspace's expense-types. `GET /api/v2/AccountingService/ExpenseTypes/Count` |
+| `absuite accounting expense-types get` | Reads | `<id>` | `--columns` | Show one of the workspace's expense-types. `GET /api/v2/AccountingService/ExpenseTypes/{expenseTypeId}` |
+| `absuite accounting expense-types create` | Writes |  | `--name`, `--enabled`; `--json` `--file` `--dry-run` | Create a record in the workspace's expense-types. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/AccountingService/ExpenseTypes` |
+| `absuite accounting expense-types update` | Writes | `<id>` | `--name`, `--enabled`; `--json` `--file` `--dry-run` | Change one of the workspace's expense-types: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/AccountingService/ExpenseTypes/{expenseTypeId}` |
+| `absuite accounting expense-types delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's expense-types; it asks first unless --yes. `DELETE /api/v2/AccountingService/ExpenseTypes/{expenseTypeId}` |
+
+### Financial Books (`absuite accounting financial-books`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite accounting financial-books list` | Reads |  | `--columns` | List the workspace's financial-books. `GET /api/v2/AccountingService/FinancialBooks` |
+| `absuite accounting financial-books count` | Reads |  |  | Count the workspace's financial-books. `GET /api/v2/AccountingService/FinancialBooks/Count` |
+| `absuite accounting financial-books get` | Reads | `<id>` | `--columns` | Show one of the workspace's financial-books. `GET /api/v2/AccountingService/FinancialBooks/{financialBookId}` |
+| `absuite accounting financial-books create` | Writes |  | `--name`, `--description`; `--json` `--file` `--dry-run` | Create a record in the workspace's financial-books. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/AccountingService/FinancialBooks` |
+| `absuite accounting financial-books update` | Writes | `<id>` | `--name`, `--description`; `--json` `--file` `--dry-run` | Change one of the workspace's financial-books: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/AccountingService/FinancialBooks/{financialBookId}` |
+| `absuite accounting financial-books delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's financial-books; it asks first unless --yes. `DELETE /api/v2/AccountingService/FinancialBooks/{financialBookId}` |
+
+### Fiscal Years (`absuite accounting fiscal-years`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite accounting fiscal-years list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's fiscal-years. `GET /api/v2/AccountingService/FiscalYears` |
+| `absuite accounting fiscal-years count` | Reads |  |  | Count the workspace's fiscal-years. `GET /api/v2/AccountingService/FiscalYears/Count` |
+| `absuite accounting fiscal-years get` | Reads | `<id>` | `--columns` | Show one of the workspace's fiscal-years. `GET /api/v2/AccountingService/FiscalYears/{fiscalYearId}` |
+| `absuite accounting fiscal-years create` | Writes |  | `--name`, `--description`, `--closed`, `--end-date`, `--start-date`, `--fiscal-authority-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's fiscal-years. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/AccountingService/FiscalYears` |
+| `absuite accounting fiscal-years update` | Writes | `<id>` | `--name`, `--description`, `--closed`, `--end-date`, `--start-date`, `--fiscal-authority-id`; `--json` `--file` `--dry-run` | Change one of the workspace's fiscal-years: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/AccountingService/FiscalYears/{fiscalYearId}` |
+| `absuite accounting fiscal-years delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's fiscal-years; it asks first unless --yes. `DELETE /api/v2/AccountingService/FiscalYears/{fiscalYearId}` |
+
+### Fiscals (`absuite accounting fiscals`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite accounting fiscals authorities list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's fiscals authorities. `GET /api/v2/AccountingService/Fiscals/Authorities` |
+| `absuite accounting fiscals authorities count` | Reads |  |  | Count the workspace's fiscals authorities. `GET /api/v2/AccountingService/Fiscals/Authorities/Count` |
+| `absuite accounting fiscals authorities get` | Reads | `<id>` | `--columns` | Show one of the workspace's fiscals authorities. `GET /api/v2/AccountingService/Fiscals/Authorities/{authorityId}` |
+| `absuite accounting fiscals authorities create` | Writes |  | `--name`, `--description`, `--country-id`, `--logo-url`, `--web-url`; `--json` `--file` `--dry-run` | Create a record in the workspace's fiscals authorities. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/AccountingService/Fiscals/Authorities` |
+| `absuite accounting fiscals authorities update` | Writes | `<id>` | `--name`, `--description`, `--country-id`, `--logo-url`, `--web-url`; `--json` `--file` `--dry-run` | Change one of the workspace's fiscals authorities: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/AccountingService/Fiscals/Authorities/{authorityId}` |
+| `absuite accounting fiscals authorities delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's fiscals authorities; it asks first unless --yes. `DELETE /api/v2/AccountingService/Fiscals/Authorities/{authorityId}` |
+| `absuite accounting fiscals authorities fiscal-years list` | Reads |  | `--authority-id` (required); `--top` `--skip` `--columns` | List the workspace's fiscals authorities fiscal-years. `GET /api/v2/AccountingService/Fiscals/Authorities/{authorityId}/FiscalYears` |
+| `absuite accounting fiscals authorities fiscal-years count` | Reads |  | `--authority-id` (required) | Count the workspace's fiscals authorities fiscal-years. `GET /api/v2/AccountingService/Fiscals/Authorities/{authorityId}/FiscalYears/Count` |
+| `absuite accounting fiscals authorities enumeration-ranges get` | Reads | `<id>` | `--authority-id` (required); `--columns` | Show one of the workspace's fiscals authorities enumeration-ranges. `GET /api/v2/AccountingService/Fiscals/Authorities/{authorityId}/EnumerationRanges/{enumerationRangeId}` |
+| `absuite accounting fiscals authorities fiscal-regimes get` | Reads | `<id>` | `--authority-id` (required); `--columns` | Show one of the workspace's fiscals authorities fiscal-regimes. `GET /api/v2/AccountingService/Fiscals/Authorities/{authorityId}/FiscalRegimes/{regimeId}` |
+| `absuite accounting fiscals authorities fiscal-responsibilities get` | Reads | `<id>` | `--authority-id` (required); `--columns` | Show one of the workspace's fiscals authorities fiscal-responsibilities. `GET /api/v2/AccountingService/Fiscals/Authorities/{authorityId}/FiscalResponsibilities/{fiscalResponsibilityId}` |
+| `absuite accounting fiscals authorities fiscal-years get` | Reads | `<id>` | `--authority-id` (required); `--columns` | Show one of the workspace's fiscals authorities fiscal-years. `GET /api/v2/AccountingService/Fiscals/Authorities/{authorityId}/FiscalYears/{fiscalYearId}` |
+| `absuite accounting fiscals authorities identification-types get` | Reads | `<id>` | `--authority-id` (required); `--columns` | Show one of the workspace's fiscals authorities identification-types. `GET /api/v2/AccountingService/Fiscals/Authorities/{authorityId}/IdentificationTypes/{identificationTypeId}` |
+| `absuite accounting fiscals fiscal-periods current show` | Reads |  | `--columns` | Show the workspace's fiscals fiscal-periods current. `GET /api/v2/AccountingService/Fiscals/FiscalPeriods/Current` |
+| `absuite accounting fiscals authorities fiscal-periods create` | Writes |  | `--name`, `--from-date`, `--to-date`, `--fiscal-year-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's fiscals authorities fiscal-periods. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/AccountingService/Fiscals/Authorities/FiscalPeriods` |
+| `absuite accounting fiscals authorities fiscal-regimes create` | Writes |  | `--code`, `--name`, `--fiscal-authority-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's fiscals authorities fiscal-regimes. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/AccountingService/Fiscals/Authorities/FiscalRegimes` |
+| `absuite accounting fiscals authorities fiscal-responsibilities create` | Writes |  | `--code`, `--name`, `--fiscal-authority-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's fiscals authorities fiscal-responsibilities. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/AccountingService/Fiscals/Authorities/FiscalResponsibilities` |
+| `absuite accounting fiscals authorities fiscal-responsibility-records create` | Writes |  | `--fiscal-responsibility-id`, `--billing-profile-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's fiscals authorities fiscal-responsibility-records. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/AccountingService/Fiscals/Authorities/FiscalResponsibilityRecords` |
+| `absuite accounting fiscals authorities fiscal-years create` | Writes |  | `--name`, `--description`, `--closed`, `--end-date`, `--start-date`, `--fiscal-authority-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's fiscals authorities fiscal-years. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/AccountingService/Fiscals/Authorities/FiscalYears` |
+| `absuite accounting fiscals authorities identification-types create` | Writes |  | `--code`, `--name`, `--fiscal-authority-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's fiscals authorities identification-types. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/AccountingService/Fiscals/Authorities/IdentificationTypes` |
+| `absuite accounting fiscals authorities fiscal-periods delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's fiscals authorities fiscal-periods; it asks first unless --yes. `DELETE /api/v2/AccountingService/Fiscals/Authorities/FiscalPeriods/{fiscalPeriodId}` |
+| `absuite accounting fiscals authorities fiscal-regimes delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's fiscals authorities fiscal-regimes; it asks first unless --yes. `DELETE /api/v2/AccountingService/Fiscals/Authorities/FiscalRegimes/{regimeId}` |
+| `absuite accounting fiscals authorities fiscal-responsibilities delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's fiscals authorities fiscal-responsibilities; it asks first unless --yes. `DELETE /api/v2/AccountingService/Fiscals/Authorities/FiscalResponsibilities/{fiscalResponsibilityId}` |
+| `absuite accounting fiscals authorities fiscal-responsibility-records delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's fiscals authorities fiscal-responsibility-records; it asks first unless --yes. `DELETE /api/v2/AccountingService/Fiscals/Authorities/FiscalResponsibilityRecords/{recordId}` |
+| `absuite accounting fiscals authorities fiscal-years delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's fiscals authorities fiscal-years; it asks first unless --yes. `DELETE /api/v2/AccountingService/Fiscals/Authorities/FiscalYears/{fiscalYearId}` |
+| `absuite accounting fiscals authorities identification-types delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's fiscals authorities identification-types; it asks first unless --yes. `DELETE /api/v2/AccountingService/Fiscals/Authorities/IdentificationTypes/{identificationTypeId}` |
+| `absuite accounting fiscals authorities fiscal-responsibilities fiscal-responsibility-records list` | Reads |  | `--authority-id` (required), `--fiscal-responsibility-id` (required); `--top` `--skip` `--columns` | List the workspace's fiscals authorities fiscal-responsibilities fiscal-responsibility-records. `GET /api/v2/AccountingService/Fiscals/Authorities/{authorityId}/FiscalResponsibilities/{fiscalResponsibilityId}/FiscalResponsibilityRecords` |
+| `absuite accounting fiscals authorities fiscal-years fiscal-periods list` | Reads |  | `--authority-id` (required), `--fiscal-year-id` (required); `--top` `--skip` `--columns` | List the workspace's fiscals authorities fiscal-years fiscal-periods. `GET /api/v2/AccountingService/Fiscals/Authorities/{authorityId}/FiscalYears/{fiscalYearId}/FiscalPeriods` |
+| `absuite accounting fiscals authorities fiscal-responsibilities fiscal-responsibility-records count` | Reads |  | `--authority-id` (required), `--fiscal-responsibility-id` (required) | Count the workspace's fiscals authorities fiscal-responsibilities fiscal-responsibility-records. `GET /api/v2/AccountingService/Fiscals/Authorities/{authorityId}/FiscalResponsibilities/{fiscalResponsibilityId}/FiscalResponsibilityRecords/Count` |
+| `absuite accounting fiscals authorities fiscal-years fiscal-periods count` | Reads |  | `--authority-id` (required), `--fiscal-year-id` (required) | Count the workspace's fiscals authorities fiscal-years fiscal-periods. `GET /api/v2/AccountingService/Fiscals/Authorities/{authorityId}/FiscalYears/{fiscalYearId}/FiscalPeriods/Count` |
+| `absuite accounting fiscals authorities fiscal-responsibilities fiscal-responsibility-records get` | Reads | `<id>` | `--authority-id` (required), `--fiscal-responsibility-id` (required); `--columns` | Show one of the workspace's fiscals authorities fiscal-responsibilities fiscal-responsibility-records. `GET /api/v2/AccountingService/Fiscals/Authorities/{authorityId}/FiscalResponsibilities/{fiscalResponsibilityId}/FiscalResponsibilityRecords/{recordId}` |
+| `absuite accounting fiscals authorities fiscal-years fiscal-periods get` | Reads | `<id>` | `--authority-id` (required), `--fiscal-year-id` (required); `--columns` | Show one of the workspace's fiscals authorities fiscal-years fiscal-periods. `GET /api/v2/AccountingService/Fiscals/Authorities/{authorityId}/FiscalYears/{fiscalYearId}/FiscalPeriods/{fiscalPeriodId}` |
+
+### Invoice Enumeration Ranges (`absuite accounting invoice-enumeration-ranges`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite accounting invoice-enumeration-ranges list` | Reads |  | `--columns` | List the workspace's invoice-enumeration-ranges. `GET /api/v2/AccountingService/InvoiceEnumerationRanges` |
+| `absuite accounting invoice-enumeration-ranges get` | Reads | `<id>` | `--columns` | Show one of the workspace's invoice-enumeration-ranges. `GET /api/v2/AccountingService/InvoiceEnumerationRanges/{invoiceEnumerationRangeId}` |
+
+### Journal Types (`absuite accounting journal-types`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite accounting journal-types list` | Reads |  | `--columns` | List the workspace's journal-types. `GET /api/v2/AccountingService/JournalTypes` |
+| `absuite accounting journal-types get` | Reads | `<id>` | `--columns` | Show one of the workspace's journal-types. `GET /api/v2/AccountingService/JournalTypes/{journalTypeId}` |
+| `absuite accounting journal-types create` | Writes |  | `--name`; `--json` `--file` `--dry-run` | Create a record in the workspace's journal-types. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/AccountingService/JournalTypes` |
+| `absuite accounting journal-types update` | Writes | `<id>` | `--name`; `--json` `--file` `--dry-run` | Change one of the workspace's journal-types: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/AccountingService/JournalTypes/{journalTypeId}` |
+| `absuite accounting journal-types delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's journal-types; it asks first unless --yes. `DELETE /api/v2/AccountingService/JournalTypes/{journalTypeId}` |
+
+### Journals (`absuite accounting journals`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite accounting journals list` | Reads |  | `--columns` | List the workspace's journals. `GET /api/v2/AccountingService/Journals` |
+| `absuite accounting journals count` | Reads |  |  | Count the workspace's journals. `GET /api/v2/AccountingService/Journals/Count` |
+| `absuite accounting journals get` | Reads | `<id>` | `--columns` | Show one of the workspace's journals. `GET /api/v2/AccountingService/Journals/{journalId}` |
+| `absuite accounting journals create` | Writes |  | `--name`, `--description`, `--date-time`, `--parent-journal-id`, `--journal-type-id`, `--ledger-id`, `--financial-book-id`, `--code`; `--json` `--file` `--dry-run` | Create a record in the workspace's journals. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/AccountingService/Journals` |
+| `absuite accounting journals update` | Writes | `<id>` | `--name`, `--description`, `--date-time`, `--parent-journal-id`, `--journal-type-id`, `--ledger-id`; `--json` `--file` `--dry-run` | Change one of the workspace's journals: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/AccountingService/Journals/{journalId}` |
+| `absuite accounting journals delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's journals; it asks first unless --yes. `DELETE /api/v2/AccountingService/Journals/{journalId}` |
+| `absuite accounting journals entries list` | Reads |  | `--journal-id` (required); `--top` `--skip` `--columns` | List the workspace's journals entries. `GET /api/v2/AccountingService/Journals/{journalId}/Entries` |
+| `absuite accounting journals entries count` | Reads |  | `--journal-id` (required) | Count the workspace's journals entries. `GET /api/v2/AccountingService/Journals/{journalId}/Entries/Count` |
+| `absuite accounting journals entries get` | Reads | `<id>` | `--journal-id` (required); `--columns` | Show one of the workspace's journals entries. `GET /api/v2/AccountingService/Journals/{journalId}/Entries/{entryId}` |
+| `absuite accounting journals entries aggregate credits show` | Reads |  | `--journal-id` (required), `--currency-id` (required); `--columns` | Show the workspace's journals entries aggregate credits. `GET /api/v2/AccountingService/Journals/{journalId}/Entries/Aggregate/Credits` |
+| `absuite accounting journals entries aggregate debits show` | Reads |  | `--journal-id` (required), `--currency-id` (required); `--columns` | Show the workspace's journals entries aggregate debits. `GET /api/v2/AccountingService/Journals/{journalId}/Entries/Aggregate/Debits` |
+
+### Ledger Types (`absuite accounting ledger-types`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite accounting ledger-types list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's ledger-types. `GET /api/v2/AccountingService/LedgerTypes` |
+| `absuite accounting ledger-types count` | Reads |  |  | Count the workspace's ledger-types. `GET /api/v2/AccountingService/LedgerTypes/Count` |
+| `absuite accounting ledger-types get` | Reads | `<id>` | `--columns` | Show one of the workspace's ledger-types. `GET /api/v2/AccountingService/LedgerTypes/{ledgerTypeId}` |
+| `absuite accounting ledger-types create` | Writes |  | `--name`, `--ledger-class`; `--json` `--file` `--dry-run` | Create a record in the workspace's ledger-types. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/AccountingService/LedgerTypes` |
+| `absuite accounting ledger-types update` | Writes | `<id>` | `--name`, `--ledger-class`; `--json` `--file` `--dry-run` | Change one of the workspace's ledger-types: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/AccountingService/LedgerTypes/{ledgerTypeId}` |
+| `absuite accounting ledger-types delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's ledger-types; it asks first unless --yes. `DELETE /api/v2/AccountingService/LedgerTypes/{ledgerTypeId}` |
+
+### Ledgers (`absuite accounting ledgers`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite accounting ledgers list` | Reads |  | `--columns` | List the workspace's ledgers. `GET /api/v2/AccountingService/Ledgers` |
+| `absuite accounting ledgers count` | Reads |  |  | Count the workspace's ledgers. `GET /api/v2/AccountingService/Ledgers/Count` |
+| `absuite accounting ledgers get` | Reads | `<id>` | `--columns` | Show one of the workspace's ledgers. `GET /api/v2/AccountingService/Ledgers/{ledgerId}` |
+| `absuite accounting ledgers delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's ledgers; it asks first unless --yes. `DELETE /api/v2/AccountingService/Ledgers/{ledgerId}` |
+
+### Loans (`absuite accounting loans`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite accounting loans list` | Reads |  | `--columns` | List the workspace's loans. `GET /api/v2/AccountingService/Loans` |
+| `absuite accounting loans count` | Reads |  |  | Count the workspace's loans. `GET /api/v2/AccountingService/Loans/Count` |
+| `absuite accounting loans get` | Reads | `<id>` | `--columns` | Show one of the workspace's loans. `GET /api/v2/AccountingService/Loans/{loanId}` |
+| `absuite accounting loans create` | Writes |  | `--loan-timestamp`, `--payment-deadline`, `--value`, `--interest-rate`, `--is-compund-interest-rate`, `--loan-type-id`, `--currency-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's loans. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/AccountingService/Loans` |
+| `absuite accounting loans update` | Writes | `<id>` | `--loan-timestamp`, `--payment-deadline`, `--value`, `--interest-rate`, `--is-compund-interest-rate`, `--loan-type-id`, `--currency-id`; `--json` `--file` `--dry-run` | Change one of the workspace's loans: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/AccountingService/Loans/{loanId}` |
+| `absuite accounting loans delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's loans; it asks first unless --yes. `DELETE /api/v2/AccountingService/Loans/{loanId}` |
+| `absuite accounting loans types list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's loans types. `GET /api/v2/AccountingService/Loans/Types` |
+| `absuite accounting loans types count` | Reads |  |  | Count the workspace's loans types. `GET /api/v2/AccountingService/Loans/Types/Count` |
+| `absuite accounting loans types get` | Reads | `<id>` | `--columns` | Show one of the workspace's loans types. `GET /api/v2/AccountingService/Loans/Types/{loanTypeId}` |
+| `absuite accounting loans types create` | Writes |  | `--name`, `--description`; `--json` `--file` `--dry-run` | Create a record in the workspace's loans types. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/AccountingService/Loans/Types` |
+| `absuite accounting loans types update` | Writes | `<id>` | `--name`, `--description`; `--json` `--file` `--dry-run` | Change one of the workspace's loans types: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/AccountingService/Loans/Types/{loanTypeId}` |
+| `absuite accounting loans types delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's loans types; it asks first unless --yes. `DELETE /api/v2/AccountingService/Loans/Types/{loanTypeId}` |
+
+### Receipts (`absuite accounting receipts`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite accounting receipts list` | Reads |  | `--columns` | List the workspace's receipts. `GET /api/v2/AccountingService/Receipts` |
+| `absuite accounting receipts get` | Reads | `<id>` | `--columns` | Show one of the workspace's receipts. `GET /api/v2/AccountingService/Receipts/{receiptId}` |
+| `absuite accounting receipts create` | Writes |  | `--payment-id`, `--total-amount`, `--total-amount-in-usd`, `--contact-id`, `--receipt-type`, `--order-id`, `--invoice-id`, `--closed`, `--title`, `--price-list-id`, `--description`, `--individual-id`, `--payment-term-id`, `--organization-id`, `--receiver-tenant-id`, `--first-name`, `--last-name`, `--company-name`, `--billing-email`, `--address-line1`, `--address-line2`, `--postal-code`, `--country-id`, `--state-id`, `--city-id`, `--forex-rate`, `--currency-id`, `--total-detail`, `--total-detail-currency-id`, `--total-profit`, `--total-profit-currency-id`, `--total-discounts`, `--total-discounts-currency-id`, `--total-surcharges`, `--total-surcharges-currency-id`, `--total-shipping-cost`, `--total-shipping-cost-currency-id`, `--total-shipping-tax`, `--total-shipping-tax-currency-id`, `--total-withheld-tax`, `--total-withheld-tax-currency-id`, `--total-tax-base`, `--total-tax-base-currency-id`, `--total-taxes`, `--total-taxes-currency-id`, `--total-global-surcharges`, `--total-global-surcharges-currency-id`, `--total-global-discounts`, `--total-global-discounts-currency-id`, `--total`, `--total-currency-id`, `--cost-calculation-method`, `--tax-calculation-method`; `--json` `--file` `--dry-run` | Create a record in the workspace's receipts. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/AccountingService/Receipts` |
+| `absuite accounting receipts update` | Writes | `<id>` | `--payment-id`, `--forex-rate`, `--total-amount`, `--total-amount-in-usd`, `--closed`, `--currency-id`, `--contact-id`, `--order-id`, `--invoice-id`; `--json` `--file` `--dry-run` | Change one of the workspace's receipts: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/AccountingService/Receipts/{receiptId}` |
+| `absuite accounting receipts delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's receipts; it asks first unless --yes. `DELETE /api/v2/AccountingService/Receipts/{receiptId}` |
+
+### Shares (`absuite accounting shares`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite accounting shares classes list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's shares classes. `GET /api/v2/AccountingService/Shares/Classes` |
+| `absuite accounting shares issuances list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's shares issuances. `GET /api/v2/AccountingService/Shares/Issuances` |
+| `absuite accounting shares transfer-reasons list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's shares transfer-reasons. `GET /api/v2/AccountingService/Shares/TransferReasons` |
+| `absuite accounting shares transfers list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's shares transfers. `GET /api/v2/AccountingService/Shares/Transfers` |
+| `absuite accounting shares classes count` | Reads |  |  | Count the workspace's shares classes. `GET /api/v2/AccountingService/Shares/Classes/Count` |
+| `absuite accounting shares issuances count` | Reads |  |  | Count the workspace's shares issuances. `GET /api/v2/AccountingService/Shares/Issuances/Count` |
+| `absuite accounting shares transfer-reasons count` | Reads |  |  | Count the workspace's shares transfer-reasons. `GET /api/v2/AccountingService/Shares/TransferReasons/Count` |
+| `absuite accounting shares transfers count` | Reads |  |  | Count the workspace's shares transfers. `GET /api/v2/AccountingService/Shares/Transfers/Count` |
+| `absuite accounting shares classes get` | Reads | `<id>` | `--columns` | Show one of the workspace's shares classes. `GET /api/v2/AccountingService/Shares/Classes/{shareClassId}` |
+| `absuite accounting shares issuances get` | Reads | `<id>` | `--columns` | Show one of the workspace's shares issuances. `GET /api/v2/AccountingService/Shares/Issuances/{issuanceId}` |
+| `absuite accounting shares transfer-reasons get` | Reads | `<id>` | `--columns` | Show one of the workspace's shares transfer-reasons. `GET /api/v2/AccountingService/Shares/TransferReasons/{reasonId}` |
+| `absuite accounting shares transfers get` | Reads | `<id>` | `--columns` | Show one of the workspace's shares transfers. `GET /api/v2/AccountingService/Shares/Transfers/{transferId}` |
+| `absuite accounting shares classes create` | Writes |  | `--name`, `--value`, `--description`, `--forex-rates`, `--currency-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's shares classes. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/AccountingService/Shares/Classes` |
+| `absuite accounting shares issuances create` | Writes |  | `--unit-price`, `--quantity`, `--currency-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's shares issuances. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/AccountingService/Shares/Issuances` |
+| `absuite accounting shares classes update` | Writes | `<id>` | `--name`, `--value`, `--description`, `--forex-rates`, `--currency-id`; `--json` `--file` `--dry-run` | Change one of the workspace's shares classes: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/AccountingService/Shares/Classes/{shareClassId}` |
+| `absuite accounting shares issuances update` | Writes | `<id>` | `--unit-price`, `--quantity`, `--currency-id`; `--json` `--file` `--dry-run` | Change one of the workspace's shares issuances: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/AccountingService/Shares/Issuances/{issuanceId}` |
+| `absuite accounting shares classes delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's shares classes; it asks first unless --yes. `DELETE /api/v2/AccountingService/Shares/Classes/{shareClassId}` |
+| `absuite accounting shares issuances delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's shares issuances; it asks first unless --yes. `DELETE /api/v2/AccountingService/Shares/Issuances/{issuanceId}` |
+| `absuite accounting shares issuances sum show` | Reads |  |  | Show the workspace's shares issuances sum. `GET /api/v2/AccountingService/Shares/Issuances/Sum` |
+
+### Tax Classes (`absuite accounting tax-classes`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite accounting tax-classes list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's tax-classes. `GET /api/v2/AccountingService/TaxClasses` |
+| `absuite accounting tax-classes count` | Reads |  |  | Count the workspace's tax-classes. `GET /api/v2/AccountingService/TaxClasses/Count` |
+| `absuite accounting tax-classes get` | Reads | `<id>` | `--columns` | Show one of the workspace's tax-classes. `GET /api/v2/AccountingService/TaxClasses/{taxClassId}` |
+| `absuite accounting tax-classes create` | Writes |  | `--name`, `--fiscal-authority-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's tax-classes. Never set here: type (not settable: discriminator (TPH rule)); id (set by the server); timestamp (set by the server). `POST /api/v2/AccountingService/TaxClasses` |
+| `absuite accounting tax-classes update` | Writes | `<id>` | `--name`, `--fiscal-authority-id`; `--json` `--file` `--dry-run` | Change one of the workspace's tax-classes: reads it, applies --json/--file and the field flags, then saves it. Never set here: type (not settable: discriminator (TPH rule)). `PUT /api/v2/AccountingService/TaxClasses/{taxClassId}` |
+| `absuite accounting tax-classes delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's tax-classes; it asks first unless --yes. `DELETE /api/v2/AccountingService/TaxClasses/{taxClassId}` |
+
+### Tax Policies (`absuite accounting tax-policies`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite accounting tax-policies list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's tax-policies. `GET /api/v2/AccountingService/TaxPolicies` |
+| `absuite accounting tax-policies count` | Reads |  |  | Count the workspace's tax-policies. `GET /api/v2/AccountingService/TaxPolicies/Count` |
+| `absuite accounting tax-policies get` | Reads | `<id>` | `--columns` | Show one of the workspace's tax-policies. `GET /api/v2/AccountingService/TaxPolicies/{taxPolicyId}` |
+| `absuite accounting tax-policies create` | Writes |  | `--code`, `--title`, `--description`, `--is-free`, `--reduce`, `--is-enabled`, `--is-default`, `--allow-international`, `--hours`, `--days`, `--weeks`, `--months`, `--years`, `--value`, `--percentage`, `--currency-id`, `--country-id`, `--country-state-id`, `--custom-state`, `--custom-city`, `--city-id`, `--zero`, `--reduced`, `--withholding`, `--tax-scheme-code`, `--tax-category-code`, `--fiscal-authority-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's tax-policies. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/AccountingService/TaxPolicies` |
+| `absuite accounting tax-policies update` | Writes | `<id>` | `--code`, `--title`, `--description`, `--is-free`, `--reduce`, `--is-enabled`, `--is-default`, `--allow-international`, `--hours`, `--days`, `--weeks`, `--months`, `--years`, `--value`, `--percentage`, `--currency-id`, `--country-id`, `--country-state-id`, `--custom-state`, `--custom-city`, `--city-id`, `--zero`, `--reduced`, `--withholding`, `--tax-scheme-code`, `--tax-category-code`, `--fiscal-authority-id`; `--json` `--file` `--dry-run` | Change one of the workspace's tax-policies: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/AccountingService/TaxPolicies/{taxPolicyId}` |
+| `absuite accounting tax-policies delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's tax-policies; it asks first unless --yes. `DELETE /api/v2/AccountingService/TaxPolicies/{taxPolicyId}` |
+
+### Tax Rates (`absuite accounting tax-rates`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite accounting tax-rates list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's tax-rates. `GET /api/v2/AccountingService/TaxRates` |
+| `absuite accounting tax-rates count` | Reads |  |  | Count the workspace's tax-rates. `GET /api/v2/AccountingService/TaxRates/Count` |
+| `absuite accounting tax-rates get` | Reads | `<id>` | `--columns` | Show one of the workspace's tax-rates. `GET /api/v2/AccountingService/TaxRates/{taxRateId}` |
+| `absuite accounting tax-rates create` | Writes |  | `--name`, `--rate`, `--value`, `--um`, `--unit-id`, `--unit-group-id`, `--priority`, `--compound`, `--shipping`, `--withholding`, `--single-transaction-threshold`, `--cumulative-transaction-threshold`, `--fiscal-authority-id`, `--fiscal-year-id`, `--country-id`, `--tax-class-id`, `--currency-id`, `--tax-policy-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's tax-rates. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/AccountingService/TaxRates` |
+| `absuite accounting tax-rates update` | Writes | `<id>` | `--name`, `--rate`, `--value`, `--um`, `--unit-id`, `--unit-group-id`, `--priority`, `--compound`, `--shipping`, `--withholding`, `--single-transaction-threshold`, `--cumulative-transaction-threshold`, `--fiscal-authority-id`, `--fiscal-year-id`, `--country-id`, `--tax-class-id`, `--currency-id`, `--tax-policy-id`; `--json` `--file` `--dry-run` | Change one of the workspace's tax-rates: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/AccountingService/TaxRates/{taxRateId}` |
+| `absuite accounting tax-rates delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's tax-rates; it asks first unless --yes. `DELETE /api/v2/AccountingService/TaxRates/{taxRateId}` |
+
+## Example
+
+```bash
+absuite accounting account-groups list --top 5 -o json --query "[].id"
+absuite accounting account-groups create --title <value> --description <value> --dry-run   # prints the POST, sends nothing
+absuite accounting account-groups create --title <value> --description <value> -o json --no-input
 ```
-absuite accounting <verb> <entity> --Param value
-```
-
-- **Verbs:** `list`, `count`, `search`, `get`, `create`, `update`, `delete`, plus service
-  actions (`balance`, `aggregate`, `seed`). **No `patch`** — use the REST skill.
-- The **canonical function-name form** also works and maps 1:1 to the PowerShell SDK cmdlet:
-  ```bash
-  absuite accounting Get-AccountsAsync --TenantId $TENANT_ID
-  absuite accounting New-AccountAsync  --TenantId $TENANT_ID --AccountCreateDto '{...}'
-  ```
-  The SDK names a cmdlet `<Verb>-<Noun>`: GET → `Get-…`, create → `New-…`, update →
-  `Update-…`, delete → `Invoke-Delete…`, actions → `Invoke-…`. Some controllers append
-  `Async` to the noun (Accounts, Journals, Ledgers, FiscalYears, Budgets, Loans, …) and some
-  do not (Banking, Shares, AccountGroups, CostCentres, Commissions, TaxClasses, TaxPolicies,
-  TaxRates, FiscalAuthorities, …). Confirm the exact spelling with `--help` or `list-commands`.
-- **JSON DTO params** are passed as a single-quoted JSON string with the **same field names as
-  the API** (e.g. `Name`, `CurrencyId`, `AccountCategory`). Required fields and enum values are
-  listed per entity below.
-- **Tenant** is `--TenantId`. Pagination/filter flags surface through `--help` per command.
 
 ## Key Concepts
 
@@ -83,678 +397,3 @@ absuite accounting <verb> <entity> --Param value
 - **Receipt** — `ReceiptType` ∈ `PaymentReceipt | PurchaseReceipt`; `CostCalculationMethod` ∈ `Automatic | Custom`; `TaxCalculationMethod` ∈ `Included | Excluded`.
 
 ---
-
-## Accounts (Chart of Accounts)
-
-```bash
-# List / count / root / children
-absuite accounting list accounts --TenantId $TENANT_ID
-absuite accounting count accounts --TenantId $TENANT_ID
-absuite accounting list root-accounts --TenantId $TENANT_ID
-absuite accounting list child-accounts --TenantId $TENANT_ID --AccountId <account-guid>
-
-# Get
-absuite accounting get account-details --TenantId $TENANT_ID --AccountId <account-guid>
-
-# Create (AccountCreateDto). Required: Name, CurrencyId, AccountCategory.
-absuite accounting create account --TenantId $TENANT_ID --AccountCreateDto '{
-  "Name": "Accounts Receivable",
-  "Code": "1200",
-  "AccountCategory": "Assets",
-  "CurrencyId": "<currency-guid>",
-  "AccountTypeId": "<account-type-guid>",
-  "ParentAccountId": "<parent-account-guid>",
-  "Group": false,
-  "Frozen": false
-}'
-
-# Update (AccountUpdateDto). Required: Name, CurrencyId.
-absuite accounting update account --TenantId $TENANT_ID --AccountId <account-guid> --AccountUpdateDto '{
-  "Name": "Trade Receivables", "CurrencyId": "<currency-guid>", "Frozen": false
-}'
-
-# Delete
-absuite accounting delete account --TenantId $TENANT_ID --AccountId <account-guid>
-
-# Actions
-absuite accounting balance account --TenantId $TENANT_ID --AccountId <account-guid>
-absuite accounting balance root-accounts --TenantId $TENANT_ID
-absuite accounting aggregate accounts-balance --TenantId $TENANT_ID
-absuite accounting aggregate accounts --TenantId $TENANT_ID --AccountDto '[{"id": "<account-guid>"}]'
-
-# Charts of accounts (the list takes no tenant; seed takes a fileUrl)
-absuite accounting list charts-of-accounts
-absuite accounting seed chart-of-accounts --TenantId $TENANT_ID --SeedChartOfAccountsRequest '{"fileUrl": "<chart-of-accounts-file-url>"}'
-```
-
-Canonical cmdlets: `Get-AccountsAsync`, `Get-AccountsCountAsync`, `Get-RootAccountsAsync`,
-`Get-ChildAccountsAsync`, `Get-AccountDetailsAsync`, `New-AccountAsync`, `Update-AccountAsync`,
-`Invoke-DeleteAccountAsync`, `Invoke-BalanceAccountAsync`, `Invoke-BalanceRootAccountAsync`,
-`Get-AccountAggregateAsync`, `Invoke-AggregateAccountsBalanceAsync`, `Get-ChartsOfAccountsAsync`,
-`Invoke-SeedChartOfAccountsAsync`.
-
-**AccountCreateDto fields:** `name` (REQ), `code`, `path`, `prefix`, `currencyId` (REQ), `contactId`, `accountTypeId`, `parentAccountId`, `accountCategory` (REQ, `Assets|Equity|Revenue|Expense|Liabilities`), `group` (bool), `frozen` (bool).
-
-## Account Entries (debits & credits)
-
-```bash
-absuite accounting list account-entries --TenantId $TENANT_ID --AccountId <account-guid>
-absuite accounting get account-entry --TenantId $TENANT_ID --AccountId <account-guid> --EntryId <entry-guid>
-absuite accounting list account-debits --TenantId $TENANT_ID --AccountId <account-guid>
-absuite accounting count account-debits --TenantId $TENANT_ID --AccountId <account-guid>
-absuite accounting list account-credits --TenantId $TENANT_ID --AccountId <account-guid>
-absuite accounting count account-credits --TenantId $TENANT_ID --AccountId <account-guid>
-absuite accounting list debit-account-entries --TenantId $TENANT_ID --AccountId <account-guid>
-absuite accounting list credit-account-entries --TenantId $TENANT_ID --AccountId <account-guid>
-
-# Create entry / debit / credit (AccountingEntryCreateDto). Required: Description, CurrencyId.
-absuite accounting create account-entry --TenantId $TENANT_ID --AccountId <account-guid> --AccountingEntryCreateDto '{
-  "Description": "Client payment received",
-  "Date": "2026-04-19T00:00:00Z",
-  "Amount": 5000.00,
-  "CurrencyId": "<currency-guid>",
-  "DebitAccountId": "<bank-account-guid>",
-  "CreditAccountId": "<receivables-account-guid>",
-  "AccountingEntryType": "Debit"
-}'
-absuite accounting create account-debit  --TenantId $TENANT_ID --AccountId <account-guid> --AccountingEntryCreateDto '{"Description": "Supplies", "Amount": 250.00, "CurrencyId": "<currency-guid>"}'
-absuite accounting create account-credit --TenantId $TENANT_ID --AccountId <account-guid> --AccountingEntryCreateDto '{"Description": "Refund", "Amount": 100.00, "CurrencyId": "<currency-guid>"}'
-
-# Update / delete entry (AccountingEntryUpdateDto)
-absuite accounting update account-entry --TenantId $TENANT_ID --AccountId <account-guid> --EntryId <entry-guid> --AccountingEntryUpdateDto '{"Amount": 4900.00, "CurrencyId": "<currency-guid>"}'
-absuite accounting delete account-entry --TenantId $TENANT_ID --AccountId <account-guid> --EntryId <entry-guid>
-```
-
-Canonical: `Get-AccountEntriesAsync`, `Get-AccountEntryAsync`, `Get-AccountDebitsAsync`,
-`Get-AccountDebitsCountAsync`, `Get-AccountCreditsAsync`, `Get-AccountCreditsCountAsync`,
-`Get-DebitAccountEntriesAsync`, `Get-CreditAccountEntriesAsync`, `New-AccountEntryAsync`,
-`New-AccountDebitAsync`, `New-AccountCreditAsync`, `Update-AccountEntryAsync`,
-`Invoke-DeleteAccountEntryAsync`.
-
-**AccountingEntryCreateDto fields:** `description` (REQ), `date`, `amount` (number), `currencyId` (REQ), `debitAccountId`, `creditAccountId`, `journalEntryId`, `accountingEntryType` (`None|Debit|Credit`).
-
-## Account Types, Relations, Groups
-
-```bash
-# Types
-absuite accounting list account-types --TenantId $TENANT_ID
-absuite accounting count account-types --TenantId $TENANT_ID
-absuite accounting get account-type --TenantId $TENANT_ID --AccountTypeId <type-guid>
-absuite accounting create account-type --TenantId $TENANT_ID --AccountTypeCreateDto '{"Name": "Current Asset", "Description": "Short-term assets"}'
-absuite accounting update account-type --TenantId $TENANT_ID --AccountTypeId <type-guid> --AccountTypeUpdateDto '{"Name": "Current Asset (Updated)"}'
-absuite accounting delete account-type --TenantId $TENANT_ID --AccountTypeId <type-guid>
-
-# Relations (also require --AccountId on every verb)
-absuite accounting list account-relations  --TenantId $TENANT_ID --AccountId <account-guid>
-absuite accounting count account-relations --TenantId $TENANT_ID --AccountId <account-guid>
-absuite accounting create account-relation --TenantId $TENANT_ID --AccountId <account-guid> --AccountRelationCreateDto '{"AccountId": "<related-account-guid>", "Type": "<relation-type>"}'
-absuite accounting update account-relation --TenantId $TENANT_ID --AccountRelationId <relation-guid> --AccountId <account-guid> --AccountRelationUpdateDto '{"AccountId": "<related-account-guid>", "Type": "<relation-type>"}'
-absuite accounting delete account-relation --TenantId $TENANT_ID --AccountRelationId <relation-guid> --AccountId <account-guid>
-
-# Groups
-absuite accounting list account-groups --TenantId $TENANT_ID
-absuite accounting count account-groups --TenantId $TENANT_ID
-absuite accounting get account-group --TenantId $TENANT_ID --AccountGroupId <group-guid>
-absuite accounting create account-group --TenantId $TENANT_ID --AccountGroupCreateDto '{"Title": "Operating Expenses", "Description": "Day-to-day expenses"}'
-absuite accounting update account-group --TenantId $TENANT_ID --AccountGroupId <group-guid> --AccountGroupUpdateDto '{"Title": "OpEx"}'
-absuite accounting delete account-group --TenantId $TENANT_ID --AccountGroupId <group-guid>
-```
-
-Canonical: `Get-AccountTypesAsync`/`-CountAsync`, `Get-AccountTypeByIdAsync`, `New-AccountTypeAsync`,
-`Update-AccountTypeAsync`, `Invoke-DeleteAccountTypeAsync`; `Get-AccountRelationsAsync`/`-CountAsync`,
-`New-AccountRelationAsync`, `Update-AccountRelationAsync`, `Invoke-DeleteAccountRelationAsync`;
-`Get-AccountGroups`, `Get-AccountGroupsCountAsync`, `Get-AccountGroup`, `New-AccountGroup`,
-`Update-AccountGroup`, `Invoke-DeleteAccountGroup`.
-
-**AccountTypeCreateDto:** `name`, `description`. **AccountRelationCreateDto:** `accountId`, `type`. **AccountGroupCreateDto:** `title`, `description`, `parentAccountGroupId`.
-
-## Accounting Periods
-
-```bash
-absuite accounting list accounting-periods --TenantId $TENANT_ID
-absuite accounting count accounting-periods --TenantId $TENANT_ID
-absuite accounting get accounting-period --TenantId $TENANT_ID --AccountingPeriodId <period-guid>
-absuite accounting create accounting-period --TenantId $TENANT_ID --AccountingPeriodCreateDto '{"Name": "Q1 2026", "DateStart": "2026-01-01T00:00:00Z", "DateEnd": "2026-03-31T23:59:59Z"}'
-absuite accounting update accounting-period --TenantId $TENANT_ID --AccountingPeriodId <period-guid> --AccountingPeriodUpdateDto '{"Name": "Q1 2026 (revised)"}'
-absuite accounting delete accounting-period --TenantId $TENANT_ID --AccountingPeriodId <period-guid>
-```
-
-**AccountingPeriodCreateDto:** `name`, `dateStart`, `dateEnd`.
-
----
-
-## Journals, Journal Entries, Journal Types
-
-```bash
-# Journals
-absuite accounting list journals --TenantId $TENANT_ID
-absuite accounting count journals --TenantId $TENANT_ID
-absuite accounting get journal-details --TenantId $TENANT_ID --JournalId <journal-guid>
-absuite accounting create journal --TenantId $TENANT_ID --JournalCreateDto '{
-  "Name": "General Journal - April 2026",
-  "Description": "Monthly general journal",
-  "DateTime": "2026-04-01T00:00:00Z",
-  "JournalTypeId": "<journal-type-guid>",
-  "LedgerId": "<ledger-guid>"
-}'
-absuite accounting update journal --TenantId $TENANT_ID --JournalId <journal-guid> --JournalUpdateDto '{"Name": "General Journal (rev)"}'
-absuite accounting delete journal --TenantId $TENANT_ID --JournalId <journal-guid>
-
-# Journal entries (double-entry)
-absuite accounting list journal-entries  --TenantId $TENANT_ID --JournalId <journal-guid>
-absuite accounting count journal-entries --TenantId $TENANT_ID --JournalId <journal-guid>
-absuite accounting aggregate journal-entry-credits --TenantId $TENANT_ID --JournalId <journal-guid>
-absuite accounting aggregate journal-entry-debits  --TenantId $TENANT_ID --JournalId <journal-guid>
-absuite accounting create journal-entry --TenantId $TENANT_ID --JournalId <journal-guid> --JournalEntryCreateDto '{
-  "Description": "Record client payment",
-  "Date": "2026-04-19T00:00:00Z",
-  "Debit": 5000.00, "Credit": 5000.00,
-  "JournalId": "<journal-guid>",
-  "CurrencyId": "<currency-guid>",
-  "DebitAccountId": "<cash-account-guid>",
-  "CreditAccountId": "<receivables-account-guid>",
-  "InvoiceCode": "<invoice-code>"
-}'
-absuite accounting update journal-entry --TenantId $TENANT_ID --JournalId <journal-guid> --EntryId <entry-guid> --JournalEntryUpdateDto '{"Description": "Revised", "Date": "2026-04-19T00:00:00Z", "JournalId": "<journal-guid>", "CurrencyId": "<currency-guid>", "DebitAccountId": "<cash>", "CreditAccountId": "<ar>"}'
-absuite accounting delete journal-entry --TenantId $TENANT_ID --JournalId <journal-guid> --EntryId <entry-guid>
-
-# Journal types
-absuite accounting list journal-types --TenantId $TENANT_ID
-absuite accounting count journal-types --TenantId $TENANT_ID
-absuite accounting get journal-type-details --TenantId $TENANT_ID --JournalTypeId <type-guid>
-absuite accounting create journal-type --TenantId $TENANT_ID --JournalTypeCreateDto '{"Name": "Sales Journal"}'
-absuite accounting update journal-type --TenantId $TENANT_ID --JournalTypeId <type-guid> --JournalTypeUpdateDto '{"Name": "Sales"}'
-absuite accounting delete journal-type --TenantId $TENANT_ID --JournalTypeId <type-guid>
-```
-
-Canonical: `Get-JournalsAsync`, `Count-JournalsAsync`, `Get-JournalDetailsAsync`,
-`New-JournalAsync`, `Update-JournalAsync`, `Invoke-DeleteJournalAsync`,
-`Get-JournalEntriesAsync`, `Get-JournalEntriesCountAsync`, `Invoke-AggregateJournalEntryCreditsAsync`,
-`Invoke-AggregateJournalEntryDebitsAsync`, `New-JournalEntryAsync`, `Update-JournalEntryAsync`,
-`Invoke-DeleteJournalEntryAsync`, `Get-JournalTypesAsync`, `New-JournalTypeAsync`,
-`Update-JournalTypeAsync`, `Invoke-DeleteJournalTypeAsync`.
-
-**JournalCreateDto:** `name` (REQ), `description`, `dateTime`, `parentJournalId`, `journalTypeId`, `ledgerId`.
-**JournalEntryCreateDto required:** `description`, `date`, `journalId`, `currencyId`, `debitAccountId`, `creditAccountId`; optional `debit`, `credit`, `group`, `opening`, `parentJournalEntryId`, `invoiceCode`.
-**JournalTypeCreateDto:** `name`.
-
----
-
-## Ledgers & Ledger Types
-
-```bash
-absuite accounting list ledgers --TenantId $TENANT_ID
-absuite accounting count ledgers --TenantId $TENANT_ID
-absuite accounting get ledger-details --TenantId $TENANT_ID --LedgerId <ledger-guid>
-absuite accounting create ledger --TenantId $TENANT_ID --CreateLedgerDto '{"Name": "General Ledger", "Description": "Primary ledger", "LedgerTypeId": "<ledger-type-guid>"}'
-absuite accounting update ledger --TenantId $TENANT_ID --LedgerId <ledger-guid> --UpdateLedgerDto '{"Name": "GL"}'
-absuite accounting delete ledger --TenantId $TENANT_ID --LedgerId <ledger-guid>
-
-absuite accounting list ledger-types --TenantId $TENANT_ID
-absuite accounting count ledger-types --TenantId $TENANT_ID
-absuite accounting get ledger-type-details --TenantId $TENANT_ID --LedgerTypeId <type-guid>
-absuite accounting create ledger-type --TenantId $TENANT_ID --LedgerTypeCreateDto '{"Name": "Asset Ledger", "LedgerClass": "Assets"}'
-absuite accounting update ledger-type --TenantId $TENANT_ID --LedgerTypeId <type-guid> --LedgerTypeUpdateDto '{"Name": "Assets", "LedgerClass": "Assets"}'
-absuite accounting delete ledger-type --TenantId $TENANT_ID --LedgerTypeId <type-guid>
-```
-
-Canonical: `Get-LedgersAsync`, `New-LedgerAsync`, `Update-LedgerAsync`, `Invoke-DeleteLedgerAsync`;
-`Get-LedgerTypesAsync`, `New-LedgerTypeAsync`, `Update-LedgerTypeAsync`, `Invoke-DeleteLedgerTypeAsync`.
-
-**CreateLedgerDto:** `name`, `description`, `dateTime`, `ledgerTypeId`.
-**LedgerTypeCreateDto:** `name` (REQ), `ledgerClass` (`Assets|Equity|Gains|Losses|Revenue|Expenses|Liabilities`).
-
-## Financial Books
-
-```bash
-absuite accounting list financial-books --TenantId $TENANT_ID
-absuite accounting count financial-books --TenantId $TENANT_ID
-absuite accounting get financial-book-details --TenantId $TENANT_ID --FinancialBookId <book-guid>
-absuite accounting create financial-book --TenantId $TENANT_ID --FinancialBookCreateDto '{"Name": "FY2026 Book", "Description": "Records for fiscal year 2026"}'
-absuite accounting update financial-book --TenantId $TENANT_ID --FinancialBookId <book-guid> --FinancialBookUpdateDto '{"Name": "FY2026"}'
-absuite accounting delete financial-book --TenantId $TENANT_ID --FinancialBookId <book-guid>
-```
-
-**FinancialBookCreateDto:** `name` (REQ), `description`.
-
----
-
-## Tax Classes, Policies, Rates
-
-```bash
-# Tax classes
-absuite accounting list tax-classes --TenantId $TENANT_ID
-absuite accounting count tax-classes --TenantId $TENANT_ID
-absuite accounting get tax-class --TenantId $TENANT_ID --Id <class-guid>
-absuite accounting create tax-class --TenantId $TENANT_ID --TaxClassCreateDto '{"Name": "Standard", "Type": "Tax", "FiscalAuthorityId": "<authority-guid>"}'
-absuite accounting update tax-class --TenantId $TENANT_ID --Id <class-guid> --TaxClassUpdateDto '{"Name": "Standard", "Type": "Withholding"}'
-absuite accounting delete tax-class --TenantId $TENANT_ID --Id <class-guid>
-
-# Tax policies
-absuite accounting list tax-policies --TenantId $TENANT_ID
-absuite accounting count tax-policies --TenantId $TENANT_ID
-absuite accounting get tax-policy --TenantId $TENANT_ID --Id <policy-guid>
-absuite accounting get tax-policies-by-authority --TenantId $TENANT_ID --AuthorityId <authority-guid>
-absuite accounting create tax-policy --TenantId $TENANT_ID --TaxPolicyCreateDto '{
-  "Code": "VAT-19", "Title": "Standard VAT 19%", "Percentage": 19.0,
-  "IsEnabled": true, "IsDefault": false, "Withholding": false,
-  "CurrencyId": "<currency-guid>", "CountryId": "<country-guid>", "FiscalAuthorityId": "<authority-guid>"
-}'
-absuite accounting update tax-policy --TenantId $TENANT_ID --Id <policy-guid> --TaxPolicyUpdateDto '{"Title": "VAT", "Percentage": 19.0}'
-absuite accounting delete tax-policy --TenantId $TENANT_ID --Id <policy-guid>
-
-# Applied / item tax policy records (nested under a tax policy)
-absuite accounting list applied-tax-policy-records  --TenantId $TENANT_ID --TaxPolicyId <policy-guid>
-absuite accounting count applied-tax-policy-records --TenantId $TENANT_ID --TaxPolicyId <policy-guid>
-absuite accounting get applied-tax-policy-record    --TenantId $TENANT_ID --TaxPolicyId <policy-guid> --AppliedTaxPolicyRecordId <record-guid>
-absuite accounting create applied-tax-policy-record --TenantId $TENANT_ID --TaxPolicyId <policy-guid> --AppliedTaxPolicyRecordCreateDto '{"TaxPolicyId": "<policy-guid>", "InvoiceId": "<invoice-guid>", "ItemId": "<item-guid>"}'
-absuite accounting update applied-tax-policy-record --TenantId $TENANT_ID --TaxPolicyId <policy-guid> --AppliedTaxPolicyRecordId <record-guid> --AppliedTaxPolicyRecordUpdateDto '{...}'
-absuite accounting delete applied-tax-policy-record --TenantId $TENANT_ID --TaxPolicyId <policy-guid> --AppliedTaxPolicyRecordId <record-guid>
-absuite accounting list item-tax-policy-records   --TenantId $TENANT_ID --TaxPolicyId <policy-guid>
-absuite accounting create item-tax-policy-record  --TenantId $TENANT_ID --TaxPolicyId <policy-guid> --ItemTaxPolicyRecordCreateDto '{"TaxPolicyId": "<policy-guid>", "ItemPriceId": "<item-price-guid>", "ItemId": "<item-guid>"}'
-
-# Tax rates
-absuite accounting list tax-rates --TenantId $TENANT_ID
-absuite accounting count tax-rates --TenantId $TENANT_ID
-absuite accounting get tax-rate --TenantId $TENANT_ID --Id <rate-guid>
-absuite accounting create tax-rate --TenantId $TENANT_ID --TaxRateCreateDto '{"Name": "VAT 19%", "Rate": 19.0, "Priority": 1, "TaxPolicyId": "<policy-guid>", "TaxClassId": "<class-guid>", "FiscalAuthorityId": "<authority-guid>", "CurrencyId": "<currency-guid>"}'
-absuite accounting update tax-rate --TenantId $TENANT_ID --Id <rate-guid> --TaxRateUpdateDto '{"Name": "VAT", "Rate": 19.0}'
-absuite accounting delete tax-rate --TenantId $TENANT_ID --Id <rate-guid>
-
-# Billable line taxes (nested under a billable line)
-absuite accounting list billable-line-taxes  --TenantId $TENANT_ID --BillableLineId <line-guid>
-absuite accounting count billable-line-taxes --TenantId $TENANT_ID --BillableLineId <line-guid>
-absuite accounting create billable-line-tax  --TenantId $TENANT_ID --BillableLineId <line-guid> --AppliedItemTaxRecordCreateDto '{"TaxPolicyId": "<policy-guid>", "InvoiceId": "<invoice-guid>", "ItemId": "<item-guid>"}'
-absuite accounting update billable-line-tax  --TenantId $TENANT_ID --BillableLineId <line-guid> --TaxId <tax-guid> --AppliedItemTaxRecordUpdateDto '{...}'
-absuite accounting delete billable-line-tax  --TenantId $TENANT_ID --BillableLineId <line-guid> --TaxId <tax-guid>
-```
-
-Canonical: `Get-TaxClasses`, `New-TaxClass`, `Update-TaxClass`, `Invoke-DeleteTaxClass`;
-`Get-TaxPolicies`, `Get-TaxPoliciesByAuthority`, `New-TaxPolicy`, `Update-TaxPolicy`,
-`Invoke-DeleteTaxPolicy`; `Get-TaxRates`, `New-TaxRate`, `Update-TaxRate`, `Invoke-DeleteTaxRate`;
-`Get-BillableLineTaxes`, `New-BillableLineTax`, `Update-BillableLineTax`, `Invoke-DeleteBillableLineTax`.
-
-**TaxClassCreateDto:** `name`, `type` (`Tax|Withholding`), `fiscalAuthorityId`.
-**TaxPolicyCreateDto key fields:** `code`, `title`, `description`, `percentage` (number, whole = %), `value` (number), `isEnabled`, `isDefault`, `withholding`, `zero`, `reduced`, `isFree`, `allowInternational`, `currencyId`, `countryId`, `fiscalAuthorityId` (plus `hours`/`days`/`weeks`/`months`/`years`, `countryStateId`, `customState`, `customCity`, `cityId`).
-**TaxRateCreateDto key fields:** `name`, `rate` (number), `value` (number), `priority` (int), `compound`, `shipping`, `withholding`, `taxPolicyId`, `taxClassId`, `fiscalAuthorityId`, `fiscalYearId`, `countryId`, `currencyId`, `unitId`, `unitGroupId`, `um`, `singleTransactionThreshold`, `cumulativeTransactionThreshold`.
-
----
-
-## Fiscal Framework
-
-```bash
-# Fiscal authorities
-absuite accounting list fiscal-authorities --TenantId $TENANT_ID
-absuite accounting count fiscal-authorities --TenantId $TENANT_ID
-absuite accounting get fiscal-authority --TenantId $TENANT_ID --AuthorityId <authority-guid>
-absuite accounting create fiscal-authority --TenantId $TENANT_ID --FiscalAuthorityCreateDto '{"Name": "<authority-name>", "Description": "<description>", "CountryId": "<country-guid>", "WebUrl": "<web-url>"}'
-absuite accounting update fiscal-authority --TenantId $TENANT_ID --AuthorityId <authority-guid> --FiscalAuthorityUpdateDto '{"Name": "<authority-name>"}'
-absuite accounting delete fiscal-authority --TenantId $TENANT_ID --AuthorityId <authority-guid>
-
-# Fiscal years (standalone controller)
-absuite accounting list fiscal-years --TenantId $TENANT_ID
-absuite accounting count fiscal-years --TenantId $TENANT_ID
-absuite accounting get fiscal-year-details --TenantId $TENANT_ID --FiscalYearId <year-guid>
-absuite accounting create fiscal-year --TenantId $TENANT_ID --FiscalYearCreateDto '{"Name": "FY2026", "StartDate": "2026-01-01T00:00:00Z", "EndDate": "2026-12-31T23:59:59Z", "Closed": false, "FiscalAuthorityId": "<authority-guid>"}'
-absuite accounting update fiscal-year --TenantId $TENANT_ID --FiscalYearId <year-guid> --FiscalYearUpdateDto '{"Closed": true}'
-absuite accounting delete fiscal-year --TenantId $TENANT_ID --FiscalYearId <year-guid>
-
-# Authority-scoped fiscal years (reads also require --FiscalAuthorityId)
-absuite accounting list fiscal-years-by-authority --TenantId $TENANT_ID --AuthorityId <authority-guid> --FiscalAuthorityId <authority-guid>
-
-# Fiscal periods (reads authority+year scoped; create/update/delete flat)
-absuite accounting list fiscal-periods --TenantId $TENANT_ID --AuthorityId <authority-guid> --FiscalYearId <year-guid> --FiscalAuthorityId <authority-guid>
-absuite accounting create fiscal-period --TenantId $TENANT_ID --FiscalPeriodCreateDto '{"Name": "January 2026", "FromDate": "2026-01-01T00:00:00Z", "ToDate": "2026-01-31T23:59:59Z", "FiscalYearId": "<year-guid>"}'
-absuite accounting update fiscal-period --TenantId $TENANT_ID --FiscalPeriodId <period-guid> --FiscalPeriodUpdateDto '{"Name": "Jan 2026"}'
-absuite accounting delete fiscal-period --TenantId $TENANT_ID --FiscalPeriodId <period-guid>
-
-# Fiscal regimes
-absuite accounting list fiscal-regimes --TenantId $TENANT_ID --AuthorityId <authority-guid> --FiscalAuthorityId <authority-guid>
-absuite accounting create fiscal-regime --TenantId $TENANT_ID --FiscalRegimeCreateDto '{"Code": "<regime-code>", "Name": "<regime-name>", "FiscalAuthorityId": "<authority-guid>"}'
-absuite accounting update fiscal-regime --TenantId $TENANT_ID --RegimeId <regime-guid> --FiscalRegimeUpdateDto '{"Name": "<regime-name>"}'
-absuite accounting delete fiscal-regime --TenantId $TENANT_ID --RegimeId <regime-guid>
-
-# Fiscal responsibilities + records
-absuite accounting list fiscal-responsibilities --TenantId $TENANT_ID --AuthorityId <authority-guid> --FiscalAuthorityId <authority-guid>
-absuite accounting create fiscal-responsibility --TenantId $TENANT_ID --FiscalResponsibilityCreateDto '{"Code": "<resp-code>", "Name": "<resp-name>", "FiscalAuthorityId": "<authority-guid>"}'
-absuite accounting create fiscal-responsibility-record --TenantId $TENANT_ID --FiscalResponsibilityRecordCreateDto '{"FiscalResponsibilityId": "<resp-guid>", "BillingProfileId": "<profile-guid>"}'
-
-# Fiscal identification types
-absuite accounting list fiscal-identification-types --TenantId $TENANT_ID --AuthorityId <authority-guid>
-absuite accounting create fiscal-identification-type --TenantId $TENANT_ID --FiscalIdentificationTypeCreateDto '{"Code": "<id-type-code>", "Name": "<id-type-name>", "FiscalAuthorityId": "<authority-guid>"}'
-absuite accounting update fiscal-identification-type --TenantId $TENANT_ID --IdentificationTypeId <type-guid> --FiscalIdentificationTypeUpdateDto '{"Name": "<id-type-name>"}'
-absuite accounting delete fiscal-identification-type --TenantId $TENANT_ID --IdentificationTypeId <type-guid>
-```
-
-Canonical: `Get-FiscalAuthorities`, `New-FiscalAuthority`, `Update-FiscalAuthority`,
-`Invoke-DeleteFiscalAuthority`; `Get-FiscalYearsAsync` / `Get-FiscalYears` (authority),
-`New-FiscalYearAsync` / `New-FiscalYear`, `Update-FiscalYearAsync` / `Update-FiscalYear`,
-`Invoke-DeleteFiscalYearAsync` / `Invoke-DeleteFiscalYear`; `Get-FiscalPeriods`, `New-FiscalPeriod`,
-`Update-FiscalPeriod`, `Invoke-DeleteFiscalPeriod`; `Get-FiscalRegimes`, `New-FiscalRegime`,
-`Update-FiscalRegime`, `Invoke-DeleteFiscalRegime`; `Get-FiscalResponsibilities`,
-`New-FiscalResponsibility`, `New-FiscalResponsibilityRecord`; `Get-FiscalIdentificationTypes`,
-`New-FiscalIdentificationType`, `Update-FiscalIdentificationType`, `Invoke-DeleteFiscalIdentificationType`.
-
-**FiscalAuthorityCreateDto:** `name`, `description`, `countryId`, `logoUrl`, `webUrl`.
-**FiscalYearCreateDto:** `name`, `description`, `closed` (bool), `endDate`, `startDate`, `fiscalAuthorityId`.
-**FiscalPeriodCreateDto:** `name`, `fromDate`, `toDate`, `fiscalYearId`.
-**FiscalRegime/Responsibility/IdentificationType CreateDto:** `code`, `name`, `fiscalAuthorityId`.
-**FiscalResponsibilityRecordCreateDto:** `fiscalResponsibilityId`, `billingProfileId`.
-
-## Invoice Enumeration Ranges
-
-```bash
-# Standalone controller
-absuite accounting list invoice-enumeration-ranges --TenantId $TENANT_ID
-absuite accounting get invoice-enumeration-range-details --TenantId $TENANT_ID --RangeId <range-guid>
-absuite accounting create invoice-enumeration-range --TenantId $TENANT_ID --InvoiceEnumerationRangeCreateDto '{
-  "Prefix": "FE", "NumerationFrom": 1, "NumerationTo": 5000,
-  "ValidFrom": "2026-01-01T00:00:00Z", "ValidTo": "2027-01-01T00:00:00Z",
-  "FiscalAuthorityId": "<authority-guid>", "DocumentType": "Standard"
-}'
-absuite accounting update invoice-enumeration-range --TenantId $TENANT_ID --RangeId <range-guid> --InvoiceEnumerationRangeUpdateDto '{"CurrentNumeration": 42}'
-absuite accounting delete invoice-enumeration-range --TenantId $TENANT_ID --RangeId <range-guid>
-
-# Authority-scoped reads / writes (FiscalEnumerationRanges)
-absuite accounting list authority-enumeration-ranges --TenantId $TENANT_ID --AuthorityId <authority-guid> --FiscalAuthorityId <authority-guid>
-absuite accounting create authority-enumeration-range --TenantId $TENANT_ID --InvoiceEnumerationRangeCreateDto '{...}'
-absuite accounting delete authority-enumeration-range --TenantId $TENANT_ID --EnumerationRangeId <range-guid>
-```
-
-**InvoiceEnumerationRangeCreateDto:** `prefix`, `suffix`, `identifier`, `qualifiedName`, `currentNumeration` (int), `numerationFrom` (int), `numerationTo` (int), `validFrom` (REQ), `validTo` (REQ), `fiscalAuthorityId`, `documentType` (`Standard|DebitNote|CreditNote`).
-
----
-
-## Billing Profiles & Bank Profiles
-
-```bash
-absuite accounting list billing-profiles --TenantId $TENANT_ID
-absuite accounting count billing-profiles --TenantId $TENANT_ID
-absuite accounting get billing-profile-by-id --TenantId $TENANT_ID --BillingProfileId <profile-guid>
-absuite accounting create billing-profile --TenantId $TENANT_ID --BillingProfileCreateDto '{
-  "BusinessName": "<business-name>", "CommercialName": "<commercial-name>", "TaxId": "<tax-id>",
-  "Email": "<billing-email>", "Phone": "<phone>", "Address": "<address>", "PostalCode": "<postal-code>",
-  "TaxPayerType": "Business", "CountryId": "<country-guid>", "StateId": "<state-guid>", "CityId": "<city-guid>",
-  "FiscalIdentificationTypeId": "<id-type-guid>", "FiscalAuthorityId": "<authority-guid>", "FiscalRegimeId": "<regime-guid>"
-}'
-absuite accounting update billing-profile --TenantId $TENANT_ID --BillingProfileId <profile-guid> --BillingProfileUpdateDto '{"Email": "<billing-email>"}'
-absuite accounting delete billing-profile --TenantId $TENANT_ID --BillingProfileId <profile-guid>
-
-# Bank profiles (read-only)
-absuite accounting list bank-profiles --TenantId $TENANT_ID
-absuite accounting count bank-profiles --TenantId $TENANT_ID
-```
-
-**BillingProfileCreateDto required:** `taxId`, `phone`, `email`, `address`, `postalCode`, `businessName`, `commercialName`, `countryId`, `stateId`, `cityId`, `fiscalIdentificationTypeId`, `fiscalAuthorityId`, `fiscalRegimeId`. **Optional:** `contactId`, `address1`, `address2`, `ticker`, `duns`, `isPublicCompany`, `isFactaCustomer`, `taxPayerType` (`Individual|Business`).
-
----
-
-## Banking
-
-Bank accounts, guarantees, and transactions are **nested under a bank** — pass `--BankId` on every one of their verbs.
-
-```bash
-# Banks
-absuite accounting list banks --TenantId $TENANT_ID
-absuite accounting count banks --TenantId $TENANT_ID
-absuite accounting get bank --TenantId $TENANT_ID --BankId <bank-guid>
-absuite accounting create bank --TenantId $TENANT_ID --BankCreateDto '{"Name": "<bank-name>", "Image": "<logo-url>", "CountryId": "<country-guid>"}'
-absuite accounting update bank --TenantId $TENANT_ID --BankId <bank-guid> --BankUpdateDto '{"Name": "<bank-name>"}'
-absuite accounting delete bank --TenantId $TENANT_ID --BankId <bank-guid>
-
-# Bank accounts (nested; sub-resource id param is --AccountId)
-absuite accounting list bank-accounts --TenantId $TENANT_ID --BankId <bank-guid>
-absuite accounting count bank-accounts --TenantId $TENANT_ID --BankId <bank-guid>
-absuite accounting get bank-account --TenantId $TENANT_ID --BankId <bank-guid> --AccountId <account-guid>
-absuite accounting create bank-account --TenantId $TENANT_ID --BankId <bank-guid> --BankAccountCreateDto '{"Name": "Operating Account", "Iban": "<iban>", "Swift": "<swift>", "BankAccountNumber": "<account-number>", "BankId": "<bank-guid>"}'
-absuite accounting update bank-account --TenantId $TENANT_ID --BankId <bank-guid> --AccountId <account-guid> --BankAccountUpdateDto '{"Name": "Main Operating Account"}'
-absuite accounting delete bank-account --TenantId $TENANT_ID --BankId <bank-guid> --AccountId <account-guid>
-
-# Bank guarantees (nested; sub-resource id param is --GuaranteeId)
-absuite accounting list bank-guarantees --TenantId $TENANT_ID --BankId <bank-guid>
-absuite accounting create bank-guarantee --TenantId $TENANT_ID --BankId <bank-guid> --BankGuaranteeCreateDto '{"BeneficiaryName": "<beneficiary>", "GuaranteeNumber": "<number>", "BankGuaranteeType": "Receiving", "ValidityInDays": 90, "CurrencyId": "<currency-guid>", "BankAccountId": "<bank-account-guid>"}'
-absuite accounting update bank-guarantee --TenantId $TENANT_ID --BankId <bank-guid> --GuaranteeId <guarantee-guid> --BankGuaranteeUpdateDto '{...}'
-absuite accounting delete bank-guarantee --TenantId $TENANT_ID --BankId <bank-guid> --GuaranteeId <guarantee-guid>
-
-# Bank transactions (nested; sub-resource id param is --TransactionId)
-absuite accounting list bank-transactions --TenantId $TENANT_ID --BankId <bank-guid>
-absuite accounting create bank-transaction --TenantId $TENANT_ID --BankId <bank-guid> --BankTransactionCreateDto '{"Description": "<description>", "Price": 100.0, "Quantity": 1, "CurrencyId": "<currency-guid>", "TransactionCategoryId": "<category-guid>", "BankAccountId": "<bank-account-guid>"}'
-absuite accounting update bank-transaction --TenantId $TENANT_ID --BankId <bank-guid> --TransactionId <txn-guid> --BankTransactionUpdateDto '{...}'
-absuite accounting delete bank-transaction --TenantId $TENANT_ID --BankId <bank-guid> --TransactionId <txn-guid>
-```
-
-Canonical: `Get-Banks`/`-Count`, `Get-Bank`, `New-Bank`, `Update-Bank`, `Invoke-DeleteBank`;
-`Get-BankAccounts`, `Get-BankAccount`, `New-BankAccount`, `Update-BankAccount`, `Invoke-DeleteBankAccount`;
-`Get-BankGuarantees`, `New-BankGuarantee`, `Update-BankGuarantee`, `Invoke-DeleteBankGuarantee`;
-`Get-BankTransactions`, `New-BankTransaction`, `Update-BankTransaction`, `Invoke-DeleteBankTransaction`.
-
-**BankCreateDto:** `name`, `image`, `countryId`. **BankAccountCreateDto:** `name`, `iban`, `swift`, `branchCode`, `bankAccountNumber`, `bankId`, `bankProfileId`, `walletId`. **BankGuaranteeCreateDto key fields:** `beneficiaryName`, `guaranteeNumber`, `bankGuaranteeType` (`Receiving|Providing`), `validityInDays` (int), `margin`, `charges`, `startDate`, `endDate`, `currencyId`, `bankAccountId`, `bankProfileId`, `contactId`, `projectId`, `orderId`, `fixedDepositNumber`, `guaranteeConditions`. **BankTransactionCreateDto key fields:** `description`, `price`, `quantity`, `currencyId`, `transactionCategoryId`, `bankAccountId`, `bankProfileId`, `externalDescription`, `basisQuantity`, `basisAmount`, `percent`, `unitId`, `unitGroupId`.
-
----
-
-## Budgets, Cost Centres, Commissions
-
-```bash
-# Budgets + budget account entries
-absuite accounting list budgets --TenantId $TENANT_ID
-absuite accounting count budgets --TenantId $TENANT_ID
-absuite accounting get budget-details --TenantId $TENANT_ID --BudgetId <budget-guid>
-absuite accounting create budget --TenantId $TENANT_ID --BudgetCreateDto '{"Name": "FY2026 Budget", "FiscalYearId": "<year-guid>"}'
-absuite accounting update budget --TenantId $TENANT_ID --BudgetId <budget-guid> --BudgetUpdateDto '{"Name": "FY2026 Budget (rev)"}'
-absuite accounting delete budget --TenantId $TENANT_ID --BudgetId <budget-guid>
-absuite accounting list budget-account-entries --TenantId $TENANT_ID --BudgetId <budget-guid>
-absuite accounting create budget-account-entry --TenantId $TENANT_ID --BudgetId <budget-guid> --BudgetAccountEntryCreateDto '{"Description": "Marketing allocation", "Amount": 10000.0, "CurrencyId": "<currency-guid>", "AccountingEntryType": "Debit", "BudgetId": "<budget-guid>"}'
-absuite accounting update budget-account-entry --TenantId $TENANT_ID --BudgetId <budget-guid> --EntryId <entry-guid> --BudgetAccountEntryUpdateDto '{"Amount": 12000.0}'
-absuite accounting delete budget-account-entry --TenantId $TENANT_ID --BudgetId <budget-guid> --EntryId <entry-guid>
-
-# Cost centres + budgets + groups
-absuite accounting list cost-centres --TenantId $TENANT_ID
-absuite accounting count cost-centres --TenantId $TENANT_ID
-absuite accounting get cost-centre --TenantId $TENANT_ID --CostCentreId <cost-centre-guid>
-absuite accounting create cost-centre --TenantId $TENANT_ID --CostCentreCreateDto '{"Name": "Production Floor", "Disabled": false, "CostCentreType": "Production", "CostCentresGroupId": "<group-guid>"}'
-absuite accounting update cost-centre --TenantId $TENANT_ID --CostCentreId <cost-centre-guid> --CostCentreUpdateDto '{"Disabled": true}'
-absuite accounting delete cost-centre --TenantId $TENANT_ID --CostCentreId <cost-centre-guid>
-absuite accounting list cost-centre-budgets --TenantId $TENANT_ID
-absuite accounting create cost-centre-budget --TenantId $TENANT_ID --CostCentreBudgetCreateDto '{"Name": "FY2026 CC Budget", "FiscalYearId": "<year-guid>", "CostCentreId": "<cost-centre-guid>"}'
-absuite accounting list cost-centre-groups --TenantId $TENANT_ID
-absuite accounting count cost-centre-groups --TenantId $TENANT_ID
-absuite accounting create cost-centre-group --TenantId $TENANT_ID --CostCentreGroupCreateDto '{"Name": "Manufacturing", "Disabled": false}'
-
-# Commissions + payment commissions
-absuite accounting list commissions --TenantId $TENANT_ID
-absuite accounting count commissions --TenantId $TENANT_ID
-absuite accounting get commission --TenantId $TENANT_ID --CommissionId <commission-guid>
-absuite accounting create commission --TenantId $TENANT_ID --CommissionCreateDto '{"Title": "Sales commission", "BaseAmount": 1000.0, "AddedPercent": 5.0, "EmisorContactId": "<contact-guid>", "ReceiverContactId": "<contact-guid>"}'
-absuite accounting update commission --TenantId $TENANT_ID --CommissionId <commission-guid> --CommissionUpdateDto '{"AddedPercent": 7.5}'
-absuite accounting delete commission --TenantId $TENANT_ID --CommissionId <commission-guid>
-absuite accounting list payment-commissions --TenantId $TENANT_ID
-absuite accounting create payment-commission --TenantId $TENANT_ID --PaymentCommissionCreateDto '{"PaymentId": "<payment-guid>"}'
-```
-
-Canonical: `Get-BudgetsAsync`, `New-BudgetAsync`, `Update-BudgetAsync`, `Invoke-DeleteBudgetAsync`,
-`Get-BudgetAccountEntriesCollectionAsync`, `New-BudgetAccountEntryAsync`, `Update-BudgetAccountEntryAsync`,
-`Invoke-DeleteBudgetAccountEntryAsync`; `Get-CostCentres`, `New-CostCentre`, `Update-CostCentre`,
-`Invoke-DeleteCostCentre`, `Get-CostCentreBudgets`, `New-CostCentreBudget`, `Get-CostCentreGroups`,
-`New-CostCentreGroup`; `Get-CommissionsAsync`, `New-CommissionAsync`, `Update-CommissionAsync`,
-`Invoke-DeleteCommissionAsync`, `Get-PaymentCommissionsAsync`, `New-PaymentCommissionAsync`.
-
-**BudgetCreateDto:** `name`, `fiscalYearId`. **BudgetAccountEntryCreateDto required:** `description`, `currencyId`. **CostCentreCreateDto:** `name`, `disabled`, `description`, `costCentreType` (`Service|Production`), `costCentresGroupId`, `parentCostCentreId`. **CostCentreBudgetCreateDto:** `name`, `fiscalYearId`, `costCentreId`. **CostCentreGroupCreateDto:** `name`, `description`, `disabled`, `parentCostCentresGroupId`. **CommissionCreateDto key fields:** `title`, `description`, `baseAmount`, `addedPercent`, `addedAmount`, `taxComission`, `salaryId`, `emisorWalletAccountId`, `receiverWalletAccountId`, `emisorContactId`, `receiverContactId`. **PaymentCommissionCreateDto:** `paymentId`.
-
----
-
-## Receipts, Grants, Loans, Shares, Transactions, Expenses
-
-```bash
-# Receipts
-absuite accounting list receipts --TenantId $TENANT_ID
-absuite accounting count receipts --TenantId $TENANT_ID
-absuite accounting get receipt-details --TenantId $TENANT_ID --ReceiptId <receipt-guid>
-absuite accounting create receipt --TenantId $TENANT_ID --ReceiptCreateDto '{"Title": "Receipt #1", "ReceiptType": "PaymentReceipt", "CostCalculationMethod": "Automatic", "TaxCalculationMethod": "Included", "CurrencyId": "<currency-guid>", "ContactId": "<contact-guid>", "Total": 5000.0, "Closed": false}'
-absuite accounting update receipt --TenantId $TENANT_ID --ReceiptId <receipt-guid> --ReceiptUpdateDto '{"Closed": true}'
-absuite accounting delete receipt --TenantId $TENANT_ID --ReceiptId <receipt-guid>
-
-# Grants
-absuite accounting list grants --TenantId $TENANT_ID
-absuite accounting count grants --TenantId $TENANT_ID
-absuite accounting get grant-details --TenantId $TENANT_ID --GrantId <grant-guid>
-absuite accounting create grant --TenantId $TENANT_ID --GrantCreateDto '{}'
-absuite accounting update grant --TenantId $TENANT_ID --GrantId <grant-guid> --GrantUpdateDto '{}'
-absuite accounting delete grant --TenantId $TENANT_ID --GrantId <grant-guid>
-
-# Loans + loan types + applications
-absuite accounting list loans --TenantId $TENANT_ID
-absuite accounting count loans --TenantId $TENANT_ID
-absuite accounting get loan-details --TenantId $TENANT_ID --LoanId <loan-guid>
-absuite accounting create loan --TenantId $TENANT_ID --LoanCreateDto '{"Value": 10000.0, "InterestRate": 5.0, "IsCompundInterestRate": false, "LoanTypeId": "<loan-type-guid>", "CurrencyId": "<currency-guid>"}'
-absuite accounting update loan --TenantId $TENANT_ID --LoanId <loan-guid> --LoanUpdateDto '{"InterestRate": 4.5}'
-absuite accounting delete loan --TenantId $TENANT_ID --LoanId <loan-guid>
-absuite accounting list loan-types --TenantId $TENANT_ID
-absuite accounting create loan-type --TenantId $TENANT_ID --LoanTypeCreateDto '{"Name": "Working Capital", "Description": "..."}'
-absuite accounting list loan-applications --TenantId $TENANT_ID
-absuite accounting create loan-application --TenantId $TENANT_ID --LoanApplicationCreateDto '{}'
-
-# Shares (Classes / Issuances / Transfers / TransferReasons)
-absuite accounting list share-classes --TenantId $TENANT_ID
-absuite accounting create share-class --TenantId $TENANT_ID --ShareClassCreateDto '{"Name": "Common", "Value": true, "CurrencyId": "<currency-guid>"}'
-absuite accounting list share-issuances --TenantId $TENANT_ID
-absuite accounting create share-issuance --TenantId $TENANT_ID --ShareIssuanceCreateDto '{"UnitPrice": 10, "Quantity": 1000, "CurrencyId": "<currency-guid>"}'
-absuite accounting list share-transfers --TenantId $TENANT_ID
-absuite accounting create share-transfer --TenantId $TENANT_ID --ShareTransferCreateDto '{"Description": "Founder transfer", "Value": 5000.0, "NewShareHolderId": "<shareholder-guid>", "FormerShareHolderId": "<shareholder-guid>", "ShareTransferReasonId": "<reason-guid>"}'
-absuite accounting list share-transfer-reasons --TenantId $TENANT_ID
-absuite accounting create share-transfer-reason --TenantId $TENANT_ID --ShareTransferReasonCreateDto '{"Name": "Sale", "Description": "..."}'
-
-# Transactions + categories
-absuite accounting list transactions --TenantId $TENANT_ID
-absuite accounting count transactions --TenantId $TENANT_ID
-absuite accounting get transaction --TenantId $TENANT_ID --TransactionId <transaction-guid>
-absuite accounting create transaction --TenantId $TENANT_ID --TransactionCreateDto '{"Description": "Service fee", "Price": 250.0, "Quantity": 1, "CurrencyId": "<currency-guid>", "TransactionCategoryId": "<category-guid>"}'
-absuite accounting update transaction --TenantId $TENANT_ID --TransactionId <transaction-guid> --TransactionUpdateDto '{"Price": 300.0}'
-absuite accounting delete transaction --TenantId $TENANT_ID --TransactionId <transaction-guid>
-absuite accounting list transaction-categories --TenantId $TENANT_ID
-absuite accounting create transaction-category --TenantId $TENANT_ID --TransactionCategoryCreateDto '{"Name": "Services", "Description": "..."}'
-
-# Expense claims + types
-absuite accounting list expense-types --TenantId $TENANT_ID
-absuite accounting create expense-type --TenantId $TENANT_ID --ExpenseTypeCreateDto '{"Name": "Travel", "Enabled": true}'
-absuite accounting list expense-claims --TenantId $TENANT_ID
-absuite accounting create expense-claim --TenantId $TENANT_ID --ExpenseClaimCreateDto '{"ExpenseTypeId": "<expense-type-guid>"}'
-```
-
-Canonical: `Get-ReceiptsAsync`, `New-ReceiptAsync`, `Update-ReceiptAsync`, `Invoke-DeleteReceiptAsync`;
-`Get-GrantsAsync`, `New-GrantAsync`, `Update-GrantAsync`, `Invoke-DeleteGrantAsync`;
-`Get-LoansAsync`, `New-LoanAsync`, `Update-LoanAsync`, `Invoke-DeleteLoanAsync`, `Get-LoanTypesAsync`,
-`New-LoanTypeAsync`, `Get-LoanApplicationsAsync`, `New-LoanApplicationAsync`; `Get-ShareClasses`,
-`New-ShareClass`, `Get-ShareIssuances`, `New-ShareIssuance`, `Get-ShareTransfers`, `New-ShareTransfer`,
-`Get-ShareTransferReasons`, `New-ShareTransferReason`; `Get-Transactions`, `New-Transaction`,
-`Update-Transaction`, `Invoke-DeleteTransaction`, `Get-TransactionCategories`, `New-TransactionCategory`;
-`Get-ExpenseTypes`, `New-ExpenseType`, `Get-ExpenseClaims`, `New-ExpenseClaim`.
-
-**ReceiptCreateDto enums:** `receiptType` (`PaymentReceipt|PurchaseReceipt`), `costCalculationMethod` (`Automatic|Custom`), `taxCalculationMethod` (`Included|Excluded`). **LoanCreateDto:** `value`, `interestRate`, `isCompundInterestRate`, `loanTimestamp`, `paymentDeadline`, `loanTypeId`, `currencyId`. **LoanTypeCreateDto:** `name` (REQ), `description`. **ShareClassCreateDto:** `name`, `value` (bool), `description`, `forexRates`, `currencyId`. **ShareIssuanceCreateDto:** `unitPrice` (int), `quantity` (int), `currencyId`. **ShareTransferCreateDto:** `description`, `value`, `newShareHolderId`, `formerShareHolderId`, `shareTransferReasonId`. **TransactionCreateDto:** `description`, `price`, `quantity`, `currencyId`, `transactionCategoryId`, `externalDescription`, `basisQuantity`, `basisAmount`, `percent`, `unitId`, `unitGroupId`. **ExpenseTypeCreateDto:** `name`, `enabled`. **ExpenseClaimCreateDto:** `expenseTypeId`.
-
----
-
-## End-to-end workflow
-
-```bash
-# 1. Seed a chart of accounts
-absuite accounting seed chart-of-accounts --TenantId $TENANT_ID --SeedChartOfAccountsRequest '{"fileUrl": "<chart-of-accounts-file-url>"}'
-
-# 2. Create ledger type, ledger, journal type, journal
-absuite accounting create ledger-type  --TenantId $TENANT_ID --LedgerTypeCreateDto '{"Name": "Asset Ledger", "LedgerClass": "Assets"}'
-absuite accounting create ledger       --TenantId $TENANT_ID --CreateLedgerDto '{"Name": "General Ledger", "LedgerTypeId": "<ledger-type-guid>"}'
-absuite accounting create journal-type --TenantId $TENANT_ID --JournalTypeCreateDto '{"Name": "Sales Journal"}'
-absuite accounting create journal      --TenantId $TENANT_ID --JournalCreateDto '{"Name": "April 2026", "JournalTypeId": "<journal-type-guid>", "LedgerId": "<ledger-guid>"}'
-
-# 3. Post a balanced journal entry
-absuite accounting create journal-entry --TenantId $TENANT_ID --JournalId <journal-guid> --JournalEntryCreateDto '{"Description": "Client payment", "Date": "2026-04-19T00:00:00Z", "Debit": 5000, "Credit": 5000, "JournalId": "<journal-guid>", "CurrencyId": "<currency-guid>", "DebitAccountId": "<cash-acct>", "CreditAccountId": "<ar-acct>"}'
-
-# 4. Balance accounts and aggregate
-absuite accounting balance account --TenantId $TENANT_ID --AccountId <account-guid>
-absuite accounting aggregate accounts-balance --TenantId $TENANT_ID
-```
-
----
-
-## CLI Commands Quick Reference
-
-| Action | CLI command |
-|---|---|
-| List accounts | `absuite accounting list accounts` |
-| Count accounts | `absuite accounting count accounts` |
-| List root accounts | `absuite accounting list root-accounts` |
-| List child accounts | `absuite accounting list child-accounts --AccountId <id>` |
-| Get account | `absuite accounting get account-details --AccountId <id>` |
-| Create account | `absuite accounting create account --AccountCreateDto '{...}'` |
-| Update account | `absuite accounting update account --AccountId <id> --AccountUpdateDto '{...}'` |
-| Delete account | `absuite accounting delete account --AccountId <id>` |
-| Balance account | `absuite accounting balance account --AccountId <id>` |
-| Balance root accounts | `absuite accounting balance root-accounts` |
-| Aggregate accounts balance | `absuite accounting aggregate accounts-balance` |
-| List charts of accounts | `absuite accounting list charts-of-accounts` |
-| Seed chart of accounts | `absuite accounting seed chart-of-accounts --SeedChartOfAccountsRequest '{...}'` |
-| List account entries | `absuite accounting list account-entries --AccountId <id>` |
-| Get account entry | `absuite accounting get account-entry --AccountId <id> --EntryId <id>` |
-| Create account entry | `absuite accounting create account-entry --AccountId <id> --AccountingEntryCreateDto '{...}'` |
-| Create debit / credit | `absuite accounting create account-debit \| account-credit --AccountId <id> --AccountingEntryCreateDto '{...}'` |
-| Update account entry | `absuite accounting update account-entry --AccountId <id> --EntryId <id> --AccountingEntryUpdateDto '{...}'` |
-| Delete account entry | `absuite accounting delete account-entry --AccountId <id> --EntryId <id>` |
-| List / create account types | `absuite accounting list \| create account-type[s] ...` |
-| List / create account relations | `absuite accounting list \| create account-relation[s] --AccountId <id> ...` |
-| List / create account groups | `absuite accounting list \| create account-group[s] ...` |
-| List / create accounting periods | `absuite accounting list \| create accounting-period[s] ...` |
-| List journals | `absuite accounting list journals` |
-| Get journal | `absuite accounting get journal-details --JournalId <id>` |
-| Create journal | `absuite accounting create journal --JournalCreateDto '{...}'` |
-| Update / delete journal | `absuite accounting update \| delete journal --JournalId <id> ...` |
-| List / create journal entries | `absuite accounting list \| create journal-entr[y\|ies] --JournalId <id> ...` |
-| Aggregate journal entry credits/debits | `absuite accounting aggregate journal-entry-credits \| journal-entry-debits --JournalId <id>` |
-| List / create journal types | `absuite accounting list \| create journal-type[s] ...` |
-| List / create ledgers | `absuite accounting list \| create ledger[s] ...` |
-| List / create ledger types | `absuite accounting list \| create ledger-type[s] ...` |
-| List / create financial books | `absuite accounting list \| create financial-book[s] ...` |
-| List / create tax classes | `absuite accounting list \| create tax-class[es] --Id <id> ...` |
-| List / create tax policies | `absuite accounting list \| create tax-polic[y\|ies] --Id <id> ...` |
-| Tax policies by authority | `absuite accounting get tax-policies-by-authority --AuthorityId <id>` |
-| List / create applied tax policy records | `absuite accounting list \| create applied-tax-policy-record[s] --TaxPolicyId <id> ...` |
-| List / create item tax policy records | `absuite accounting list \| create item-tax-policy-record[s] --TaxPolicyId <id> ...` |
-| List / create tax rates | `absuite accounting list \| create tax-rate[s] --Id <id> ...` |
-| List / create billable line taxes | `absuite accounting list \| create billable-line-tax[es] --BillableLineId <id> ...` |
-| List / create fiscal authorities | `absuite accounting list \| create fiscal-authorit[y\|ies] --AuthorityId <id> ...` |
-| List / create fiscal years | `absuite accounting list \| create fiscal-year[s] --FiscalYearId <id> ...` |
-| List / create fiscal periods | `absuite accounting list \| create fiscal-period[s] ...` |
-| List / create fiscal regimes | `absuite accounting list \| create fiscal-regime[s] --RegimeId <id> ...` |
-| List / create fiscal responsibilities | `absuite accounting list \| create fiscal-responsibilit[y\|ies] ...` |
-| Create fiscal responsibility record | `absuite accounting create fiscal-responsibility-record --FiscalResponsibilityRecordCreateDto '{...}'` |
-| List / create fiscal identification types | `absuite accounting list \| create fiscal-identification-type[s] --IdentificationTypeId <id> ...` |
-| List / create invoice enumeration ranges | `absuite accounting list \| create invoice-enumeration-range[s] --RangeId <id> ...` |
-| List / create billing profiles | `absuite accounting list \| create billing-profile[s] --BillingProfileId <id> ...` |
-| List / count bank profiles | `absuite accounting list \| count bank-profiles` |
-| List / create banks | `absuite accounting list \| create bank[s] --BankId <id> ...` |
-| List / create bank accounts | `absuite accounting list \| create bank-account[s] --BankId <id> --AccountId <id> ...` |
-| List / create bank guarantees | `absuite accounting list \| create bank-guarantee[s] --BankId <id> --GuaranteeId <id> ...` |
-| List / create bank transactions | `absuite accounting list \| create bank-transaction[s] --BankId <id> --TransactionId <id> ...` |
-| List / create budgets | `absuite accounting list \| create budget[s] --BudgetId <id> ...` |
-| List / create budget account entries | `absuite accounting list \| create budget-account-entr[y\|ies] --BudgetId <id> --EntryId <id> ...` |
-| List / create cost centres | `absuite accounting list \| create cost-centre[s] --CostCentreId <id> ...` |
-| List / create cost centre budgets | `absuite accounting list \| create cost-centre-budget[s] --BudgetId <id> ...` |
-| List / create cost centre groups | `absuite accounting list \| create cost-centre-group[s] --GroupId <id> ...` |
-| List / create commissions | `absuite accounting list \| create commission[s] --CommissionId <id> ...` |
-| List / create payment commissions | `absuite accounting list \| create payment-commission[s] --PaymentCommissionId <id> ...` |
-| List / create receipts | `absuite accounting list \| create receipt[s] --ReceiptId <id> ...` |
-| List / create grants | `absuite accounting list \| create grant[s] --GrantId <id> ...` |
-| List / create loans | `absuite accounting list \| create loan[s] --LoanId <id> ...` |
-| List / create loan types | `absuite accounting list \| create loan-type[s] --LoanTypeId <id> ...` |
-| List / create loan applications | `absuite accounting list \| create loan-application[s] --ApplicationId <id> ...` |
-| List / create share classes | `absuite accounting list \| create share-class[es] --ShareClassId <id> ...` |
-| List / create share issuances | `absuite accounting list \| create share-issuance[s] --IssuanceId <id> ...` |
-| List / create share transfers | `absuite accounting list \| create share-transfer[s] --TransferId <id> ...` |
-| List / create share transfer reasons | `absuite accounting list \| create share-transfer-reason[s] --ReasonId <id> ...` |
-| List / create transactions | `absuite accounting list \| create transaction[s] --TransactionId <id> ...` |
-| List / create transaction categories | `absuite accounting list \| create transaction-categor[y\|ies] --CategoryId <id> ...` |
-| List / create expense claims | `absuite accounting list \| create expense-claim[s] --ExpenseClaimId <id> ...` |
-| List / create expense types | `absuite accounting list \| create expense-type[s] --ExpenseTypeId <id> ...` |
-
-> The exact verb/entity tokens and parameter aliases are confirmed by `absuite accounting
-> list-commands` and `absuite accounting <verb> <entity> --help`. When in doubt, use the
-> canonical `<Verb>-<Noun>` cmdlet form shown in each section above. For PATCH/partial updates,
-> use the `absuite-accounting` REST skill.

@@ -1,57 +1,86 @@
 ---
 name: absuite-deals-cli
 key: fenixalliance.absuite.deals-cli
-version: 1.0.0
+version: 1.1.0
 description: >
-  Manage deal units (sales opportunities), deal unit lines, deal unit flows (sales
-  pipelines) with their stages, and sales literature using the `absuite` CLI's `deals`
-  service. Covers list / count / get / create / update / delete / calculate commands.
-  Requires an authenticated CLI session (see `absuite-login-cli`). For atomic PATCH
-  updates or raw HTTP, use the `absuite-deals` (REST) skill.
+  Drive the Alliance Business Suite (ABS) Deals area with the absuite CLI: 29 commands (16 read, 13
+  write) under `absuite deals`, `absuite sales`, each generated from the platform's ServiceClients and
+  checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-deals
+  REST skill.
 ---
 
-# Alliance Business Suite — Deals (CLI)
+# Alliance Business Suite — Deals Skill (CLI)
 
-Manage **deal units** (sales opportunities) and **deal unit flows** (sales pipelines) through the `absuite` CLI's `deals` service. A deal tracks a potential sale — its customer, value, line items, and lifecycle — as it moves through the stages of a pipeline. All deal commands are tenant-scoped.
+Generated from the absuite CLI at Platform 9b72a00a47 (`absuite commands -o json`). The commands, arguments and options below are the CLI's own; re-run `absuite commands -o json` before relying on one.
 
-> For general CLI usage (install, login, config, output format), see `absuite-cli` and `absuite-login-cli`.
-> The CLI does **not** support PATCH (partial JSON Patch updates) or raw HTTP — for those, use the `absuite-deals` (REST) skill.
+> **Coverage:** the `absuite-deals` REST skill documents 18 routes; 4 of them have no CLI command (a write the CLI keeps to Studio, a call that is not workspace-scoped, or a field shape it cannot take yet). Use the REST skill for those.
 
-## API usage essentials
+## Before you start
 
-> Full detail in `absuite-cli`.
+- Install: `npm install -g @fenixalliance/absuite` (a self-contained binary per platform). `absuite --version` prints the version.
+- Sign in: `absuite login` (a one-time code in your browser, the default). `absuite me` shows who you are; `absuite account show` shows the profile, server and workspace.
+- Workspace: `absuite account list` lists yours; `absuite account set --tenant <id|name>` saves one. `--tenant <id>` or `ABS_TENANT` picks one for a single command.
+- Agents on their computer: the run token comes from `ABS_TOKEN` or `ABS_TOKEN_FILE` (one of them, never both), used only with `--url` or `ABS_URL`, and only over https:// or to a server on the same computer. The token says who the agent is; the workspace's roles decide what it may do.
+- Scripts and agents: pass `--no-input` (it is also on when stdin is not a terminal, or CI or ABS_NO_TUI is set). Anything that needs input then fails with exit 2 and names the flag to pass.
+- Output: `-o table|json|jsonc|tsv|yaml|none`; `--query "<JMESPath>"` filters the result before it is printed.
+- `absuite commands -o json` lists every command with its options and whether it only reads. Check it before you rely on a command; `absuite <command> --help` shows one.
+- Full sign-in, output, exit-code and run-token rules: the `absuite-cli` skill. Anything not listed here: the `absuite-deals` REST skill.
 
-- **`update` replaces the ENTIRE object** (it maps to HTTP `PUT`) — a full overwrite, not a merge. **`get` the entity first, change only what you need on the complete object, then `update` with the full body.** A partial `update` (or an incomplete `create`) blanks the omitted fields -> silent data loss.
-- **No atomic partial update in the CLI.** For a safe single-field change, use the `absuite-deals` REST skill's `PATCH` (JSON Patch), where that service exposes one.
-- Use **`count <entity>`** (a dedicated operation) to size a collection. OData filtering/paging (`$filter`, `$top`, ...) is REST-only — the CLI does not expose it; use `absuite-deals` for filtered queries or a filtered count.
+## Commands
 
-## Prerequisites
+29 commands, from `absuite commands -o json`. "Reads" commands never change data. Writes take field flags or `--json`/`--file` with the same fields, and `--dry-run` prints the request without sending it. Deletes ask first unless `--yes` (with `--no-input` and no `--yes`, a delete fails with exit 2).
 
-1. **Authenticate first** with `absuite login` (see `absuite-login-cli`):
-   ```bash
-   absuite login --email <your-email>
-   ```
-2. **Set your tenant** — every deal command requires a tenant. Either set a default once:
-   ```bash
-   absuite config set --tenant-id <tenant-guid>
-   ```
-   …or pass `--TenantId <tenant-guid>` on each call. (The CLI auto-injects the default TenantId when set.)
-3. **Discover commands** — list everything the `deals` service exposes, or get full parameter/DTO schemas for any command:
-   ```bash
-   absuite deals list-commands
-   absuite deals create unit --help
-   ```
+### Deal Unit Flows (`absuite deals deal-unit-flows`)
 
-## Command structure
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite deals deal-unit-flows list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's deal-unit-flows. `GET /api/v2/DealsService/DealUnitFlows` |
+| `absuite deals deal-unit-flows count` | Reads |  |  | Count the workspace's deal-unit-flows. `GET /api/v2/DealsService/DealUnitFlows/Count` |
+| `absuite deals deal-unit-flows get` | Reads | `<id>` | `--columns` | Show one of the workspace's deal-unit-flows. `GET /api/v2/DealsService/DealUnitFlows/{dealUnitFlowId}` |
+| `absuite deals deal-unit-flows create` | Writes |  | `--name`, `--description`, `--parent-business-process-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's deal-unit-flows. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/DealsService/DealUnitFlows` |
+| `absuite deals deal-unit-flows update` | Writes | `<id>` | `--name`, `--description`, `--parent-business-process-id`; `--json` `--file` `--dry-run` | Change one of the workspace's deal-unit-flows: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/DealsService/DealUnitFlows/{dealUnitFlowId}` |
+| `absuite deals deal-unit-flows delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's deal-unit-flows; it asks first unless --yes. `DELETE /api/v2/DealsService/DealUnitFlows/{dealUnitFlowId}` |
+| `absuite deals deal-unit-flows stages list` | Reads |  | `--deal-unit-flow-id` (required); `--top` `--skip` `--columns` | List the workspace's deal-unit-flows stages. `GET /api/v2/DealsService/DealUnitFlows/{dealUnitFlowId}/Stages` |
+| `absuite deals deal-unit-flows stages count` | Reads |  | `--deal-unit-flow-id` (required) | Count the workspace's deal-unit-flows stages. `GET /api/v2/DealsService/DealUnitFlows/{dealUnitFlowId}/Stages/Count` |
+| `absuite deals deal-unit-flows stages get` | Reads | `<id>` | `--deal-unit-flow-id` (required); `--columns` | Show one of the workspace's deal-unit-flows stages. `GET /api/v2/DealsService/DealUnitFlows/{dealUnitFlowId}/Stages/{dealUnitFlowStageId}` |
+| `absuite deals deal-unit-flows stages create` | Writes |  | `--deal-unit-flow-id` (required), `--order`, `--name`, `--description`, `--parent-business-process-stage-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's deal-unit-flows stages. Only in --json: deal-unit-flow-id. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/DealsService/DealUnitFlows/{dealUnitFlowId}/Stages` |
+| `absuite deals deal-unit-flows stages update` | Writes | `<id>` | `--deal-unit-flow-id` (required), `--order`, `--name`, `--description`, `--parent-business-process-stage-id`; `--json` `--file` `--dry-run` | Change one of the workspace's deal-unit-flows stages: reads it, applies --json/--file and the field flags, then saves it. Only in --json: deal-unit-flow-id. `PUT /api/v2/DealsService/DealUnitFlows/{dealUnitFlowId}/Stages/{dealUnitFlowStageId}` |
+| `absuite deals deal-unit-flows stages delete` | Writes | `<id>` | `--deal-unit-flow-id` (required); `--yes` `--dry-run` | Delete one of the workspace's deal-unit-flows stages; it asks first unless --yes. `DELETE /api/v2/DealsService/DealUnitFlows/{dealUnitFlowId}/Stages/{dealUnitFlowStageId}` |
 
+### Deal Units (`absuite deals deal-units`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite deals deal-units list` | Reads |  | `--columns` | List the workspace's deal-units. `GET /api/v2/DealsService/DealUnits` |
+| `absuite deals deal-units count` | Reads |  |  | Count the workspace's deal-units. `GET /api/v2/DealsService/DealUnits/Count` |
+| `absuite deals deal-units get` | Reads | `<id>` | `--columns` | Show one of the workspace's deal-units. `GET /api/v2/DealsService/DealUnits/{dealUnitId}` |
+| `absuite deals deal-units create` | Writes |  | `--deal-unit-flow-id`, `--deal-unit-flow-stage-id`, `--partner-created`, `--partner-collaboration`, `--proposed-solution`, `--current-situation`, `--customer-need`, `--won-date`, `--lost-date`, `--expiry-date`, `--delivered-date`, `--closed-timestamp`, `--expected-close-date`, `--deal-unit-status`, `--deal-unit-purchase-process`, `--deal-unit-forecast-category`, `--deal-unit-amounts-calculation`, `--closed`, `--title`, `--price-list-id`, `--description`, `--individual-id`, `--payment-term-id`, `--organization-id`, `--receiver-tenant-id`, `--first-name`, `--last-name`, `--company-name`, `--billing-email`, `--address-line1`, `--address-line2`, `--postal-code`, `--country-id`, `--state-id`, `--city-id`, `--forex-rate`, `--currency-id`, `--total-detail`, `--total-detail-currency-id`, `--total-profit`, `--total-profit-currency-id`, `--total-discounts`, `--total-discounts-currency-id`, `--total-surcharges`, `--total-surcharges-currency-id`, `--total-shipping-cost`, `--total-shipping-cost-currency-id`, `--total-shipping-tax`, `--total-shipping-tax-currency-id`, `--total-withheld-tax`, `--total-withheld-tax-currency-id`, `--total-tax-base`, `--total-tax-base-currency-id`, `--total-taxes`, `--total-taxes-currency-id`, `--total-global-surcharges`, `--total-global-surcharges-currency-id`, `--total-global-discounts`, `--total-global-discounts-currency-id`, `--total`, `--total-currency-id`, `--cost-calculation-method`, `--tax-calculation-method`; `--json` `--file` `--dry-run` | Create a record in the workspace's deal-units. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/DealsService/DealUnits` |
+| `absuite deals deal-units update` | Writes | `<id>` | `--ordered`, `--cart-id`, `--deal-unit-feed-id`, `--deal-unit-flow-id`, `--deal-unit-flow-stage-id`, `--partner-created`, `--partner-collaboration`, `--proposed-solution`, `--current-situation`, `--customer-need`, `--won-date`, `--lost-date`, `--expiry-date`, `--delivered-date`, `--closed-timestamp`, `--expected-close-date`, `--deal-unit-status`, `--deal-unit-purchase-process`, `--deal-unit-forecast-category`, `--deal-unit-amounts-calculation`, `--closed`, `--title`, `--price-list-id`, `--description`, `--individual-id`, `--payment-term-id`, `--organization-id`, `--receiver-tenant-id`, `--first-name`, `--last-name`, `--company-name`, `--billing-email`, `--address-line1`, `--address-line2`, `--postal-code`, `--country-id`, `--state-id`, `--city-id`, `--billing-location-id`, `--shipping-location-id`, `--shipping-method-id`, `--forex-rate`, `--currency-id`, `--total-detail`, `--total-detail-currency-id`, `--total-profit`, `--total-profit-currency-id`, `--total-discounts`, `--total-discounts-currency-id`, `--total-surcharges`, `--total-surcharges-currency-id`, `--total-shipping-tax`, `--total-shipping-tax-currency-id`, `--total-shipping-cost`, `--total-shipping-cost-currency-id`, `--total-global-discounts`, `--total-global-discounts-currency-id`, `--total-global-surcharges`, `--total-global-surcharges-currency-id`, `--total-withheld-tax`, `--total-withheld-tax-currency-id`, `--total-tax-base`, `--total-tax-base-currency-id`, `--total-taxes`, `--total-taxes-currency-id`, `--total`, `--total-currency-id`, `--cost-calculation-method`, `--tax-calculation-method`; `--json` `--file` `--dry-run` | Change one of the workspace's deal-units: reads it, applies --json/--file and the field flags, then saves it. Never set here: user-id (set by the server). `PUT /api/v2/DealsService/DealUnits/{dealUnitId}` |
+| `absuite deals deal-units delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's deal-units; it asks first unless --yes. `DELETE /api/v2/DealsService/DealUnits/{dealUnitId}` |
+| `absuite deals deal-units extended list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's deal-units extended. `GET /api/v2/DealsService/DealUnits/Extended` |
+| `absuite deals deal-units lines list` | Reads |  | `--deal-unit-id` (required); `--columns` | List the workspace's deal-units lines. `GET /api/v2/DealsService/DealUnits/{dealUnitId}/Lines` |
+| `absuite deals deal-units lines count` | Reads |  | `--deal-unit-id` (required) | Count the workspace's deal-units lines. `GET /api/v2/DealsService/DealUnits/{dealUnitId}/Lines/Count` |
+| `absuite deals deal-units lines get` | Reads | `<id>` | `--deal-unit-id` (required); `--columns` | Show one of the workspace's deal-units lines. `GET /api/v2/DealsService/DealUnits/{dealUnitId}/Lines/{dealUnitLineId}` |
+| `absuite deals deal-units lines show` | Reads |  | `--deal-unit-id` (required); `--columns` | Show the workspace's deal-units lines. `GET /api/v2/DealsService/DealUnits/{dealUnitId}/Lines` |
+| `absuite deals deal-units lines create` | Writes |  | `--deal-unit-id` (required), `--item-id`, `--unit-id`, `--currency-id`, `--price-list-id`, `--unit-group-id`, `--discount-list-id`, `--rounding-policy-id`, `--price`, `--percent`; `--json` `--file` `--dry-run` | Create a record in the workspace's deal-units lines. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/DealsService/DealUnits/{dealUnitId}/Lines` |
+| `absuite deals deal-units lines delete` | Writes | `<id>` | `--deal-unit-id` (required); `--yes` `--dry-run` | Delete one of the workspace's deal-units lines; it asks first unless --yes. `DELETE /api/v2/DealsService/DealUnits/{dealUnitId}/Lines/{dealUnitLineId}` |
+
+### Sales Literatures (`absuite sales sales-literatures`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite sales sales-literatures list` | Reads |  | `--columns` | List the workspace's sales-literatures. `GET /api/v2/SalesService/SalesLiteratures` |
+| `absuite sales sales-literatures create` | Writes |  | `--sales-literature-id` (required), `--title`, `--content`, `--description`, `--modified-date`, `--expiration-date`, `--sales-literature-type-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's sales-literatures. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/SalesService/SalesLiteratures` |
+| `absuite sales sales-literatures delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's sales-literatures; it asks first unless --yes. `DELETE /api/v2/SalesService/SalesLiteratures/{salesLiteratureId}` |
+| `absuite sales sales-literatures extended list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's sales-literatures extended. `GET /api/v2/SalesService/SalesLiteratures/Extended` |
+
+## Example
+
+```bash
+absuite deals deal-unit-flows list --top 5 -o json --query "[].id"
+absuite deals deal-unit-flows create --name <value> --description <value> --dry-run   # prints the POST, sends nothing
+absuite deals deal-unit-flows create --name <value> --description <value> -o json --no-input
 ```
-absuite deals <verb> <entity> [--Param value ...]
-```
-
-- **Verbs available for `deals`:** `list`, `count`, `get`, `create`, `update`, `delete`, `calculate`.
-  (There is no `search` verb for this service.)
-- DTO parameters are passed as a single-quoted JSON string, e.g. `--DealUnitCreateDto '{ ... }'`, with **PascalCase** field names matching the schema shown by `--help`.
-- The original generated function name also works in place of the `<verb> <entity>` alias, e.g. `absuite deals New-DealUnitAsync` ≡ `absuite deals create unit`.
 
 ## Key Concepts
 
@@ -67,388 +96,3 @@ absuite deals <verb> <entity> [--Param value ...]
 - **CostCalculationMethod** — `Automatic` | `Custom`. **TaxCalculationMethod** — `Included` | `Excluded`.
 
 > Enum spellings (`Commited`, `Ommited`, `Commitee`) are transcribed verbatim from the API schema — use them exactly.
-
-## Workflow: Creating a Deal
-
-1. **Ensure a flow exists** — a deal is assigned to a pipeline (flow) and a stage.
-2. **Create the deal unit** — with customer, currency, and flow/stage assignment.
-3. **(Optional) Add lines** for specific products.
-4. **Calculate totals** — let the server compute the financial summary.
-5. **Progress the deal** — advance the stage with `update`.
-6. **Close** — mark the deal `Won` or `Lost`.
-
-### Step 1 — Set up a sales pipeline (if needed)
-
-```bash
-# List existing flows
-absuite deals list unit-flows --TenantId <tenant-guid>
-
-# Create a flow
-absuite deals create unit-flow --TenantId <tenant-guid> --DealUnitFlowCreateDto '{
-  "Name": "Enterprise Sales Pipeline",
-  "Description": "Standard B2B sales process for enterprise accounts"
-}'
-
-# Add stages (note: DealUnitFlowId is required on stage commands)
-absuite deals create unit-flow-stage --TenantId <tenant-guid> --DealUnitFlowStageCreateDto '{
-  "Name": "Qualification",
-  "Order": 1,
-  "Description": "Initial lead qualification",
-  "DealUnitFlowId": "<flow-guid>"
-}'
-
-# List stages for the flow
-absuite deals list unit-flow-stages --TenantId <tenant-guid> --DealUnitFlowId <flow-guid>
-```
-
-### Step 2 — Create a deal unit
-
-```bash
-absuite deals create unit --TenantId <tenant-guid> --DealUnitCreateDto '{
-  "Title": "Acme Corp - Enterprise Platform Deal",
-  "Description": "Annual enterprise license and support package",
-  "CurrencyId": "<currency-guid>",
-  "IndividualId": "<contact-guid>",
-  "OrganizationId": "<organization-guid>",
-  "CompanyName": "Acme Corp",
-  "BillingEmail": "<billing-email>",
-  "DealUnitFlowId": "<flow-guid>",
-  "DealUnitFlowStageId": "<qualification-stage-guid>",
-  "DealUnitStatus": "Open",
-  "DealUnitForecastCategory": "Pipeline",
-  "DealUnitPurchaseProcess": "Commitee",
-  "DealUnitAmountsCalculation": "SystemCalculated",
-  "ExpectedCloseDate": "2026-06-30T00:00:00Z",
-  "CurrentSituation": "Prospect using a competitor product with an expiring contract",
-  "CustomerNeed": "Unified platform for CRM, invoicing, and inventory",
-  "ProposedSolution": "ABS Enterprise with Premium Support",
-  "CostCalculationMethod": "Automatic",
-  "TaxCalculationMethod": "Excluded"
-}'
-```
-
-**`DealUnitCreateDto` highlights** (run `absuite deals create unit --help` for the full schema): `Title`, `Description`, `CurrencyId`, `IndividualId`, `OrganizationId`, `FirstName`, `LastName`, `CompanyName`, `BillingEmail`, `PriceListId`, `PaymentTermId`, `ReceiverTenantId`, `DealUnitFlowId`, `DealUnitFlowStageId`, `DealUnitStatus`, `DealUnitForecastCategory`, `DealUnitPurchaseProcess`, `DealUnitAmountsCalculation`, `ExpectedCloseDate`, `ExpiryDate`, `WonDate`, `LostDate`, `CurrentSituation`, `CustomerNeed`, `ProposedSolution`, `CostCalculationMethod`, `TaxCalculationMethod`, `Closed`, `PartnerCreated`, `PartnerCollaboration`, billing-address fields, the `Total*`/`Total*CurrencyId` money pairs, and `DealUnitLines` (inline array).
-
-### Step 3 — Add deal unit lines
-
-```bash
-absuite deals create get-deal-unit-lines --TenantId <tenant-guid> --DealUnitId <deal-unit-guid> --DealUnitLineCreateDto '{
-  "ItemId": "<item-guid>",
-  "ItemTitle": "ABS Enterprise License",
-  "ItemShortDescription": "Annual enterprise platform license",
-  "Description": "10 seats of ABS Enterprise",
-  "Quantity": 10,
-  "CurrencyId": "<currency-guid>",
-  "ItemPriceId": "<item-price-guid>"
-}'
-```
-
-> The create-line command alias is `create get-deal-unit-lines` (the generated function is `New-GetDealUnitLinesAsync`). It takes `--DealUnitId` plus `--DealUnitLineCreateDto`.
-
-### Step 4 — Calculate totals
-
-```bash
-absuite deals calculate unit --TenantId <tenant-guid> --DealUnitId <deal-unit-guid>
-```
-
-### Step 5 — Advance the deal stage
-
-```bash
-absuite deals update unit --TenantId <tenant-guid> --DealUnitId <deal-unit-guid> --DealUnitUpdateDto '{
-  "DealUnitFlowStageId": "<proposal-stage-guid>"
-}'
-```
-
----
-
-## Deal Units
-
-```bash
-# List
-absuite deals list units --TenantId <tenant-guid>
-
-# List extended (with related data)
-absuite deals list extended-deal-units --TenantId <tenant-guid>
-
-# Count
-absuite deals count units --TenantId <tenant-guid>
-
-# Get by ID
-absuite deals get unit --TenantId <tenant-guid> --DealUnitId <deal-unit-guid>
-
-# Get extended by ID
-absuite deals get extended-deal-unit --TenantId <tenant-guid> --DealUnitId <deal-unit-guid>
-
-# Update (full editable shape; use the DealUnitUpdateDto schema)
-absuite deals update unit --TenantId <tenant-guid> --DealUnitId <deal-unit-guid> --DealUnitUpdateDto '{
-  "Title": "Acme Corp - Enterprise Deal (Revised)",
-  "DealUnitStatus": "Won",
-  "WonDate": "2026-05-15T00:00:00Z",
-  "Closed": true,
-  "Ordered": true
-}'
-
-# Calculate server-computed totals
-absuite deals calculate unit --TenantId <tenant-guid> --DealUnitId <deal-unit-guid>
-
-# Delete
-absuite deals delete unit --TenantId <tenant-guid> --DealUnitId <deal-unit-guid>
-```
-
-## Deal Unit Lines
-
-```bash
-# List lines for a deal
-absuite deals list unit-lines --TenantId <tenant-guid> --DealUnitId <deal-unit-guid>
-
-# Count lines
-absuite deals count unit-lines --TenantId <tenant-guid> --DealUnitId <deal-unit-guid>
-
-# Get a single line by ID
-absuite deals get unit-price --TenantId <tenant-guid> --DealUnitId <deal-unit-guid> --DealUnitLineId <line-guid>
-
-# Update a line
-absuite deals update unit-price --TenantId <tenant-guid> --DealUnitId <deal-unit-guid> --DealUnitLineId <line-guid> --DealUnitLineUpdateDto '{
-  "Quantity": 15,
-  "Description": "Increased to 15 seats"
-}'
-
-# Calculate a single line
-absuite deals calculate unit-line --TenantId <tenant-guid> --DealUnitId <deal-unit-guid> --DealUnitLineId <line-guid>
-
-# Delete a line
-absuite deals delete unit-price --TenantId <tenant-guid> --DealUnitId <deal-unit-guid> --DealUnitLineId <line-guid>
-```
-
-> Note the entity spellings: single-line `get`/`update`/`delete` use **`unit-price`**, single-line `calculate` uses **`unit-line`**, and list/count use **`unit-lines`**. All take `--DealUnitId`; single-line ones also take `--DealUnitLineId`.
-
-## Deal Unit Flows (Sales Pipelines)
-
-```bash
-# List flows
-absuite deals list unit-flows --TenantId <tenant-guid>
-
-# Count flows
-absuite deals count unit-flows --TenantId <tenant-guid>
-
-# Get a flow by ID
-absuite deals get unit-flow --TenantId <tenant-guid> --DealUnitFlowId <flow-guid>
-
-# Create a flow
-absuite deals create unit-flow --TenantId <tenant-guid> --DealUnitFlowCreateDto '{
-  "Name": "Enterprise Sales Pipeline",
-  "Description": "Standard B2B sales process",
-  "ParentBusinessProcessId": "<business-process-guid>"
-}'
-
-# Update a flow
-absuite deals update unit-flow --TenantId <tenant-guid> --DealUnitFlowId <flow-guid> --DealUnitFlowUpdateDto '{
-  "Name": "Enterprise Sales Pipeline (v2)",
-  "Description": "Updated pipeline with revised stages"
-}'
-
-# Delete a flow
-absuite deals delete unit-flow --TenantId <tenant-guid> --DealUnitFlowId <flow-guid>
-```
-
-## Flow Stages
-
-Stage commands always require `--DealUnitFlowId`; single-stage commands also require `--DealUnitFlowStageId`.
-
-```bash
-# List stages for a flow
-absuite deals list unit-flow-stages --TenantId <tenant-guid> --DealUnitFlowId <flow-guid>
-
-# Count stages for a flow
-absuite deals count unit-flow-stages --TenantId <tenant-guid> --DealUnitFlowId <flow-guid>
-
-# Get a stage by ID
-absuite deals get unit-flow-stage --TenantId <tenant-guid> --DealUnitFlowId <flow-guid> --DealUnitFlowStageId <stage-guid>
-
-# Create a stage
-absuite deals create unit-flow-stage --TenantId <tenant-guid> --DealUnitFlowStageCreateDto '{
-  "Name": "Qualification",
-  "Order": 1,
-  "Description": "Initial lead qualification",
-  "DealUnitFlowId": "<flow-guid>"
-}'
-
-# Update a stage
-absuite deals update unit-flow-stage --TenantId <tenant-guid> --DealUnitFlowId <flow-guid> --DealUnitFlowStageId <stage-guid> --DealUnitFlowStageUpdateDto '{
-  "Name": "Final Review",
-  "Order": 5,
-  "Description": "Executive approval before closing",
-  "DealUnitFlowId": "<flow-guid>"
-}'
-
-# Delete a stage
-absuite deals delete unit-flow-stage --TenantId <tenant-guid> --DealUnitFlowId <flow-guid> --DealUnitFlowStageId <stage-guid>
-```
-
-## Sales Literature
-
-Supporting documents and collateral for the sales process.
-
-```bash
-# List
-absuite deals list sales-literatures --TenantId <tenant-guid>
-
-# List extended
-absuite deals list extended-sales-literatures --TenantId <tenant-guid>
-
-# Count
-absuite deals count sales-literatures --TenantId <tenant-guid>
-
-# Get by ID
-absuite deals get sales-literature --TenantId <tenant-guid> --SalesLiteratureId <literature-guid>
-
-# Create
-absuite deals create sales-literature --TenantId <tenant-guid> --SalesLiteratureCreateDto '{
-  "Title": "ABS Enterprise Platform Overview",
-  "Content": "The Alliance Business Suite provides a unified platform for CRM, invoicing, inventory, and more...",
-  "Description": "Executive summary of platform capabilities",
-  "ExpirationDate": "2027-01-01T00:00:00Z",
-  "SalesLiteratureTypeId": "<literature-type-guid>"
-}'
-
-# Update
-absuite deals update sales-literature --TenantId <tenant-guid> --SalesLiteratureId <literature-guid> --SalesLiteratureUpdateDto '{
-  "Title": "ABS Enterprise Platform Overview (Updated)",
-  "Content": "Updated content..."
-}'
-
-# Delete
-absuite deals delete sales-literature --TenantId <tenant-guid> --SalesLiteratureId <literature-guid>
-```
-
-**`SalesLiteratureCreateDto` fields:** `Title`, `Content`, `Description`, `ModifiedDate`, `ExpirationDate`, `SalesLiteratureTypeId` (plus `Id`, `Timestamp`, `TenantId`, `EnrollmentId`, generally server-managed). **`SalesLiteratureUpdateDto`** drops `Id`/`Timestamp`. Run `absuite deals create sales-literature --help` for the live schema.
-
-> Sales literature is exposed by the CLI only — there is **no** sales-literature REST endpoint, so it has no counterpart in the `absuite-deals` (REST) skill.
-
----
-
-## Deal Lifecycle Management
-
-```bash
-# Mark a deal as Won
-absuite deals update unit --TenantId <tenant-guid> --DealUnitId <deal-unit-guid> --DealUnitUpdateDto '{
-  "DealUnitStatus": "Won",
-  "WonDate": "2026-05-15T00:00:00Z",
-  "Closed": true,
-  "DealUnitForecastCategory": "Won"
-}'
-
-# Mark a deal as Lost
-absuite deals update unit --TenantId <tenant-guid> --DealUnitId <deal-unit-guid> --DealUnitUpdateDto '{
-  "DealUnitStatus": "Lost",
-  "LostDate": "2026-05-15T00:00:00Z",
-  "Closed": true
-}'
-```
-
-After a deal is `Won`, create an order referencing its customer and line items using the `absuite-orders-cli` skill.
-
----
-
-## Full Example: End-to-End Deal Pipeline
-
-```bash
-# 1. Authenticate
-absuite login --email <your-email>
-
-# 2. Set the default tenant
-absuite config set --tenant-id <tenant-guid>
-
-# 3. List existing pipelines (or create one)
-absuite deals list unit-flows
-
-# 4. Create a flow + a stage
-absuite deals create unit-flow --DealUnitFlowCreateDto '{ "Name": "Enterprise Sales Pipeline" }'
-absuite deals create unit-flow-stage --DealUnitFlowStageCreateDto '{ "Name": "Qualification", "Order": 1, "DealUnitFlowId": "<flow-guid>" }'
-
-# 5. Create a deal unit
-absuite deals create unit --DealUnitCreateDto '{
-  "Title": "Acme Corp - Enterprise Deal",
-  "CurrencyId": "<currency-guid>",
-  "CompanyName": "Acme Corp",
-  "BillingEmail": "<billing-email>",
-  "DealUnitFlowId": "<flow-guid>",
-  "DealUnitFlowStageId": "<qualification-stage-guid>",
-  "DealUnitStatus": "Open",
-  "DealUnitForecastCategory": "Pipeline",
-  "ExpectedCloseDate": "2026-06-30T00:00:00Z"
-}'
-# → note the returned deal unit id
-
-# 6. Add a line item
-absuite deals create get-deal-unit-lines --DealUnitId <deal-unit-guid> --DealUnitLineCreateDto '{
-  "ItemId": "<item-guid>",
-  "ItemTitle": "ABS Enterprise License",
-  "Quantity": 10,
-  "CurrencyId": "<currency-guid>",
-  "ItemPriceId": "<item-price-guid>"
-}'
-
-# 7. Calculate totals
-absuite deals calculate unit --DealUnitId <deal-unit-guid>
-
-# 8. Advance to the proposal stage
-absuite deals update unit --DealUnitId <deal-unit-guid> --DealUnitUpdateDto '{ "DealUnitFlowStageId": "<proposal-stage-guid>" }'
-
-# 9. After negotiation — mark as Won
-absuite deals update unit --DealUnitId <deal-unit-guid> --DealUnitUpdateDto '{
-  "DealUnitStatus": "Won",
-  "WonDate": "2026-06-15T00:00:00Z",
-  "DealUnitFlowStageId": "<closed-won-stage-guid>",
-  "DealUnitForecastCategory": "Won",
-  "Closed": true,
-  "Ordered": true
-}'
-
-# 10. Verify
-absuite deals get unit --DealUnitId <deal-unit-guid>
-```
-
----
-
-## CLI Commands Quick Reference
-
-| Action | CLI command |
-|---|---|
-| List deal units | `absuite deals list units` |
-| List extended deal units | `absuite deals list extended-deal-units` |
-| Count deal units | `absuite deals count units` |
-| Get deal unit | `absuite deals get unit --DealUnitId <id>` |
-| Get extended deal unit | `absuite deals get extended-deal-unit --DealUnitId <id>` |
-| Create deal unit | `absuite deals create unit --DealUnitCreateDto '{…}'` |
-| Update deal unit | `absuite deals update unit --DealUnitId <id> --DealUnitUpdateDto '{…}'` |
-| Calculate deal unit | `absuite deals calculate unit --DealUnitId <id>` |
-| Delete deal unit | `absuite deals delete unit --DealUnitId <id>` |
-| List lines | `absuite deals list unit-lines --DealUnitId <id>` |
-| Count lines | `absuite deals count unit-lines --DealUnitId <id>` |
-| Get line | `absuite deals get unit-price --DealUnitId <id> --DealUnitLineId <id>` |
-| Create line | `absuite deals create get-deal-unit-lines --DealUnitId <id> --DealUnitLineCreateDto '{…}'` |
-| Update line | `absuite deals update unit-price --DealUnitId <id> --DealUnitLineId <id> --DealUnitLineUpdateDto '{…}'` |
-| Calculate line | `absuite deals calculate unit-line --DealUnitId <id> --DealUnitLineId <id>` |
-| Delete line | `absuite deals delete unit-price --DealUnitId <id> --DealUnitLineId <id>` |
-| List flows | `absuite deals list unit-flows` |
-| Count flows | `absuite deals count unit-flows` |
-| Get flow | `absuite deals get unit-flow --DealUnitFlowId <id>` |
-| Create flow | `absuite deals create unit-flow --DealUnitFlowCreateDto '{…}'` |
-| Update flow | `absuite deals update unit-flow --DealUnitFlowId <id> --DealUnitFlowUpdateDto '{…}'` |
-| Delete flow | `absuite deals delete unit-flow --DealUnitFlowId <id>` |
-| List flow stages | `absuite deals list unit-flow-stages --DealUnitFlowId <id>` |
-| Count flow stages | `absuite deals count unit-flow-stages --DealUnitFlowId <id>` |
-| Get flow stage | `absuite deals get unit-flow-stage --DealUnitFlowId <id> --DealUnitFlowStageId <id>` |
-| Create flow stage | `absuite deals create unit-flow-stage --DealUnitFlowStageCreateDto '{…}'` |
-| Update flow stage | `absuite deals update unit-flow-stage --DealUnitFlowId <id> --DealUnitFlowStageId <id> --DealUnitFlowStageUpdateDto '{…}'` |
-| Delete flow stage | `absuite deals delete unit-flow-stage --DealUnitFlowId <id> --DealUnitFlowStageId <id>` |
-| List sales literature | `absuite deals list sales-literatures` |
-| List extended sales literature | `absuite deals list extended-sales-literatures` |
-| Count sales literature | `absuite deals count sales-literatures` |
-| Get sales literature | `absuite deals get sales-literature --SalesLiteratureId <id>` |
-| Create sales literature | `absuite deals create sales-literature --SalesLiteratureCreateDto '{…}'` |
-| Update sales literature | `absuite deals update sales-literature --SalesLiteratureId <id> --SalesLiteratureUpdateDto '{…}'` |
-| Delete sales literature | `absuite deals delete sales-literature --SalesLiteratureId <id>` |
-
-> Pass `--TenantId <tenant-guid>` on every command (or set a default tenant with `absuite config set --tenant-id <guid>`). The CLI has **no PATCH** support — for atomic partial updates, use the `absuite-deals` (REST) skill.

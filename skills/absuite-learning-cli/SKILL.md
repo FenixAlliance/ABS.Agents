@@ -1,424 +1,188 @@
 ---
 name: absuite-learning-cli
 key: fenixalliance.absuite.learning-cli
-version: 1.0.0
+version: 1.1.0
 description: >
-  Manage learning and e-learning in the Alliance Business Suite (ABS) using the `absuite` CLI.
-  Covers courses and their content tree (sections, units, unit components, content groups),
-  assignments, problem sets, grading rubrics, cohorts, enrollments, certificates and templates,
-  forums, wikis, articles, pages, updates, handouts, files, libraries, team memberships,
-  instructor/student profiles, and per-user "Me" reads — via list/count/get/create/update/delete
-  commands. Requires an authenticated CLI session (see absuite-login-cli). For atomic PATCH
-  updates or raw HTTP, use the absuite-learning (REST) skill.
+  Drive the Alliance Business Suite (ABS) Learning area with the absuite CLI: 99 commands (75 read, 24
+  write) under `absuite learning`, each generated from the platform's ServiceClients and checked
+  against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-learning REST
+  skill.
 ---
 
 # Alliance Business Suite — Learning Skill (CLI)
 
-Drive the `LearningService` through the `absuite` CLI. The CLI service token is **`learning`**. All commands run against the same API as the REST skill, but the CLI handles auth headers and the response envelope for you.
+Generated from the absuite CLI at Platform 9b72a00a47 (`absuite commands -o json`). The commands, arguments and options below are the CLI's own; re-run `absuite commands -o json` before relying on one.
 
-> For atomic partial updates (JSON Patch) or raw HTTP/curl, use the `absuite-learning` (REST) skill — the `absuite` CLI does not support PATCH. For general CLI conventions, see `absuite-cli`.
+> **Coverage:** the `absuite-learning` REST skill documents 26 routes; 11 of them have no CLI command (a write the CLI keeps to Studio, a call that is not workspace-scoped, or a field shape it cannot take yet). Use the REST skill for those.
 
-## API usage essentials
+## Before you start
 
-> Full detail in `absuite-cli`.
+- Install: `npm install -g @fenixalliance/absuite` (a self-contained binary per platform). `absuite --version` prints the version.
+- Sign in: `absuite login` (a one-time code in your browser, the default). `absuite me` shows who you are; `absuite account show` shows the profile, server and workspace.
+- Workspace: `absuite account list` lists yours; `absuite account set --tenant <id|name>` saves one. `--tenant <id>` or `ABS_TENANT` picks one for a single command.
+- Agents on their computer: the run token comes from `ABS_TOKEN` or `ABS_TOKEN_FILE` (one of them, never both), used only with `--url` or `ABS_URL`, and only over https:// or to a server on the same computer. The token says who the agent is; the workspace's roles decide what it may do.
+- Scripts and agents: pass `--no-input` (it is also on when stdin is not a terminal, or CI or ABS_NO_TUI is set). Anything that needs input then fails with exit 2 and names the flag to pass.
+- Output: `-o table|json|jsonc|tsv|yaml|none`; `--query "<JMESPath>"` filters the result before it is printed.
+- `absuite commands -o json` lists every command with its options and whether it only reads. Check it before you rely on a command; `absuite <command> --help` shows one.
+- Full sign-in, output, exit-code and run-token rules: the `absuite-cli` skill. Anything not listed here: the `absuite-learning` REST skill.
 
-- **`update` replaces the ENTIRE object** (it maps to HTTP `PUT`) — a full overwrite, not a merge. **`get` the entity first, change only what you need on the complete object, then `update` with the full body.** A partial `update` (or an incomplete `create`) blanks the omitted fields -> silent data loss.
-- **No atomic partial update in the CLI.** For a safe single-field change, use the `absuite-learning` REST skill's `PATCH` (JSON Patch), where that service exposes one.
-- Use **`count <entity>`** (a dedicated operation) to size a collection. OData filtering/paging (`$filter`, `$top`, ...) is REST-only — the CLI does not expose it; use `absuite-learning` for filtered queries or a filtered count.
+## Commands
 
-## Prerequisites
+99 commands, from `absuite commands -o json`. "Reads" commands never change data. Writes take field flags or `--json`/`--file` with the same fields, and `--dry-run` prints the request without sending it. Deletes ask first unless `--yes` (with `--no-input` and no `--yes`, a delete fails with exit 2).
 
-1. **Authenticate first**: `absuite login` (see `absuite-login-cli`).
-2. **Set your default tenant** so you can omit `--TenantId` on tenant-scoped calls:
-   `absuite config set --tenant-id <tenant-guid>`
-   (or pass `--TenantId <tenant-guid>` explicitly on each call; examples below use `$TENANT_ID`).
-3. **Discover commands**: `absuite learning list-commands`, and `absuite learning <command> --help` for the full parameter/DTO schema of any command.
+### Course Articles (`absuite learning course-articles`)
 
-## Command structure
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite learning course-articles list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's course-articles. `GET /api/v2/LearningService/CourseArticles` |
+| `absuite learning course-articles count` | Reads |  |  | Count the workspace's course-articles. `GET /api/v2/LearningService/CourseArticles/Count` |
+| `absuite learning course-articles get` | Reads | `<id>` | `--columns` | Show one of the workspace's course-articles. `GET /api/v2/LearningService/CourseArticles/{articleId}` |
+| `absuite learning course-articles create` | Writes |  | `--title`, `--description`, `--content`, `--course-id`, `--course-wiki-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's course-articles. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/LearningService/CourseArticles` |
+| `absuite learning course-articles update` | Writes | `<id>` | `--title`, `--description`, `--content`; `--json` `--file` `--dry-run` | Change one of the workspace's course-articles: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/LearningService/CourseArticles/{articleId}` |
+| `absuite learning course-articles delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's course-articles; it asks first unless --yes. `DELETE /api/v2/LearningService/CourseArticles/{articleId}` |
 
-```
-absuite learning <verb> <entity> --Param value
-```
+### Course Assignments (`absuite learning course-assignments`)
 
-Verbs available: **list, count, search, get, create, update, delete** (plus the service-specific reads listed below). The canonical PowerShell function-name form also works and is 1:1 with the API operation, e.g.:
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite learning course-assignments list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's course-assignments. `GET /api/v2/LearningService/CourseAssignments` |
+| `absuite learning course-assignments count` | Reads |  |  | Count the workspace's course-assignments. `GET /api/v2/LearningService/CourseAssignments/Count` |
+| `absuite learning course-assignments get` | Reads | `<id>` | `--columns` | Show one of the workspace's course-assignments. `GET /api/v2/LearningService/CourseAssignments/{assignmentId}` |
+| `absuite learning course-assignments create` | Writes |  | `--title`, `--description`, `--instructions`, `--points`, `--course-id`, `--course-unit-id`, `--course-cohort-id`, `--course-assignment-type-id`, `--due-date-time`, `--asign-to-all-cohorts`, `--resources`; `--json` `--file` `--dry-run` | Create a record in the workspace's course-assignments. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/LearningService/CourseAssignments` |
+| `absuite learning course-assignments update` | Writes | `<id>` | `--title`, `--description`, `--instructions`, `--points`, `--course-unit-id`, `--course-cohort-id`, `--course-assignment-type-id`, `--due-date-time`, `--asign-to-all-cohorts`, `--resources`; `--json` `--file` `--dry-run` | Change one of the workspace's course-assignments: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/LearningService/CourseAssignments/{assignmentId}` |
+| `absuite learning course-assignments delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's course-assignments; it asks first unless --yes. `DELETE /api/v2/LearningService/CourseAssignments/{assignmentId}` |
 
-- `absuite learning Get-CoursesAsync --TenantId $TENANT_ID`
-- `absuite learning New-CourseAsync --TenantId $TENANT_ID --CourseCreateDto '{...}'`
-- `absuite learning Update-CourseAsync --TenantId $TENANT_ID --CourseId <course-guid> --CourseUpdateDto '{...}'`
-- `absuite learning Invoke-DeleteCourseAsync --TenantId $TENANT_ID --CourseId <course-guid>`
+### Course Certificates (`absuite learning course-certificates`)
 
-Notes on the underlying functions (handy when using `--help`): **create** is `New-<Entity>Async`, **delete** is `Invoke-Delete<Entity>Async`, **update** is `Update-<Entity>Async`, and list/get/count are `Get-...Async`.
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite learning course-certificates list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's course-certificates. `GET /api/v2/LearningService/CourseCertificates` |
+| `absuite learning course-certificates count` | Reads |  |  | Count the workspace's course-certificates. `GET /api/v2/LearningService/CourseCertificates/Count` |
+| `absuite learning course-certificates get` | Reads | `<id>` | `--columns` | Show one of the workspace's course-certificates. `GET /api/v2/LearningService/CourseCertificates/{certificateId}` |
+| `absuite learning course-certificates template list` | Reads |  | `--columns` | List the workspace's course-certificates template. `GET /api/v2/LearningService/CourseCertificates/Template` |
+| `absuite learning course-certificates template count` | Reads |  |  | Count the workspace's course-certificates template. `GET /api/v2/LearningService/CourseCertificates/Template/Count` |
+| `absuite learning course-certificates template get` | Reads | `<id>` | `--columns` | Show one of the workspace's course-certificates template. `GET /api/v2/LearningService/CourseCertificates/Template/{templateId}` |
 
-### Parameters & tenant scoping
+### Course Enrollments (`absuite learning course-enrollments`)
 
-- ID and DTO parameters are PascalCase, matching the entity: `--CourseId`, `--CourseSectionId`, `--CourseCreateDto`, etc.
-- JSON DTOs are passed as a single-quoted JSON string with camelCase field names, exactly as in the API (`--CourseCreateDto '{"title":"...","description":"..."}'`).
-- **Tenant scoping is per-command** (the CLI passes `--TenantId` through to the API's `tenantId`):
-  - Top-level **list/count/create/update/delete** require `--TenantId` (or a configured default tenant).
-  - Most **get-by-id** and **by-course** read commands do **not** need a tenant; pass it only where noted (Enrollments, Certificates, Profiles, Templates).
-  - **`Me/*` read commands take NO tenant** — they resolve from your logged-in session.
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite learning course-enrollments list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's course-enrollments. `GET /api/v2/LearningService/CourseEnrollments` |
+| `absuite learning course-enrollments count` | Reads |  |  | Count the workspace's course-enrollments. `GET /api/v2/LearningService/CourseEnrollments/Count` |
+| `absuite learning course-enrollments get` | Reads | `<id>` | `--columns` | Show one of the workspace's course-enrollments. `GET /api/v2/LearningService/CourseEnrollments/{enrollmentId}` |
 
-## Courses
+### Course Sections (`absuite learning course-sections`)
 
-```bash
-absuite learning list courses --TenantId $TENANT_ID
-absuite learning count courses --TenantId $TENANT_ID
-# Get by ID (tenant optional)
-absuite learning get course-by-id --CourseId <course-guid>
-# Create — title + description are REQUIRED
-absuite learning create course --TenantId $TENANT_ID --CourseCreateDto '{
-  "title": "Introduction to Cloud Computing",
-  "description": "A beginner-friendly overview of cloud platforms.",
-  "sku": "CLD-101",
-  "code": "CLD101",
-  "currencyId": "<currency-guid>",
-  "regularPrice": 199.00,
-  "maxCourseEnrollments": 100
-}'
-# Update — adds "published"
-absuite learning update course --TenantId $TENANT_ID --CourseId <course-guid> --CourseUpdateDto '{
-  "title": "Introduction to Cloud Computing (2026)",
-  "description": "Updated for 2026.",
-  "published": true
-}'
-absuite learning delete course --TenantId $TENANT_ID --CourseId <course-guid>
-```
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite learning course-sections list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's course-sections. `GET /api/v2/LearningService/CourseSections` |
+| `absuite learning course-sections count` | Reads |  |  | Count the workspace's course-sections. `GET /api/v2/LearningService/CourseSections/Count` |
+| `absuite learning course-sections get` | Reads | `<id>` | `--columns` | Show one of the workspace's course-sections. `GET /api/v2/LearningService/CourseSections/{sectionId}` |
+| `absuite learning course-sections create` | Writes |  | `--name`, `--icon`, `--description`, `--course-id`, `--release-date-time`, `--hide-from-students`; `--json` `--file` `--dry-run` | Create a record in the workspace's course-sections. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/LearningService/CourseSections` |
+| `absuite learning course-sections update` | Writes | `<id>` | `--name`, `--icon`, `--description`, `--release-date-time`, `--hide-from-students`; `--json` `--file` `--dry-run` | Change one of the workspace's course-sections: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/LearningService/CourseSections/{sectionId}` |
+| `absuite learning course-sections delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's course-sections; it asks first unless --yes. `DELETE /api/v2/LearningService/CourseSections/{sectionId}` |
 
-### Course sub-resource reads
+### Course Team Memberships (`absuite learning course-team-memberships`)
 
-Each lists a course's related entities; most need no tenant. Counterpart `count …-by-course` commands exist for each.
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite learning course-team-memberships list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's course-team-memberships. `GET /api/v2/LearningService/CourseTeamMemberships` |
+| `absuite learning course-team-memberships count` | Reads |  |  | Count the workspace's course-team-memberships. `GET /api/v2/LearningService/CourseTeamMemberships/Count` |
+| `absuite learning course-team-memberships get` | Reads | `<id>` | `--columns` | Show one of the workspace's course-team-memberships. `GET /api/v2/LearningService/CourseTeamMemberships/{membershipId}` |
+| `absuite learning course-team-memberships create` | Writes |  | `--course-id`, `--instructor-profile-id`, `--course-team-membership-type`; `--json` `--file` `--dry-run` | Create a record in the workspace's course-team-memberships. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/LearningService/CourseTeamMemberships` |
+| `absuite learning course-team-memberships update` | Writes | `<id>` | `--instructor-profile-id`, `--course-team-membership-type`; `--json` `--file` `--dry-run` | Change one of the workspace's course-team-memberships: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/LearningService/CourseTeamMemberships/{membershipId}` |
+| `absuite learning course-team-memberships delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's course-team-memberships; it asks first unless --yes. `DELETE /api/v2/LearningService/CourseTeamMemberships/{membershipId}` |
 
-```bash
-absuite learning get course-sections-by-course --CourseId <course-guid>
-absuite learning get course-units-by-section --CourseId <course-guid> --SectionId <section-guid>
-absuite learning get course-unit-components-by-course --CourseId <course-guid>
-absuite learning get course-content-groups-by-course --CourseId <course-guid>
-absuite learning get course-assignments-by-course --CourseId <course-guid>
-absuite learning get course-problem-sets-by-course --CourseId <course-guid>
-absuite learning get course-categories-by-course --CourseId <course-guid>
-absuite learning get course-cohorts-by-course --CourseId <course-guid>
-absuite learning get course-forums-by-course --CourseId <course-guid>
-absuite learning get course-wikis-by-course --CourseId <course-guid>
-absuite learning get course-articles-by-course-wiki --CourseId <course-guid> --WikiId <wiki-guid>
-absuite learning get course-updates-by-course --CourseId <course-guid>
-absuite learning get course-handouts-by-course --CourseId <course-guid>
-absuite learning get course-files-by-course --CourseId <course-guid>
-absuite learning get course-libraries-by-course --CourseId <course-guid>
-absuite learning get course-pages-by-course --CourseId <course-guid>
-absuite learning get instructor-profiles-by-course --CourseId <course-guid>
-absuite learning get student-profiles-by-course --CourseId <course-guid>
-# Enrollments by course — tenant REQUIRED here
-absuite learning get course-enrollments-by-course --TenantId $TENANT_ID --CourseId <course-guid>
-```
+### Course Units (`absuite learning course-units`)
 
-## Course content tree
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite learning course-units list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's course-units. `GET /api/v2/LearningService/CourseUnits` |
+| `absuite learning course-units count` | Reads |  |  | Count the workspace's course-units. `GET /api/v2/LearningService/CourseUnits/Count` |
+| `absuite learning course-units get` | Reads | `<id>` | `--columns` | Show one of the workspace's course-units. `GET /api/v2/LearningService/CourseUnits/{unitId}` |
+| `absuite learning course-units create` | Writes |  | `--title`, `--description`, `--content`, `--course-id`, `--course-section-id`, `--course-content-group-id`, `--release-date-time`; `--json` `--file` `--dry-run` | Create a record in the workspace's course-units. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/LearningService/CourseUnits` |
+| `absuite learning course-units update` | Writes | `<id>` | `--title`, `--description`, `--content`, `--course-content-group-id`, `--release-date-time`; `--json` `--file` `--dry-run` | Change one of the workspace's course-units: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/LearningService/CourseUnits/{unitId}` |
+| `absuite learning course-units delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's course-units; it asks first unless --yes. `DELETE /api/v2/LearningService/CourseUnits/{unitId}` |
 
-All families share the same shape: **list / count / get / create / update / delete**. Only the entity name, ID param, and DTO differ.
+### Courses (`absuite learning courses`)
 
-### Sections
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite learning courses list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's courses. `GET /api/v2/LearningService/Courses` |
+| `absuite learning courses count` | Reads |  |  | Count the workspace's courses. `GET /api/v2/LearningService/Courses/Count` |
+| `absuite learning courses get` | Reads | `<id>` | `--columns` | Show one of the workspace's courses. `GET /api/v2/LearningService/Courses/{courseId}` |
+| `absuite learning courses create` | Writes |  | `--title`, `--description`, `--sku`, `--summary`, `--code`, `--course-category-id`, `--instructor-profile-id`, `--currency-id`, `--regular-price`, `--max-course-enrollments`, `--total-effort-in-weeks`, `--total-hours-per-week`, `--total-effort-in-hours`, `--start-date-time`, `--end-date-time`, `--inscriptions-start-date-time`, `--inscriptions-end-date-time`; `--json` `--file` `--dry-run` | Create a record in the workspace's courses. Only in --json: version. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/LearningService/Courses` |
+| `absuite learning courses update` | Writes | `<id>` | `--title`, `--description`, `--sku`, `--summary`, `--code`, `--course-category-id`, `--instructor-profile-id`, `--currency-id`, `--regular-price`, `--max-course-enrollments`, `--total-effort-in-weeks`, `--total-hours-per-week`, `--total-effort-in-hours`, `--start-date-time`, `--end-date-time`, `--inscriptions-start-date-time`, `--inscriptions-end-date-time`, `--published`; `--json` `--file` `--dry-run` | Change one of the workspace's courses: reads it, applies --json/--file and the field flags, then saves it. Only in --json: version. `PUT /api/v2/LearningService/Courses/{courseId}` |
+| `absuite learning courses delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's courses; it asks first unless --yes. `DELETE /api/v2/LearningService/Courses/{courseId}` |
+| `absuite learning courses assignments list` | Reads |  | `--course-id` (required); `--top` `--skip` `--columns` | List the workspace's courses assignments. `GET /api/v2/LearningService/Courses/{courseId}/Assignments` |
+| `absuite learning courses categories list` | Reads |  | `--course-id` (required); `--top` `--skip` `--columns` | List the workspace's courses categories. `GET /api/v2/LearningService/Courses/{courseId}/Categories` |
+| `absuite learning courses cohorts list` | Reads |  | `--course-id` (required); `--top` `--skip` `--columns` | List the workspace's courses cohorts. `GET /api/v2/LearningService/Courses/{courseId}/Cohorts` |
+| `absuite learning courses content-groups list` | Reads |  | `--course-id` (required); `--top` `--skip` `--columns` | List the workspace's courses content-groups. `GET /api/v2/LearningService/Courses/{courseId}/ContentGroups` |
+| `absuite learning courses enrollment-codes list` | Reads |  | `--course-id` (required); `--columns` | List the workspace's courses enrollment-codes. `GET /api/v2/LearningService/Courses/{courseId}/EnrollmentCodes` |
+| `absuite learning courses files list` | Reads |  | `--course-id` (required); `--top` `--skip` `--columns` | List the workspace's courses files. `GET /api/v2/LearningService/Courses/{courseId}/Files` |
+| `absuite learning courses forums list` | Reads |  | `--course-id` (required); `--top` `--skip` `--columns` | List the workspace's courses forums. `GET /api/v2/LearningService/Courses/{courseId}/Forums` |
+| `absuite learning courses handouts list` | Reads |  | `--course-id` (required); `--top` `--skip` `--columns` | List the workspace's courses handouts. `GET /api/v2/LearningService/Courses/{courseId}/Handouts` |
+| `absuite learning courses instructors list` | Reads |  | `--course-id` (required); `--top` `--skip` `--columns` | List the workspace's courses instructors. `GET /api/v2/LearningService/Courses/{courseId}/Instructors` |
+| `absuite learning courses libraries list` | Reads |  | `--course-id` (required); `--top` `--skip` `--columns` | List the workspace's courses libraries. `GET /api/v2/LearningService/Courses/{courseId}/Libraries` |
+| `absuite learning courses pages list` | Reads |  | `--course-id` (required); `--top` `--skip` `--columns` | List the workspace's courses pages. `GET /api/v2/LearningService/Courses/{courseId}/Pages` |
+| `absuite learning courses problem-sets list` | Reads |  | `--course-id` (required); `--top` `--skip` `--columns` | List the workspace's courses problem-sets. `GET /api/v2/LearningService/Courses/{courseId}/ProblemSets` |
+| `absuite learning courses reviews list` | Reads |  | `--course-id` (required); `--top` `--skip` `--columns` | List the workspace's courses reviews. `GET /api/v2/LearningService/Courses/{courseId}/Reviews` |
+| `absuite learning courses sections list` | Reads |  | `--course-id` (required); `--top` `--skip` `--columns` | List the workspace's courses sections. `GET /api/v2/LearningService/Courses/{courseId}/Sections` |
+| `absuite learning courses students list` | Reads |  | `--course-id` (required); `--columns` | List the workspace's courses students. `GET /api/v2/LearningService/Courses/{courseId}/Students` |
+| `absuite learning courses tags list` | Reads |  | `--course-id` (required); `--top` `--skip` `--columns` | List the workspace's courses tags. `GET /api/v2/LearningService/Courses/{courseId}/Tags` |
+| `absuite learning courses unit-components list` | Reads |  | `--course-id` (required); `--top` `--skip` `--columns` | List the workspace's courses unit-components. `GET /api/v2/LearningService/Courses/{courseId}/UnitComponents` |
+| `absuite learning courses updates list` | Reads |  | `--course-id` (required); `--top` `--skip` `--columns` | List the workspace's courses updates. `GET /api/v2/LearningService/Courses/{courseId}/Updates` |
+| `absuite learning courses wikis list` | Reads |  | `--course-id` (required); `--top` `--skip` `--columns` | List the workspace's courses wikis. `GET /api/v2/LearningService/Courses/{courseId}/Wikis` |
+| `absuite learning courses articles count` | Reads |  | `--course-id` (required), `--wiki-id` (required) | Count the workspace's courses articles. `GET /api/v2/LearningService/Courses/{courseId}/Articles/{wikiId}/Count` |
+| `absuite learning courses assignments count` | Reads |  | `--course-id` (required) | Count the workspace's courses assignments. `GET /api/v2/LearningService/Courses/{courseId}/Assignments/Count` |
+| `absuite learning courses categories count` | Reads |  | `--course-id` (required) | Count the workspace's courses categories. `GET /api/v2/LearningService/Courses/{courseId}/Categories/Count` |
+| `absuite learning courses cohorts count` | Reads |  | `--course-id` (required) | Count the workspace's courses cohorts. `GET /api/v2/LearningService/Courses/{courseId}/Cohorts/Count` |
+| `absuite learning courses content-groups count` | Reads |  | `--course-id` (required) | Count the workspace's courses content-groups. `GET /api/v2/LearningService/Courses/{courseId}/ContentGroups/Count` |
+| `absuite learning courses files count` | Reads |  | `--course-id` (required) | Count the workspace's courses files. `GET /api/v2/LearningService/Courses/{courseId}/Files/Count` |
+| `absuite learning courses forums count` | Reads |  | `--course-id` (required) | Count the workspace's courses forums. `GET /api/v2/LearningService/Courses/{courseId}/Forums/Count` |
+| `absuite learning courses handouts count` | Reads |  | `--course-id` (required) | Count the workspace's courses handouts. `GET /api/v2/LearningService/Courses/{courseId}/Handouts/Count` |
+| `absuite learning courses instructors count` | Reads |  | `--course-id` (required) | Count the workspace's courses instructors. `GET /api/v2/LearningService/Courses/{courseId}/Instructors/Count` |
+| `absuite learning courses libraries count` | Reads |  | `--course-id` (required) | Count the workspace's courses libraries. `GET /api/v2/LearningService/Courses/{courseId}/Libraries/Count` |
+| `absuite learning courses pages count` | Reads |  | `--course-id` (required) | Count the workspace's courses pages. `GET /api/v2/LearningService/Courses/{courseId}/Pages/Count` |
+| `absuite learning courses problem-sets count` | Reads |  | `--course-id` (required) | Count the workspace's courses problem-sets. `GET /api/v2/LearningService/Courses/{courseId}/ProblemSets/Count` |
+| `absuite learning courses sections count` | Reads |  | `--course-id` (required) | Count the workspace's courses sections. `GET /api/v2/LearningService/Courses/{courseId}/Sections/Count` |
+| `absuite learning courses students count` | Reads |  | `--course-id` (required) | Count the workspace's courses students. `GET /api/v2/LearningService/Courses/{courseId}/Students/Count` |
+| `absuite learning courses unit-components count` | Reads |  | `--course-id` (required) | Count the workspace's courses unit-components. `GET /api/v2/LearningService/Courses/{courseId}/UnitComponents/Count` |
+| `absuite learning courses units count` | Reads |  | `--course-id` (required), `--section-id` (required) | Count the workspace's courses units. `GET /api/v2/LearningService/Courses/{courseId}/Units/{sectionId}/Count` |
+| `absuite learning courses updates count` | Reads |  | `--course-id` (required) | Count the workspace's courses updates. `GET /api/v2/LearningService/Courses/{courseId}/Updates/Count` |
+| `absuite learning courses wikis count` | Reads |  | `--course-id` (required) | Count the workspace's courses wikis. `GET /api/v2/LearningService/Courses/{courseId}/Wikis/Count` |
+| `absuite learning courses articles get` | Reads | `<id>` | `--course-id` (required); `--columns` | Show one of the workspace's courses articles. `GET /api/v2/LearningService/Courses/{courseId}/Articles/{wikiId}` |
+| `absuite learning courses units get` | Reads | `<id>` | `--course-id` (required); `--columns` | Show one of the workspace's courses units. `GET /api/v2/LearningService/Courses/{courseId}/Units/{sectionId}` |
 
-```bash
-absuite learning list course-sections --TenantId $TENANT_ID
-absuite learning count course-sections --TenantId $TENANT_ID
-absuite learning get course-section-by-id --CourseSectionId <section-guid>
-# Create — name + courseId REQUIRED
-absuite learning create course-section --TenantId $TENANT_ID --CourseSectionCreateDto '{
-  "name": "Week 1: Fundamentals",
-  "courseId": "<course-guid>",
-  "hideFromStudents": false
-}'
-absuite learning update course-section --TenantId $TENANT_ID --CourseSectionId <section-guid> --CourseSectionUpdateDto '{"name":"Week 1 (Revised)"}'
-absuite learning delete course-section --TenantId $TENANT_ID --CourseSectionId <section-guid>
-```
+### Instructor Profiles (`absuite learning instructor-profiles`)
 
-### Units
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite learning instructor-profiles list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's instructor-profiles. `GET /api/v2/LearningService/InstructorProfiles` |
+| `absuite learning instructor-profiles count` | Reads |  |  | Count the workspace's instructor-profiles. `GET /api/v2/LearningService/InstructorProfiles/Count` |
+| `absuite learning instructor-profiles get` | Reads | `<id>` | `--columns` | Show one of the workspace's instructor-profiles. `GET /api/v2/LearningService/InstructorProfiles/{instructorProfileId}` |
+| `absuite learning instructor-profiles create` | Writes |  | `--authorized`, `--contact-id`, `--about`, `--avatar-url`, `--data`, `--data-label`, `--data1`, `--data1-label`, `--data2`, `--data2-label`, `--data3`, `--data3-label`, `--data4`, `--data4-label`, `--data5`, `--data5-label`, `--data6`, `--data6-label`, `--data7`, `--data7-label`, `--data8`, `--data8-label`, `--data9`, `--data9-label`; `--json` `--file` `--dry-run` | Create a record in the workspace's instructor-profiles. Never set here: type (not settable: discriminator (TPH rule)); id (set by the server); timestamp (set by the server). `POST /api/v2/LearningService/InstructorProfiles` |
+| `absuite learning instructor-profiles update` | Writes | `<id>` | `--authorized`, `--contact-id`, `--about`, `--avatar-url`, `--data`, `--data-label`, `--data1`, `--data1-label`, `--data2`, `--data2-label`, `--data3`, `--data3-label`, `--data4`, `--data4-label`, `--data5`, `--data5-label`, `--data6`, `--data6-label`, `--data7`, `--data7-label`, `--data8`, `--data8-label`, `--data9`, `--data9-label`; `--json` `--file` `--dry-run` | Change one of the workspace's instructor-profiles: reads it, applies --json/--file and the field flags, then saves it. Never set here: type (not settable: discriminator (TPH rule)). `PUT /api/v2/LearningService/InstructorProfiles/{instructorProfileId}` |
+| `absuite learning instructor-profiles delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's instructor-profiles; it asks first unless --yes. `DELETE /api/v2/LearningService/InstructorProfiles/{instructorProfileId}` |
 
-ID param `--CourseUnitId`. Create DTO `--CourseUnitCreateDto`: `title` REQ, `courseId` REQ, `courseSectionId` REQ, plus `description`, `content`, `courseContentGroupId`, `releaseDateTime`.
+### Student Profiles (`absuite learning student-profiles`)
 
-```bash
-absuite learning list course-units --TenantId $TENANT_ID
-absuite learning get course-unit-by-id --CourseUnitId <unit-guid>
-absuite learning create course-unit --TenantId $TENANT_ID --CourseUnitCreateDto '{
-  "title": "Introduction to AWS",
-  "courseId": "<course-guid>",
-  "courseSectionId": "<section-guid>"
-}'
-absuite learning update course-unit --TenantId $TENANT_ID --CourseUnitId <unit-guid> --CourseUnitUpdateDto '{...}'
-absuite learning delete course-unit --TenantId $TENANT_ID --CourseUnitId <unit-guid>
-```
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite learning student-profiles list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's student-profiles. `GET /api/v2/LearningService/StudentProfiles` |
+| `absuite learning student-profiles count` | Reads |  |  | Count the workspace's student-profiles. `GET /api/v2/LearningService/StudentProfiles/Count` |
+| `absuite learning student-profiles get` | Reads | `<id>` | `--columns` | Show one of the workspace's student-profiles. `GET /api/v2/LearningService/StudentProfiles/{studentProfileId}` |
+| `absuite learning student-profiles create` | Writes |  | `--contact-id`, `--about`, `--avatar-url`, `--data`, `--data-label`, `--data1`, `--data1-label`, `--data2`, `--data2-label`, `--data3`, `--data3-label`, `--data4`, `--data4-label`, `--data5`, `--data5-label`, `--data6`, `--data6-label`, `--data7`, `--data7-label`, `--data8`, `--data8-label`, `--data9`, `--data9-label`; `--json` `--file` `--dry-run` | Create a record in the workspace's student-profiles. Never set here: type (not settable: discriminator (TPH rule)); id (set by the server); timestamp (set by the server). `POST /api/v2/LearningService/StudentProfiles` |
+| `absuite learning student-profiles update` | Writes | `<id>` | `--contact-id`, `--about`, `--avatar-url`, `--data`, `--data-label`, `--data1`, `--data1-label`, `--data2`, `--data2-label`, `--data3`, `--data3-label`, `--data4`, `--data4-label`, `--data5`, `--data5-label`, `--data6`, `--data6-label`, `--data7`, `--data7-label`, `--data8`, `--data8-label`, `--data9`, `--data9-label`; `--json` `--file` `--dry-run` | Change one of the workspace's student-profiles: reads it, applies --json/--file and the field flags, then saves it. Never set here: type (not settable: discriminator (TPH rule)). `PUT /api/v2/LearningService/StudentProfiles/{studentProfileId}` |
+| `absuite learning student-profiles delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's student-profiles; it asks first unless --yes. `DELETE /api/v2/LearningService/StudentProfiles/{studentProfileId}` |
+| `absuite learning student-profiles average show` | Reads |  | `--student-profile-id` (required); `--columns` | Show the workspace's student-profiles average. `GET /api/v2/LearningService/StudentProfiles/{studentProfileId}/Average` |
+| `absuite learning student-profiles hours-completed show` | Reads |  | `--student-profile-id` (required); `--columns` | Show the workspace's student-profiles hours-completed. `GET /api/v2/LearningService/StudentProfiles/{studentProfileId}/HoursCompleted` |
+| `absuite learning student-profiles pending-tasks show` | Reads |  | `--student-profile-id` (required); `--columns` | Show the workspace's student-profiles pending-tasks. `GET /api/v2/LearningService/StudentProfiles/{studentProfileId}/PendingTasks` |
 
-### Unit Components
-
-ID param `--CourseUnitComponentId`. Create DTO `--CourseUnitComponentCreateDto`: `title` REQ, `courseId` REQ, plus `description`, `content`, `order`, `courseUnitId`.
-
-### Content Groups
-
-ID param `--CourseContentGroupId`. Create DTO `--CourseContentGroupCreateDto`: `name` REQ, `courseId` REQ.
-
-## Cohorts & Enrollments
-
-### Cohorts
-
-ID param `--CourseCohortId`. Create DTO `--CourseCohortCreateDto`: `name` REQ, `courseId` REQ, plus `startDateTime`, `endDateTime`, `expectedStartDateTime`, `expectedEndDateTime`.
-
-```bash
-absuite learning list course-cohorts --TenantId $TENANT_ID
-absuite learning get course-cohort-by-id --CourseCohortId <cohort-guid>
-absuite learning create course-cohort --TenantId $TENANT_ID --CourseCohortCreateDto '{"name":"Spring 2026","courseId":"<course-guid>"}'
-```
-
-### Enrollments
-
-ID param `--CourseEnrollmentId`. **Get-by-id requires `--TenantId`.** Create DTO fields all optional: `courseId`, `courseCohortId`, `studentProfileId`, `courseCompletionCertificateId`.
-
-```bash
-absuite learning list enrollments --TenantId $TENANT_ID
-absuite learning count enrollments --TenantId $TENANT_ID
-absuite learning get course-enrollment --TenantId $TENANT_ID --CourseEnrollmentId <enrollment-guid>
-absuite learning create course-enrollment --TenantId $TENANT_ID --CourseEnrollmentCreateDto '{
-  "courseId": "<course-guid>",
-  "studentProfileId": "<student-guid>"
-}'
-absuite learning update course-enrollment --TenantId $TENANT_ID --CourseEnrollmentId <enrollment-guid> --CourseEnrollmentUpdateDto '{"courseCohortId":"<cohort-guid>"}'
-absuite learning delete course-enrollment --TenantId $TENANT_ID --CourseEnrollmentId <enrollment-guid>
-# Enrollments for a specific student (tenant REQUIRED)
-absuite learning get student-course-enrollments --TenantId $TENANT_ID --StudentProfileId <student-guid>
-```
-
-## Assignments, Types, Components & Problem Sets
-
-### Assignments
-
-ID param `--CourseAssignmentId`. Create DTO `--CourseAssignmentCreateDto`: `title` REQ, `courseId` REQ, plus `description`, `instructions`, `points`, `courseUnitId`, `courseCohortId`, `courseAssignmentTypeId`, `dueDateTime`, `asignToAllCohorts` (note spelling), `resources`.
+## Example
 
 ```bash
-absuite learning list course-assignments --TenantId $TENANT_ID
-absuite learning get course-assignment-by-id --CourseAssignmentId <assignment-guid>
-absuite learning create course-assignment --TenantId $TENANT_ID --CourseAssignmentCreateDto '{
-  "title": "Lab 1",
-  "courseId": "<course-guid>",
-  "points": 100,
-  "asignToAllCohorts": true
-}'
+absuite learning course-articles list --top 5 -o json --query "[].id"
+absuite learning course-articles create --title <value> --description <value> --dry-run   # prints the POST, sends nothing
+absuite learning course-articles create --title <value> --description <value> -o json --no-input
 ```
-
-### Assignment Types
-
-ID param `--CourseAssignmentTypeId`. Create DTO `--CourseAssignmentTypeCreateDto`: `name` REQ, `courseId` REQ, plus `abbreviation`, `weight`, `quantity`, `excluded`.
-
-### Assignment Components
-
-ID param `--CourseAssignmentComponentId`. Create DTO `--CourseAssignmentComponentCreateDto`: `title` REQ, `courseAssignmentId` REQ, `courseId` REQ, plus `description`, `content`, `order`.
-
-### Problem Sets
-
-ID param `--CourseProblemSetId`. Create DTO `--CourseProblemSetCreateDto`: `title` REQ, `courseId` REQ, plus `description`, `overallScore`, `courseUnitId`, `courseGradingRubricId`, `releaseDateTime`.
-
-### Grading Rubrics
-
-ID param `--CourseGradingRubricId`. Create DTO `--CourseGradingRubricCreateDto`: `title` REQ, `courseId` REQ, plus `description`, `enablePoints`.
-
-## Certificates & Templates
-
-### Certificates
-
-ID param `--CourseCertificateId`. **Get-by-id requires `--TenantId`.** Create DTO `--CourseCompletionCertificateCreateDto`: `studentProfileId` REQ, `courseEnrollmentId` REQ, plus `courseCompletionCertificateTemplateId`, `courseId`.
-
-```bash
-absuite learning list course-certificates --TenantId $TENANT_ID
-absuite learning get course-certificate --TenantId $TENANT_ID --CourseCertificateId <cert-guid>
-absuite learning create course-certificate --TenantId $TENANT_ID --CourseCompletionCertificateCreateDto '{
-  "studentProfileId": "<student-guid>",
-  "courseEnrollmentId": "<enrollment-guid>"
-}'
-absuite learning delete course-certificate --TenantId $TENANT_ID --CourseCertificateId <cert-guid>
-```
-
-### Certificate Templates
-
-ID param `--CourseCertificateTemplateId`. **All template commands (incl. get-by-id) require `--TenantId`.** Create DTO `--CourseCertificateTemplateCreateDto`: `courseId` REQ, plus `webPortalId`, `websiteThemeId`, `socialProfileId`, `parentWebContentId`, `parentWebContentVersionId`.
-
-```bash
-absuite learning list course-certificate-templates --TenantId $TENANT_ID
-absuite learning get course-certificate-template --TenantId $TENANT_ID --CourseCertificateTemplateId <template-guid>
-absuite learning create course-certificate-template --TenantId $TENANT_ID --CourseCertificateTemplateCreateDto '{"courseId":"<course-guid>","webPortalId":"<portal-guid>"}'
-absuite learning delete course-certificate-template --TenantId $TENANT_ID --CourseCertificateTemplateId <template-guid>
-```
-
-## Course content & resources
-
-Standard family shape (list/count/get/create/update/delete). Entity, ID param, and create-DTO REQ fields:
-
-| Family | Entity (verb target) | ID param | Create DTO — REQ fields in **bold** |
-|---|---|---|---|
-| Categories | `course-category` | `--CourseCategoryId` | **title**, description, imageURL, isFeatured |
-| Forums | `course-forum` | `--CourseForumId` | **title**, description, **courseId** |
-| Wikis | `course-wiki` | `--CourseWikiId` | **title**, description, **courseId**, courseUnitId, releaseDateTime |
-| Articles | `course-article` | `--CourseArticleId` | **title**, description, content, **courseId**, **courseWikiId** |
-| Pages | `course-page` | `--CoursePageId` | **title**, description, content, slug, **courseId** |
-| Updates | `course-update` | `--CourseUpdateId` | **title**, description, content, **courseId** (DTO `--CourseNewsCreateDto`) |
-| Handouts | `course-handout` | `--CourseHandoutId` | **name**, description, content, url, releaseDateTime, **courseId**, courseUnitId |
-| Files | `course-file` | `--CourseFileId` | **title**, **fileName**, **fileUploadURL**, contentType, fileLength, **courseId** |
-| Libraries | `course-library` | `--CourseLibraryId` | **title**, description, **courseId**, courseUnitId, releaseDateTime |
-
-```bash
-# Example (Articles — courseWikiId is required)
-absuite learning list course-articles --TenantId $TENANT_ID
-absuite learning get course-article-by-id --CourseArticleId <article-guid>
-absuite learning create course-article --TenantId $TENANT_ID --CourseArticleCreateDto '{
-  "title": "What is IaaS?",
-  "content": "...",
-  "courseId": "<course-guid>",
-  "courseWikiId": "<wiki-guid>"
-}'
-```
-
-> The Updates resource takes `--CourseNewsCreateDto` / `--CourseNewsUpdateDto` despite the `course-update` verb target. Categories has no `courseId` in its create body.
-
-## Team Memberships
-
-ID param `--CourseTeamMembershipId`. Create DTO `--CourseTeamMembershipCreateDto`: `courseId` REQ, `instructorProfileId` REQ, `courseTeamMembershipType` (`Admin` | `Staff`).
-
-```bash
-absuite learning list course-team-memberships --TenantId $TENANT_ID
-absuite learning create course-team-membership --TenantId $TENANT_ID --CourseTeamMembershipCreateDto '{
-  "courseId": "<course-guid>",
-  "instructorProfileId": "<instructor-guid>",
-  "courseTeamMembershipType": "Staff"
-}'
-```
-
-## Instructor & Student Profiles
-
-Both share fields: `type`, `contactId`, `about`, `avatarUrl`, and `data`/`dataLabel` + `data1`…`data9`/`data1Label`…`data9Label`. Instructor profiles also have `authorized` (boolean). **For both, list/count/get-by-id/create/update/delete all require `--TenantId`.**
-
-### Instructors
-
-ID param `--InstructorProfileId`. Create DTO `--InstructorProfileCreateDto`.
-
-```bash
-absuite learning list instructor-profiles --TenantId $TENANT_ID
-absuite learning count instructor-profiles --TenantId $TENANT_ID
-absuite learning get instructor-profile --TenantId $TENANT_ID --InstructorProfileId <instructor-guid>
-absuite learning create instructor-profile --TenantId $TENANT_ID --InstructorProfileCreateDto '{
-  "contactId": "<contact-guid>",
-  "about": "Cloud architect and instructor.",
-  "authorized": true
-}'
-```
-
-### Students
-
-ID param `--StudentProfileId`. Create DTO `--StudentProfileCreateDto`. Plus two per-student stat reads (tenant REQUIRED):
-
-```bash
-absuite learning list student-profiles --TenantId $TENANT_ID
-absuite learning get student-profile --TenantId $TENANT_ID --StudentProfileId <student-guid>
-absuite learning get student-average --TenantId $TENANT_ID --StudentProfileId <student-guid>
-absuite learning get student-hours-completed --TenantId $TENANT_ID --StudentProfileId <student-guid>
-```
-
-## My Learning (Me) — user-scoped, NO tenant
-
-Read-only commands resolved from your logged-in session. **Do not pass `--TenantId`.**
-
-```bash
-absuite learning get my-average-score
-absuite learning get my-certificates
-absuite learning count my-certificates
-absuite learning get my-courses              # courses I'm enrolled in as a student
-absuite learning count my-courses
-absuite learning get my-enrollments
-absuite learning count my-enrollments
-absuite learning get my-hours-completed
-absuite learning get my-instructor-courses
-absuite learning count my-instructor-courses
-absuite learning get my-instructor-profiles
-absuite learning count my-instructor-profiles
-absuite learning get my-pending-tasks
-absuite learning get my-student-profiles
-absuite learning count my-student-profiles
-```
-
-> Verb/entity aliases vary slightly by CLI build. If a `<verb> <entity>` form is not recognized, run `absuite learning list-commands` or use the canonical function name (e.g. `absuite learning Get-MyStudentCoursesAsync`).
-
-## End-to-end workflow
-
-```bash
-# 1. Create a course (title + description REQUIRED)
-absuite learning create course --TenantId $TENANT_ID --CourseCreateDto '{"title":"DevOps 101","description":"CI/CD fundamentals"}'
-# 2. Add a section (name + courseId REQUIRED)
-absuite learning create course-section --TenantId $TENANT_ID --CourseSectionCreateDto '{"name":"Module 1","courseId":"<course-guid>"}'
-# 3. Add a unit (title + courseId + courseSectionId REQUIRED)
-absuite learning create course-unit --TenantId $TENANT_ID --CourseUnitCreateDto '{"title":"Pipelines","courseId":"<course-guid>","courseSectionId":"<section-guid>"}'
-# 4. Enroll a student
-absuite learning create course-enrollment --TenantId $TENANT_ID --CourseEnrollmentCreateDto '{"courseId":"<course-guid>","studentProfileId":"<student-guid>"}'
-# 5. Publish the course (whole-object update; CLI has no PATCH)
-absuite learning update course --TenantId $TENANT_ID --CourseId <course-guid> --CourseUpdateDto '{"title":"DevOps 101","description":"CI/CD fundamentals","published":true}'
-```
-
-> The CLI has no PATCH. To change a couple of fields, fetch the entity, merge your changes, and send the full object via `update` — or use the `absuite-learning` (REST) skill for an atomic JSON Patch.
-
-## CLI Commands Quick Reference
-
-| Action | CLI command |
-|---|---|
-| List courses | `absuite learning list courses --TenantId <guid>` |
-| Count courses | `absuite learning count courses --TenantId <guid>` |
-| Get course | `absuite learning get course-by-id --CourseId <guid>` |
-| Create course | `absuite learning create course --TenantId <guid> --CourseCreateDto '{...}'` |
-| Update course | `absuite learning update course --TenantId <guid> --CourseId <guid> --CourseUpdateDto '{...}'` |
-| Delete course | `absuite learning delete course --TenantId <guid> --CourseId <guid>` |
-| List sections | `absuite learning list course-sections --TenantId <guid>` |
-| Create section | `absuite learning create course-section --TenantId <guid> --CourseSectionCreateDto '{...}'` |
-| List units | `absuite learning list course-units --TenantId <guid>` |
-| Create unit | `absuite learning create course-unit --TenantId <guid> --CourseUnitCreateDto '{...}'` |
-| List unit components | `absuite learning list course-unit-components --TenantId <guid>` |
-| Create unit component | `absuite learning create course-unit-component --TenantId <guid> --CourseUnitComponentCreateDto '{...}'` |
-| List content groups | `absuite learning list course-content-groups --TenantId <guid>` |
-| List cohorts | `absuite learning list course-cohorts --TenantId <guid>` |
-| Create cohort | `absuite learning create course-cohort --TenantId <guid> --CourseCohortCreateDto '{...}'` |
-| List enrollments | `absuite learning list enrollments --TenantId <guid>` |
-| Get enrollment | `absuite learning get course-enrollment --TenantId <guid> --CourseEnrollmentId <guid>` |
-| Create enrollment | `absuite learning create course-enrollment --TenantId <guid> --CourseEnrollmentCreateDto '{...}'` |
-| Enrollments by student | `absuite learning get student-course-enrollments --TenantId <guid> --StudentProfileId <guid>` |
-| List assignments | `absuite learning list course-assignments --TenantId <guid>` |
-| Create assignment | `absuite learning create course-assignment --TenantId <guid> --CourseAssignmentCreateDto '{...}'` |
-| List assignment types | `absuite learning list course-assignment-types --TenantId <guid>` |
-| List assignment components | `absuite learning list course-assignment-components --TenantId <guid>` |
-| List problem sets | `absuite learning list course-problem-sets --TenantId <guid>` |
-| Create problem set | `absuite learning create course-problem-set --TenantId <guid> --CourseProblemSetCreateDto '{...}'` |
-| List grading rubrics | `absuite learning list course-grading-rubrics --TenantId <guid>` |
-| List certificates | `absuite learning list course-certificates --TenantId <guid>` |
-| Create certificate | `absuite learning create course-certificate --TenantId <guid> --CourseCompletionCertificateCreateDto '{...}'` |
-| List certificate templates | `absuite learning list course-certificate-templates --TenantId <guid>` |
-| Create certificate template | `absuite learning create course-certificate-template --TenantId <guid> --CourseCertificateTemplateCreateDto '{...}'` |
-| List categories | `absuite learning list course-categories --TenantId <guid>` |
-| List forums | `absuite learning list course-forums --TenantId <guid>` |
-| List wikis | `absuite learning list course-wikis --TenantId <guid>` |
-| List articles | `absuite learning list course-articles --TenantId <guid>` |
-| List pages | `absuite learning list course-pages --TenantId <guid>` |
-| List updates | `absuite learning list course-updates --TenantId <guid>` |
-| List handouts | `absuite learning list course-handouts --TenantId <guid>` |
-| List files | `absuite learning list course-files --TenantId <guid>` |
-| List libraries | `absuite learning list course-libraries --TenantId <guid>` |
-| List team memberships | `absuite learning list course-team-memberships --TenantId <guid>` |
-| List instructor profiles | `absuite learning list instructor-profiles --TenantId <guid>` |
-| List student profiles | `absuite learning list student-profiles --TenantId <guid>` |
-| Student average | `absuite learning get student-average --TenantId <guid> --StudentProfileId <guid>` |
-| Student hours completed | `absuite learning get student-hours-completed --TenantId <guid> --StudentProfileId <guid>` |
-| My enrolled courses | `absuite learning get my-courses` |
-| My enrollments | `absuite learning get my-enrollments` |
-| My certificates | `absuite learning get my-certificates` |
-| My average score | `absuite learning get my-average-score` |
-| My instructor courses | `absuite learning get my-instructor-courses` |
-| My pending tasks | `absuite learning get my-pending-tasks` |
-
-## Critical Rules
-
-- **Authenticate first** with `absuite login` (see `absuite-login-cli`).
-- **Tenant scoping is per-command.** Top-level list/count/create/update/delete need `--TenantId` (or a configured default); most get-by-id and by-course reads do not; Enrollments/Certificates/Templates/Profiles get-by-id do; `Me/*` commands take none.
-- **Course hierarchy**: Course → Section → Unit → Unit Component. Create in order; Units need both `courseId` and `courseSectionId`; Articles need `courseWikiId`.
-- **No PATCH in the CLI.** Use full-object `update`, or the `absuite-learning` REST skill for atomic JSON Patch.
-- **DTO field names are camelCase** exactly as in the API (`imageURL`, `fileUploadURL`, `asignToAllCohorts`).
-- **Use `--help`** on any command for its full DTO schema: `absuite learning create course --help`.

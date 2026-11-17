@@ -1,687 +1,318 @@
 ---
 name: absuite-hrms-cli
 key: fenixalliance.absuite.hrms-cli
-version: 1.0.0
+version: 1.1.0
 description: >
-  Manage human resources in the Alliance Business Suite (ABS) using the `absuite`
-  CLI. Covers employees, employers, employee types, job titles, salaries, payrolls,
-  payroll periods, gigs, job offers, shifts, schedules, time intervals, leave
-  management, training programs, and performance appraisals via
-  list/count/get/create/update/delete commands. Requires an authenticated CLI
-  session (see absuite-login-cli). For atomic PATCH updates or raw HTTP, use the
-  absuite-hrms (REST) skill.
+  Drive the Alliance Business Suite (ABS) Hrms area with the absuite CLI: 150 commands (81 read, 69
+  write) under `absuite hrms`, each generated from the platform's ServiceClients and checked against
+  `absuite commands -o json`. For routes the CLI does not cover, use the absuite-hrms REST skill.
 ---
 
-# Alliance Business Suite — HRMS Skill (CLI)
+# Alliance Business Suite — Hrms Skill (CLI)
 
-Manage human resources through the `absuite` CLI's `hrms` service. Every command is tenant-scoped and requires an authenticated session. This skill covers list / count / search / get / create / update / delete plus the related actions.
+Generated from the absuite CLI at Platform 9b72a00a47 (`absuite commands -o json`). The commands, arguments and options below are the CLI's own; re-run `absuite commands -o json` before relying on one.
 
-> The `absuite` CLI does **not** support PATCH (JSON Patch) operations. For atomic partial updates or raw HTTP, use the `absuite-hrms` (REST) skill. For general CLI conventions across all ABS services, see `absuite-cli`.
+> **Coverage:** the `absuite-hrms` REST skill documents 50 routes; 2 of them have no CLI command (a write the CLI keeps to Studio, a call that is not workspace-scoped, or a field shape it cannot take yet). Use the REST skill for those.
 
-## API usage essentials
+## Before you start
 
-> Full detail in `absuite-cli`.
+- Install: `npm install -g @fenixalliance/absuite` (a self-contained binary per platform). `absuite --version` prints the version.
+- Sign in: `absuite login` (a one-time code in your browser, the default). `absuite me` shows who you are; `absuite account show` shows the profile, server and workspace.
+- Workspace: `absuite account list` lists yours; `absuite account set --tenant <id|name>` saves one. `--tenant <id>` or `ABS_TENANT` picks one for a single command.
+- Agents on their computer: the run token comes from `ABS_TOKEN` or `ABS_TOKEN_FILE` (one of them, never both), used only with `--url` or `ABS_URL`, and only over https:// or to a server on the same computer. The token says who the agent is; the workspace's roles decide what it may do.
+- Scripts and agents: pass `--no-input` (it is also on when stdin is not a terminal, or CI or ABS_NO_TUI is set). Anything that needs input then fails with exit 2 and names the flag to pass.
+- Output: `-o table|json|jsonc|tsv|yaml|none`; `--query "<JMESPath>"` filters the result before it is printed.
+- `absuite commands -o json` lists every command with its options and whether it only reads. Check it before you rely on a command; `absuite <command> --help` shows one.
+- Full sign-in, output, exit-code and run-token rules: the `absuite-cli` skill. Anything not listed here: the `absuite-hrms` REST skill.
 
-- **`update` replaces the ENTIRE object** (it maps to HTTP `PUT`) — a full overwrite, not a merge. **`get` the entity first, change only what you need on the complete object, then `update` with the full body.** A partial `update` (or an incomplete `create`) blanks the omitted fields -> silent data loss.
-- **No atomic partial update in the CLI.** For a safe single-field change, use the `absuite-hrms` REST skill's `PATCH` (JSON Patch), where that service exposes one.
-- Use **`count <entity>`** (a dedicated operation) to size a collection. OData filtering/paging (`$filter`, `$top`, ...) is REST-only — the CLI does not expose it; use `absuite-hrms` for filtered queries or a filtered count.
+## Commands
 
-## Prerequisites
+150 commands, from `absuite commands -o json`. "Reads" commands never change data. Writes take field flags or `--json`/`--file` with the same fields, and `--dry-run` prints the request without sending it. Deletes ask first unless `--yes` (with `--no-input` and no `--yes`, a delete fails with exit 2).
 
-1. **Authenticate first**: run `absuite login` (see the `absuite-login-cli` skill). Every HRMS command needs a valid session.
-2. **Set your tenant**: either set a default once —
-   ```bash
-   absuite config set --tenant-id <tenant-guid>
-   ```
-   — or pass `--TenantId <tenant-guid>` on every command. Examples below use `$TENANT_ID`.
-3. **Discover commands**: list everything the service exposes, then drill into one command's parameters:
-   ```bash
-   absuite hrms list-commands
-   absuite hrms create employee --help
-   ```
+### Appraisal Stages (`absuite hrms appraisal-stages`)
 
-## Command structure
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite hrms appraisal-stages list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's appraisal-stages. `GET /api/v2/HrmsService/AppraisalStages` |
+| `absuite hrms appraisal-stages count` | Reads |  |  | Count the workspace's appraisal-stages. `GET /api/v2/HrmsService/AppraisalStages/Count` |
+| `absuite hrms appraisal-stages get` | Reads | `<id>` | `--columns` | Show one of the workspace's appraisal-stages. `GET /api/v2/HrmsService/AppraisalStages/{stageId}` |
+| `absuite hrms appraisal-stages create` | Writes |  | `--name`, `--description`, `--appraisal-workflow-id`, `--stage-order`; `--json` `--file` `--dry-run` | Create a record in the workspace's appraisal-stages. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/HrmsService/AppraisalStages` |
+| `absuite hrms appraisal-stages update` | Writes | `<id>` | `--name`, `--description`, `--appraisal-workflow-id`, `--stage-order`; `--json` `--file` `--dry-run` | Change one of the workspace's appraisal-stages: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/HrmsService/AppraisalStages/{stageId}` |
+| `absuite hrms appraisal-stages delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's appraisal-stages; it asks first unless --yes. `DELETE /api/v2/HrmsService/AppraisalStages/{stageId}` |
 
-```
-absuite hrms <verb> <entity> --Param value
-```
+### Appraisal Workflows (`absuite hrms appraisal-workflows`)
 
-- The **service token** is `hrms` (the `HrmsService` API).
-- Common **verbs**: `list`, `count`, `search`, `get`, `create`, `update`, `delete`.
-- The canonical **function-name form** also works and maps 1:1 to the underlying PowerShell SDK cmdlets. The SDK uses PowerShell-approved verbs, so the function names are:
-  - Create → `New-<Entity>Async`
-  - List → `Get-<Entity>sAsync`
-  - Get by id → `Get-<Entity>ByIdAsync`
-  - Count → `Get-<Entity>sCountAsync`
-  - Update → `Update-<Entity>Async`
-  - Delete → `Invoke-Delete<Entity>Async`
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite hrms appraisal-workflows list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's appraisal-workflows. `GET /api/v2/HrmsService/AppraisalWorkflows` |
+| `absuite hrms appraisal-workflows count` | Reads |  |  | Count the workspace's appraisal-workflows. `GET /api/v2/HrmsService/AppraisalWorkflows/Count` |
+| `absuite hrms appraisal-workflows get` | Reads | `<id>` | `--columns` | Show one of the workspace's appraisal-workflows. `GET /api/v2/HrmsService/AppraisalWorkflows/{workflowId}` |
+| `absuite hrms appraisal-workflows create` | Writes |  | `--name`, `--description`; `--json` `--file` `--dry-run` | Create a record in the workspace's appraisal-workflows. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/HrmsService/AppraisalWorkflows` |
+| `absuite hrms appraisal-workflows update` | Writes | `<id>` | `--name`, `--description`; `--json` `--file` `--dry-run` | Change one of the workspace's appraisal-workflows: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/HrmsService/AppraisalWorkflows/{workflowId}` |
+| `absuite hrms appraisal-workflows delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's appraisal-workflows; it asks first unless --yes. `DELETE /api/v2/HrmsService/AppraisalWorkflows/{workflowId}` |
 
-  e.g. `absuite hrms Get-EmployeesAsync --TenantId $TENANT_ID`.
-- **DTO parameters take the full DTO type name** as the flag, passed as a single-quoted JSON string with the **same camelCase field names** as the API — e.g. `--EmployeeProfileCreateDto '{...}'`, `--SalaryCreateDto '{...}'`. (The create/update flag is *not* `--EmployeeCreateDto`; it is `--EmployeeProfileCreateDto`.)
-- Always include `--TenantId $TENANT_ID` (or set a default with `absuite config set --tenant-id`).
+### Employee Appraisal Sessions (`absuite hrms employee-appraisal-sessions`)
 
-> Use `--help` on any command for the authoritative parameter and DTO field list.
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite hrms employee-appraisal-sessions list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's employee-appraisal-sessions. `GET /api/v2/HrmsService/EmployeeAppraisalSessions` |
+| `absuite hrms employee-appraisal-sessions count` | Reads |  |  | Count the workspace's employee-appraisal-sessions. `GET /api/v2/HrmsService/EmployeeAppraisalSessions/Count` |
+| `absuite hrms employee-appraisal-sessions get` | Reads | `<id>` | `--columns` | Show one of the workspace's employee-appraisal-sessions. `GET /api/v2/HrmsService/EmployeeAppraisalSessions/{sessionId}` |
+| `absuite hrms employee-appraisal-sessions create` | Writes |  | `--employee-profile-id`, `--appraisal-workflow-id`, `--appraisal-stage-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's employee-appraisal-sessions. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/HrmsService/EmployeeAppraisalSessions` |
+| `absuite hrms employee-appraisal-sessions update` | Writes | `<id>` | `--employee-profile-id`, `--appraisal-workflow-id`, `--appraisal-stage-id`; `--json` `--file` `--dry-run` | Change one of the workspace's employee-appraisal-sessions: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/HrmsService/EmployeeAppraisalSessions/{sessionId}` |
+| `absuite hrms employee-appraisal-sessions delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's employee-appraisal-sessions; it asks first unless --yes. `DELETE /api/v2/HrmsService/EmployeeAppraisalSessions/{sessionId}` |
 
-## Employees
+### Employee Types (`absuite hrms employee-types`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite hrms employee-types list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's employee-types. `GET /api/v2/HrmsService/EmployeeTypes` |
+| `absuite hrms employee-types count` | Reads |  |  | Count the workspace's employee-types. `GET /api/v2/HrmsService/EmployeeTypes/Count` |
+| `absuite hrms employee-types get` | Reads | `<id>` | `--columns` | Show one of the workspace's employee-types. `GET /api/v2/HrmsService/EmployeeTypes/{employeeTypeId}` |
+| `absuite hrms employee-types create` | Writes |  | `--name`, `--description`; `--json` `--file` `--dry-run` | Create a record in the workspace's employee-types. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/HrmsService/EmployeeTypes` |
+| `absuite hrms employee-types update` | Writes | `<id>` | `--name`, `--description`; `--json` `--file` `--dry-run` | Change one of the workspace's employee-types: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/HrmsService/EmployeeTypes/{employeeTypeId}` |
+| `absuite hrms employee-types delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's employee-types; it asks first unless --yes. `DELETE /api/v2/HrmsService/EmployeeTypes/{employeeTypeId}` |
+
+### Employees (`absuite hrms employees`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite hrms employees list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's employees. `GET /api/v2/HrmsService/Employees` |
+| `absuite hrms employees count` | Reads |  |  | Count the workspace's employees. `GET /api/v2/HrmsService/Employees/Count` |
+| `absuite hrms employees get` | Reads | `<id>` | `--columns` | Show one of the workspace's employees. `GET /api/v2/HrmsService/Employees/{employeeId}` |
+| `absuite hrms employees create` | Writes |  | `--gross-pay`, `--net-salary`, `--payroll-currency`, `--max-work-hours-per-day`, `--job-title-id`, `--employee-type-id`, `--contact-id`, `--about`, `--avatar-url`, `--data`, `--data-label`, `--data1`, `--data1-label`, `--data2`, `--data2-label`, `--data3`, `--data3-label`, `--data4`, `--data4-label`, `--data5`, `--data5-label`, `--data6`, `--data6-label`, `--data7`, `--data7-label`, `--data8`, `--data8-label`, `--data9`, `--data9-label`; `--json` `--file` `--dry-run` | Create a record in the workspace's employees. Never set here: type (not settable: discriminator (TPH rule)); id (set by the server); timestamp (set by the server). `POST /api/v2/HrmsService/Employees` |
+| `absuite hrms employees update` | Writes | `<id>` | `--gross-pay`, `--net-salary`, `--payroll-currency`, `--max-work-hours-per-day`, `--job-title-id`, `--employee-type-id`, `--contact-id`, `--about`, `--avatar-url`, `--data`, `--data-label`, `--data1`, `--data1-label`, `--data2`, `--data2-label`, `--data3`, `--data3-label`, `--data4`, `--data4-label`, `--data5`, `--data5-label`, `--data6`, `--data6-label`, `--data7`, `--data7-label`, `--data8`, `--data8-label`, `--data9`, `--data9-label`; `--json` `--file` `--dry-run` | Change one of the workspace's employees: reads it, applies --json/--file and the field flags, then saves it. Never set here: type (not settable: discriminator (TPH rule)). `PUT /api/v2/HrmsService/Employees/{employeeId}` |
+| `absuite hrms employees delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's employees; it asks first unless --yes. `DELETE /api/v2/HrmsService/Employees/{employeeId}` |
+
+### Employers (`absuite hrms employers`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite hrms employers list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's employers. `GET /api/v2/HrmsService/Employers` |
+| `absuite hrms employers count` | Reads |  |  | Count the workspace's employers. `GET /api/v2/HrmsService/Employers/Count` |
+| `absuite hrms employers get` | Reads | `<id>` | `--columns` | Show one of the workspace's employers. `GET /api/v2/HrmsService/Employers/{employerId}` |
+| `absuite hrms employers create` | Writes |  | `--contact-id`, `--about`, `--avatar-url`, `--data`, `--data-label`, `--data1`, `--data1-label`, `--data2`, `--data2-label`, `--data3`, `--data3-label`, `--data4`, `--data4-label`, `--data5`, `--data5-label`, `--data6`, `--data6-label`, `--data7`, `--data7-label`, `--data8`, `--data8-label`, `--data9`, `--data9-label`; `--json` `--file` `--dry-run` | Create a record in the workspace's employers. Never set here: type (not settable: discriminator (TPH rule)); id (set by the server); timestamp (set by the server). `POST /api/v2/HrmsService/Employers` |
+| `absuite hrms employers update` | Writes | `<id>` | `--contact-id`, `--about`, `--avatar-url`, `--data`, `--data-label`, `--data1`, `--data1-label`, `--data2`, `--data2-label`, `--data3`, `--data3-label`, `--data4`, `--data4-label`, `--data5`, `--data5-label`, `--data6`, `--data6-label`, `--data7`, `--data7-label`, `--data8`, `--data8-label`, `--data9`, `--data9-label`; `--json` `--file` `--dry-run` | Change one of the workspace's employers: reads it, applies --json/--file and the field flags, then saves it. Never set here: type (not settable: discriminator (TPH rule)). `PUT /api/v2/HrmsService/Employers/{employerId}` |
+| `absuite hrms employers delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's employers; it asks first unless --yes. `DELETE /api/v2/HrmsService/Employers/{employerId}` |
+
+### Gig Applications (`absuite hrms gig-applications`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite hrms gig-applications list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's gig-applications. `GET /api/v2/HrmsService/GigApplications` |
+| `absuite hrms gig-applications count` | Reads |  |  | Count the workspace's gig-applications. `GET /api/v2/HrmsService/GigApplications/Count` |
+| `absuite hrms gig-applications get` | Reads | `<id>` | `--columns` | Show one of the workspace's gig-applications. `GET /api/v2/HrmsService/GigApplications/{gigApplicationId}` |
+
+### Gigs (`absuite hrms gigs`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite hrms gigs list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's gigs. `GET /api/v2/HrmsService/Gigs` |
+| `absuite hrms gigs count` | Reads |  |  | Count the workspace's gigs. `GET /api/v2/HrmsService/Gigs/Count` |
+| `absuite hrms gigs get` | Reads | `<id>` | `--columns` | Show one of the workspace's gigs. `GET /api/v2/HrmsService/Gigs/{gigId}` |
+| `absuite hrms gigs create` | Writes |  | `--remote`, `--title`, `--description`, `--expected-delivery-date`, `--employer-profile-id`, `--min-budget`, `--max-budget`, `--currency-id`, `--country-id`, `--country-state-id`, `--city-id`, `--location`, `--external-url`, `--data`, `--data-label`, `--data1`, `--data1-label`, `--data2`, `--data2-label`, `--data3`, `--data3-label`, `--data4`, `--data4-label`, `--data5`, `--data5-label`, `--data6`, `--data6-label`, `--data7`, `--data7-label`, `--data8`, `--data8-label`, `--data9`, `--data9-label`; `--json` `--file` `--dry-run` | Create a record in the workspace's gigs. Never set here: type (not settable: discriminator (TPH rule)); id (set by the server); timestamp (set by the server). `POST /api/v2/HrmsService/Gigs` |
+| `absuite hrms gigs update` | Writes | `<id>` | `--remote`, `--title`, `--description`, `--expected-delivery-date`, `--employer-profile-id`, `--min-budget`, `--max-budget`, `--currency-id`, `--country-id`, `--country-state-id`, `--city-id`, `--location`, `--external-url`, `--data`, `--data-label`, `--data1`, `--data1-label`, `--data2`, `--data2-label`, `--data3`, `--data3-label`, `--data4`, `--data4-label`, `--data5`, `--data5-label`, `--data6`, `--data6-label`, `--data7`, `--data7-label`, `--data8`, `--data8-label`, `--data9`, `--data9-label`; `--json` `--file` `--dry-run` | Change one of the workspace's gigs: reads it, applies --json/--file and the field flags, then saves it. Never set here: type (not settable: discriminator (TPH rule)). `PUT /api/v2/HrmsService/Gigs/{gigId}` |
+| `absuite hrms gigs delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's gigs; it asks first unless --yes. `DELETE /api/v2/HrmsService/Gigs/{gigId}` |
+
+### Job Applicants (`absuite hrms job-applicants`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite hrms job-applicants list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's job-applicants. `GET /api/v2/HrmsService/JobApplicants` |
+| `absuite hrms job-applicants count` | Reads |  |  | Count the workspace's job-applicants. `GET /api/v2/HrmsService/JobApplicants/Count` |
+| `absuite hrms job-applicants get` | Reads | `<id>` | `--columns` | Show one of the workspace's job-applicants. `GET /api/v2/HrmsService/JobApplicants/{jobApplicantId}` |
+| `absuite hrms job-applicants create` | Writes |  | `--available-for-hire`, `--career-level`, `--experience-in-years`, `--current-salary`, `--min-salary-expectation`, `--max-salary-expectation`, `--currency-id`, `--contact-id`, `--about`, `--avatar-url`, `--data`, `--data-label`, `--data1`, `--data1-label`, `--data2`, `--data2-label`, `--data3`, `--data3-label`, `--data4`, `--data4-label`, `--data5`, `--data5-label`, `--data6`, `--data6-label`, `--data7`, `--data7-label`, `--data8`, `--data8-label`, `--data9`, `--data9-label`; `--json` `--file` `--dry-run` | Create a record in the workspace's job-applicants. Never set here: type (not settable: discriminator (TPH rule)); id (set by the server); timestamp (set by the server). `POST /api/v2/HrmsService/JobApplicants` |
+| `absuite hrms job-applicants update` | Writes | `<id>` | `--available-for-hire`, `--career-level`, `--experience-in-years`, `--current-salary`, `--min-salary-expectation`, `--max-salary-expectation`, `--currency-id`, `--contact-id`, `--about`, `--avatar-url`, `--data`, `--data-label`, `--data1`, `--data1-label`, `--data2`, `--data2-label`, `--data3`, `--data3-label`, `--data4`, `--data4-label`, `--data5`, `--data5-label`, `--data6`, `--data6-label`, `--data7`, `--data7-label`, `--data8`, `--data8-label`, `--data9`, `--data9-label`; `--json` `--file` `--dry-run` | Change one of the workspace's job-applicants: reads it, applies --json/--file and the field flags, then saves it. Never set here: type (not settable: discriminator (TPH rule)). `PUT /api/v2/HrmsService/JobApplicants/{jobApplicantId}` |
+| `absuite hrms job-applicants delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's job-applicants; it asks first unless --yes. `DELETE /api/v2/HrmsService/JobApplicants/{jobApplicantId}` |
+
+### Job Applications (`absuite hrms job-applications`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite hrms job-applications list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's job-applications. `GET /api/v2/HrmsService/JobApplications` |
+| `absuite hrms job-applications count` | Reads |  |  | Count the workspace's job-applications. `GET /api/v2/HrmsService/JobApplications/Count` |
+| `absuite hrms job-applications get` | Reads | `<id>` | `--columns` | Show one of the workspace's job-applications. `GET /api/v2/HrmsService/JobApplications/{jobApplicationId}` |
+
+### Job Fields (`absuite hrms job-fields`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite hrms job-fields list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's job-fields. `GET /api/v2/HrmsService/JobFields` |
+| `absuite hrms job-fields count` | Reads |  |  | Count the workspace's job-fields. `GET /api/v2/HrmsService/JobFields/Count` |
+| `absuite hrms job-fields get` | Reads | `<id>` | `--columns` | Show one of the workspace's job-fields. `GET /api/v2/HrmsService/JobFields/{jobFieldId}` |
+| `absuite hrms job-fields create` | Writes |  | `--name`, `--image-url`, `--description`; `--json` `--file` `--dry-run` | Create a record in the workspace's job-fields. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/HrmsService/JobFields` |
+| `absuite hrms job-fields update` | Writes | `<id>` | `--name`, `--image-url`, `--description`; `--json` `--file` `--dry-run` | Change one of the workspace's job-fields: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/HrmsService/JobFields/{jobFieldId}` |
+| `absuite hrms job-fields delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's job-fields; it asks first unless --yes. `DELETE /api/v2/HrmsService/JobFields/{jobFieldId}` |
+
+### Job Offer Fields (`absuite hrms job-offer-fields`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite hrms job-offer-fields list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's job-offer-fields. `GET /api/v2/HrmsService/JobOfferFields` |
+| `absuite hrms job-offer-fields count` | Reads |  |  | Count the workspace's job-offer-fields. `GET /api/v2/HrmsService/JobOfferFields/Count` |
+| `absuite hrms job-offer-fields get` | Reads | `<id>` | `--columns` | Show one of the workspace's job-offer-fields. `GET /api/v2/HrmsService/JobOfferFields/{jobOfferFieldId}` |
+| `absuite hrms job-offer-fields create` | Writes |  | `--job-field-id`, `--job-offer-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's job-offer-fields. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/HrmsService/JobOfferFields` |
+| `absuite hrms job-offer-fields update` | Writes | `<id>` | `--job-field-id`, `--job-offer-id`; `--json` `--file` `--dry-run` | Change one of the workspace's job-offer-fields: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/HrmsService/JobOfferFields/{jobOfferFieldId}` |
+| `absuite hrms job-offer-fields delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's job-offer-fields; it asks first unless --yes. `DELETE /api/v2/HrmsService/JobOfferFields/{jobOfferFieldId}` |
+
+### Job Offers (`absuite hrms job-offers`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite hrms job-offers list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's job-offers. `GET /api/v2/HrmsService/JobOffers` |
+| `absuite hrms job-offers count` | Reads |  |  | Count the workspace's job-offers. `GET /api/v2/HrmsService/JobOffers/Count` |
+| `absuite hrms job-offers get` | Reads | `<id>` | `--columns` | Show one of the workspace's job-offers. `GET /api/v2/HrmsService/JobOffers/{jobOfferId}` |
+| `absuite hrms job-offers create` | Writes |  | `--remote`, `--expected-hire-date`, `--title`, `--description`, `--technical-skills`, `--non-technical-skills`, `--certifications`, `--project-experience`, `--technologies`, `--benefits`, `--is-official-job-offer`, `--is-remote-job-offer`, `--is-mid-time-job-offer`, `--is-undergraduate-option`, `--min-overall-experience-years`, `--availiable-positions-count`, `--min-salary-amount`, `--max-salary-amount`, `--currency-id`, `--job-field-id`, `--employer-profile-id`, `--country-id`, `--country-state-id`, `--city-id`, `--image-url`, `--location`, `--external-url`, `--data`, `--data-label`, `--data1`, `--data1-label`, `--data2`, `--data2-label`, `--data3`, `--data3-label`, `--data4`, `--data4-label`, `--data5`, `--data5-label`, `--data6`, `--data6-label`, `--data7`, `--data7-label`, `--data8`, `--data8-label`, `--data9`, `--data9-label`; `--json` `--file` `--dry-run` | Create a record in the workspace's job-offers. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/HrmsService/JobOffers` |
+| `absuite hrms job-offers update` | Writes | `<id>` | `--remote`, `--expected-hire-date`, `--title`, `--description`, `--technical-skills`, `--non-technical-skills`, `--certifications`, `--project-experience`, `--technologies`, `--benefits`, `--is-official-job-offer`, `--is-remote-job-offer`, `--is-mid-time-job-offer`, `--is-undergraduate-option`, `--min-overall-experience-years`, `--availiable-positions-count`, `--min-salary-amount`, `--max-salary-amount`, `--currency-id`, `--job-field-id`, `--employer-profile-id`, `--country-id`, `--country-state-id`, `--city-id`, `--image-url`, `--location`, `--external-url`, `--data`, `--data-label`, `--data1`, `--data1-label`, `--data2`, `--data2-label`, `--data3`, `--data3-label`, `--data4`, `--data4-label`, `--data5`, `--data5-label`, `--data6`, `--data6-label`, `--data7`, `--data7-label`, `--data8`, `--data8-label`, `--data9`, `--data9-label`; `--json` `--file` `--dry-run` | Change one of the workspace's job-offers: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/HrmsService/JobOffers/{jobOfferId}` |
+| `absuite hrms job-offers delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's job-offers; it asks first unless --yes. `DELETE /api/v2/HrmsService/JobOffers/{jobOfferId}` |
+| `absuite hrms job-offers public list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's job-offers public. `GET /api/v2/HrmsService/JobOffers/Public` |
+| `absuite hrms job-offers public count` | Reads |  |  | Count the workspace's job-offers public. `GET /api/v2/HrmsService/JobOffers/Public/Count` |
+| `absuite hrms job-offers public get` | Reads | `<id>` | `--columns` | Show one of the workspace's job-offers public. `GET /api/v2/HrmsService/JobOffers/Public/{jobOfferId}` |
+
+### Job Titles (`absuite hrms job-titles`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite hrms job-titles list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's job-titles. `GET /api/v2/HrmsService/JobTitles` |
+| `absuite hrms job-titles count` | Reads |  |  | Count the workspace's job-titles. `GET /api/v2/HrmsService/JobTitles/Count` |
+| `absuite hrms job-titles get` | Reads | `<id>` | `--columns` | Show one of the workspace's job-titles. `GET /api/v2/HrmsService/JobTitles/{jobTitleId}` |
+| `absuite hrms job-titles create` | Writes |  | `--title`, `--description`, `--gross-pay`, `--net-salary`, `--currency-id`, `--country-id`, `--country-state-id`, `--city-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's job-titles. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/HrmsService/JobTitles` |
+| `absuite hrms job-titles update` | Writes | `<id>` | `--title`, `--description`, `--gross-pay`, `--net-salary`, `--currency-id`, `--country-id`, `--country-state-id`, `--city-id`; `--json` `--file` `--dry-run` | Change one of the workspace's job-titles: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/HrmsService/JobTitles/{jobTitleId}` |
+| `absuite hrms job-titles delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's job-titles; it asks first unless --yes. `DELETE /api/v2/HrmsService/JobTitles/{jobTitleId}` |
+
+### Leave Applications (`absuite hrms leave-applications`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite hrms leave-applications list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's leave-applications. `GET /api/v2/HrmsService/LeaveApplications` |
+| `absuite hrms leave-applications count` | Reads |  |  | Count the workspace's leave-applications. `GET /api/v2/HrmsService/LeaveApplications/Count` |
+| `absuite hrms leave-applications get` | Reads | `<id>` | `--columns` | Show one of the workspace's leave-applications. `GET /api/v2/HrmsService/LeaveApplications/{leaveApplicationId}` |
+
+### Leave Types (`absuite hrms leave-types`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite hrms leave-types list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's leave-types. `GET /api/v2/HrmsService/LeaveTypes` |
+| `absuite hrms leave-types count` | Reads |  |  | Count the workspace's leave-types. `GET /api/v2/HrmsService/LeaveTypes/Count` |
+| `absuite hrms leave-types get` | Reads | `<id>` | `--columns` | Show one of the workspace's leave-types. `GET /api/v2/HrmsService/LeaveTypes/{leaveTypeId}` |
+| `absuite hrms leave-types create` | Writes |  | `--title`, `--description`; `--json` `--file` `--dry-run` | Create a record in the workspace's leave-types. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/HrmsService/LeaveTypes` |
+| `absuite hrms leave-types update` | Writes | `<id>` | `--title`, `--description`; `--json` `--file` `--dry-run` | Change one of the workspace's leave-types: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/HrmsService/LeaveTypes/{leaveTypeId}` |
+| `absuite hrms leave-types delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's leave-types; it asks first unless --yes. `DELETE /api/v2/HrmsService/LeaveTypes/{leaveTypeId}` |
+
+### Payroll Periods (`absuite hrms payroll-periods`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite hrms payroll-periods list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's payroll-periods. `GET /api/v2/HrmsService/PayrollPeriods` |
+| `absuite hrms payroll-periods count` | Reads |  |  | Count the workspace's payroll-periods. `GET /api/v2/HrmsService/PayrollPeriods/Count` |
+| `absuite hrms payroll-periods get` | Reads | `<id>` | `--columns` | Show one of the workspace's payroll-periods. `GET /api/v2/HrmsService/PayrollPeriods/{periodId}` |
+| `absuite hrms payroll-periods create` | Writes |  | `--title`, `--description`, `--start-date`, `--end-date`; `--json` `--file` `--dry-run` | Create a record in the workspace's payroll-periods. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/HrmsService/PayrollPeriods` |
+| `absuite hrms payroll-periods update` | Writes | `<id>` | `--title`, `--description`, `--start-date`, `--end-date`; `--json` `--file` `--dry-run` | Change one of the workspace's payroll-periods: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/HrmsService/PayrollPeriods/{periodId}` |
+| `absuite hrms payroll-periods delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's payroll-periods; it asks first unless --yes. `DELETE /api/v2/HrmsService/PayrollPeriods/{periodId}` |
+
+### Payrolls (`absuite hrms payrolls`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite hrms payrolls list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's payrolls. `GET /api/v2/HrmsService/Payrolls` |
+| `absuite hrms payrolls count` | Reads |  |  | Count the workspace's payrolls. `GET /api/v2/HrmsService/Payrolls/Count` |
+| `absuite hrms payrolls get` | Reads | `<id>` | `--columns` | Show one of the workspace's payrolls. `GET /api/v2/HrmsService/Payrolls/{payrollId}` |
+| `absuite hrms payrolls create` | Writes |  | `--payroll-period-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's payrolls. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/HrmsService/Payrolls` |
+| `absuite hrms payrolls update` | Writes | `<id>` | `--payroll-period-id`; `--json` `--file` `--dry-run` | Change one of the workspace's payrolls: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/HrmsService/Payrolls/{payrollId}` |
+| `absuite hrms payrolls delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's payrolls; it asks first unless --yes. `DELETE /api/v2/HrmsService/Payrolls/{payrollId}` |
+
+### Required Skills (`absuite hrms required-skills`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite hrms required-skills list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's required-skills. `GET /api/v2/HrmsService/RequiredSkills` |
+| `absuite hrms required-skills count` | Reads |  |  | Count the workspace's required-skills. `GET /api/v2/HrmsService/RequiredSkills/Count` |
+| `absuite hrms required-skills get` | Reads | `<id>` | `--columns` | Show one of the workspace's required-skills. `GET /api/v2/HrmsService/RequiredSkills/{requiredSkillId}` |
+| `absuite hrms required-skills create` | Writes |  | `--skill-id`, `--job-offer-id`, `--employer-profile-id`, `--experience-in-years`, `--priority`, `--required-skill-record-type`; `--json` `--file` `--dry-run` | Create a record in the workspace's required-skills. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/HrmsService/RequiredSkills` |
+| `absuite hrms required-skills update` | Writes | `<id>` | `--skill-id`, `--job-offer-id`, `--employer-profile-id`, `--experience-in-years`, `--priority`, `--required-skill-record-type`; `--json` `--file` `--dry-run` | Change one of the workspace's required-skills: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/HrmsService/RequiredSkills/{requiredSkillId}` |
+| `absuite hrms required-skills delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's required-skills; it asks first unless --yes. `DELETE /api/v2/HrmsService/RequiredSkills/{requiredSkillId}` |
+
+### Salaries (`absuite hrms salaries`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite hrms salaries list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's salaries. `GET /api/v2/HrmsService/Salaries` |
+| `absuite hrms salaries count` | Reads |  |  | Count the workspace's salaries. `GET /api/v2/HrmsService/Salaries/Count` |
+| `absuite hrms salaries get` | Reads | `<id>` | `--columns` | Show one of the workspace's salaries. `GET /api/v2/HrmsService/Salaries/{salaryId}` |
+| `absuite hrms salaries create` | Writes |  | `--amount`, `--currency-id`, `--employee-profile-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's salaries. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/HrmsService/Salaries` |
+| `absuite hrms salaries update` | Writes | `<id>` | `--amount`, `--currency-id`, `--employee-profile-id`; `--json` `--file` `--dry-run` | Change one of the workspace's salaries: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/HrmsService/Salaries/{salaryId}` |
+| `absuite hrms salaries delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's salaries; it asks first unless --yes. `DELETE /api/v2/HrmsService/Salaries/{salaryId}` |
+
+### Schedules (`absuite hrms schedules`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite hrms schedules list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's schedules. `GET /api/v2/HrmsService/Schedules` |
+| `absuite hrms schedules count` | Reads |  |  | Count the workspace's schedules. `GET /api/v2/HrmsService/Schedules/Count` |
+| `absuite hrms schedules get` | Reads | `<id>` | `--columns` | Show one of the workspace's schedules. `GET /api/v2/HrmsService/Schedules/{scheduleId}` |
+| `absuite hrms schedules create` | Writes |  | `--name`, `--description`, `--disabled`, `--sunday`, `--monday`, `--tuesday`, `--wednesday`, `--thursday`, `--friday`, `--saturday`, `--unique-interval`, `--is24x7-interval`, `--start`, `--end`, `--timezone-id`, `--fiscal-year-id`, `--holiday-schedule-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's schedules. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/HrmsService/Schedules` |
+| `absuite hrms schedules update` | Writes | `<id>` | `--name`, `--description`, `--disabled`, `--sunday`, `--monday`, `--tuesday`, `--wednesday`, `--thursday`, `--friday`, `--saturday`, `--unique-interval`, `--is24x7-interval`, `--start`, `--end`, `--timezone-id`, `--fiscal-year-id`, `--holiday-schedule-id`; `--json` `--file` `--dry-run` | Change one of the workspace's schedules: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/HrmsService/Schedules/{scheduleId}` |
+| `absuite hrms schedules delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's schedules; it asks first unless --yes. `DELETE /api/v2/HrmsService/Schedules/{scheduleId}` |
+
+### Shifts (`absuite hrms shifts`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite hrms shifts list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's shifts. `GET /api/v2/HrmsService/Shifts` |
+| `absuite hrms shifts count` | Reads |  |  | Count the workspace's shifts. `GET /api/v2/HrmsService/Shifts/Count` |
+| `absuite hrms shifts get` | Reads | `<id>` | `--columns` | Show one of the workspace's shifts. `GET /api/v2/HrmsService/Shifts/{shiftId}` |
+| `absuite hrms shifts create` | Writes |  | `--title`, `--description`, `--start`, `--end`, `--is-break`, `--occust-on-monday`, `--occust-on-tuesday`, `--occust-on-wednesday`, `--occust-on-thursday`, `--occust-on-friday`, `--occust-on-saturday`, `--occust-on-sunday`, `--repeat-every`, `--repetition-criteria`, `--recurrence-start`, `--recurrence-end`, `--day-of-the-week`, `--schedule-id`, `--parent-time-interval-id`, `--employee-profile-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's shifts. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/HrmsService/Shifts` |
+| `absuite hrms shifts update` | Writes | `<id>` | `--title`, `--description`, `--start`, `--end`, `--is-break`, `--occust-on-monday`, `--occust-on-tuesday`, `--occust-on-wednesday`, `--occust-on-thursday`, `--occust-on-friday`, `--occust-on-saturday`, `--occust-on-sunday`, `--repeat-every`, `--repetition-criteria`, `--recurrence-start`, `--recurrence-end`, `--day-of-the-week`, `--schedule-id`, `--parent-time-interval-id`, `--employee-profile-id`; `--json` `--file` `--dry-run` | Change one of the workspace's shifts: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/HrmsService/Shifts/{shiftId}` |
+| `absuite hrms shifts delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's shifts; it asks first unless --yes. `DELETE /api/v2/HrmsService/Shifts/{shiftId}` |
+
+### Time Intervals (`absuite hrms time-intervals`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite hrms time-intervals list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's time-intervals. `GET /api/v2/HrmsService/TimeIntervals` |
+| `absuite hrms time-intervals count` | Reads |  |  | Count the workspace's time-intervals. `GET /api/v2/HrmsService/TimeIntervals/Count` |
+| `absuite hrms time-intervals get` | Reads | `<id>` | `--columns` | Show one of the workspace's time-intervals. `GET /api/v2/HrmsService/TimeIntervals/{timeIntervalId}` |
+| `absuite hrms time-intervals create` | Writes |  | `--title`, `--description`, `--is-break`, `--occust-on-monday`, `--occust-on-tuesday`, `--occust-on-wednesday`, `--occust-on-thursday`, `--occust-on-friday`, `--occust-on-saturday`, `--occust-on-sunday`, `--start`, `--end`, `--repeat-every`, `--schedule-id`, `--parent-time-interval-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's time-intervals. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/HrmsService/TimeIntervals` |
+| `absuite hrms time-intervals update` | Writes | `<id>` | `--title`, `--description`, `--is-break`, `--occust-on-monday`, `--occust-on-tuesday`, `--occust-on-wednesday`, `--occust-on-thursday`, `--occust-on-friday`, `--occust-on-saturday`, `--occust-on-sunday`, `--start`, `--end`, `--repeat-every`, `--parent-time-interval-id`; `--json` `--file` `--dry-run` | Change one of the workspace's time-intervals: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/HrmsService/TimeIntervals/{timeIntervalId}` |
+| `absuite hrms time-intervals delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's time-intervals; it asks first unless --yes. `DELETE /api/v2/HrmsService/TimeIntervals/{timeIntervalId}` |
+
+### Training Program Courses (`absuite hrms training-program-courses`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite hrms training-program-courses list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's training-program-courses. `GET /api/v2/HrmsService/TrainingProgramCourses` |
+| `absuite hrms training-program-courses count` | Reads |  |  | Count the workspace's training-program-courses. `GET /api/v2/HrmsService/TrainingProgramCourses/Count` |
+| `absuite hrms training-program-courses get` | Reads | `<id>` | `--columns` | Show one of the workspace's training-program-courses. `GET /api/v2/HrmsService/TrainingProgramCourses/{courseId}` |
+| `absuite hrms training-program-courses create` | Writes |  | `--training-program-id`, `--course-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's training-program-courses. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/HrmsService/TrainingProgramCourses` |
+| `absuite hrms training-program-courses update` | Writes | `<id>` | `--training-program-id`, `--course-id`; `--json` `--file` `--dry-run` | Change one of the workspace's training-program-courses: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/HrmsService/TrainingProgramCourses/{courseId}` |
+| `absuite hrms training-program-courses delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's training-program-courses; it asks first unless --yes. `DELETE /api/v2/HrmsService/TrainingProgramCourses/{courseId}` |
+
+### Training Program Events (`absuite hrms training-program-events`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite hrms training-program-events list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's training-program-events. `GET /api/v2/HrmsService/TrainingProgramEvents` |
+| `absuite hrms training-program-events count` | Reads |  |  | Count the workspace's training-program-events. `GET /api/v2/HrmsService/TrainingProgramEvents/Count` |
+| `absuite hrms training-program-events get` | Reads | `<id>` | `--columns` | Show one of the workspace's training-program-events. `GET /api/v2/HrmsService/TrainingProgramEvents/{eventId}` |
+| `absuite hrms training-program-events create` | Writes |  | `--title`, `--description`, `--start`, `--end`, `--is-break`, `--occust-on-monday`, `--occust-on-tuesday`, `--occust-on-wednesday`, `--occust-on-thursday`, `--occust-on-friday`, `--occust-on-saturday`, `--occust-on-sunday`, `--repeat-every`, `--repetition-criteria`, `--recurrence-start`, `--recurrence-end`, `--day-of-the-week`, `--schedule-id`, `--parent-time-interval-id`, `--training-program-id`; `--json` `--file` `--dry-run` | Create a record in the workspace's training-program-events. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/HrmsService/TrainingProgramEvents` |
+| `absuite hrms training-program-events update` | Writes | `<id>` | `--title`, `--description`, `--start`, `--end`, `--is-break`, `--occust-on-monday`, `--occust-on-tuesday`, `--occust-on-wednesday`, `--occust-on-thursday`, `--occust-on-friday`, `--occust-on-saturday`, `--occust-on-sunday`, `--repeat-every`, `--repetition-criteria`, `--recurrence-start`, `--recurrence-end`, `--day-of-the-week`, `--schedule-id`, `--parent-time-interval-id`, `--training-program-id`; `--json` `--file` `--dry-run` | Change one of the workspace's training-program-events: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/HrmsService/TrainingProgramEvents/{eventId}` |
+| `absuite hrms training-program-events delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's training-program-events; it asks first unless --yes. `DELETE /api/v2/HrmsService/TrainingProgramEvents/{eventId}` |
+
+### Training Programs (`absuite hrms training-programs`)
+
+| Command | Kind | Arguments | Options | What it does |
+|---|---|---|---|---|
+| `absuite hrms training-programs list` | Reads |  | `--top` `--skip` `--columns` | List the workspace's training-programs. `GET /api/v2/HrmsService/TrainingPrograms` |
+| `absuite hrms training-programs count` | Reads |  |  | Count the workspace's training-programs. `GET /api/v2/HrmsService/TrainingPrograms/Count` |
+| `absuite hrms training-programs get` | Reads | `<id>` | `--columns` | Show one of the workspace's training-programs. `GET /api/v2/HrmsService/TrainingPrograms/{programId}` |
+| `absuite hrms training-programs create` | Writes |  | `--title`, `--description`; `--json` `--file` `--dry-run` | Create a record in the workspace's training-programs. Never set here: id (set by the server); timestamp (set by the server). `POST /api/v2/HrmsService/TrainingPrograms` |
+| `absuite hrms training-programs update` | Writes | `<id>` | `--title`, `--description`; `--json` `--file` `--dry-run` | Change one of the workspace's training-programs: reads it, applies --json/--file and the field flags, then saves it. `PUT /api/v2/HrmsService/TrainingPrograms/{programId}` |
+| `absuite hrms training-programs delete` | Writes | `<id>` | `--yes` `--dry-run` | Delete one of the workspace's training-programs; it asks first unless --yes. `DELETE /api/v2/HrmsService/TrainingPrograms/{programId}` |
+
+## Example
 
 ```bash
-# List
-absuite hrms list employees --TenantId $TENANT_ID
-
-# Count
-absuite hrms count employees --TenantId $TENANT_ID
-
-# Get by ID
-absuite hrms get employee-by-id --TenantId $TENANT_ID --EmployeeId <employee-guid>
-
-# Create  (flag: --EmployeeProfileCreateDto)
-absuite hrms create employee --TenantId $TENANT_ID --EmployeeProfileCreateDto '{
-  "contactId": "<contact-guid>",
-  "type": "Internal",
-  "about": "Backend engineer",
-  "grossPay": 95000.00,
-  "netSalary": 72000.00,
-  "payrollCurrency": "USD",
-  "maxWorkHoursPerDay": 8,
-  "jobTitleId": "<job-title-guid>",
-  "employeeTypeId": "<employee-type-guid>"
-}'
-
-# Update  (flag: --EmployeeProfileUpdateDto)
-absuite hrms update employee --TenantId $TENANT_ID --EmployeeId <employee-guid> --EmployeeProfileUpdateDto '{
-  "grossPay": 105000.00,
-  "employeeTypeId": "<employee-type-guid>"
-}'
-
-# Delete
-absuite hrms delete employee --TenantId $TENANT_ID --EmployeeId <employee-guid>
+absuite hrms appraisal-stages list --top 5 -o json --query "[].id"
+absuite hrms appraisal-stages create --name <value> --description <value> --dry-run   # prints the POST, sends nothing
+absuite hrms appraisal-stages create --name <value> --description <value> -o json --no-input
 ```
-
-Create fields (`EmployeeProfileCreateDto`): `type`, `contactId`, `about`, `avatarUrl`, `data`…`data9` + `*Label`, `grossPay`, `netSalary`, `payrollCurrency`, `maxWorkHoursPerDay`, `jobTitleId`, `employeeTypeId`.
-
-## Employee Types
-
-```bash
-absuite hrms list employee-types --TenantId $TENANT_ID
-absuite hrms count employee-types --TenantId $TENANT_ID
-absuite hrms get employee-type-by-id --TenantId $TENANT_ID --EmployeeTypeId <type-guid>
-
-absuite hrms create employee-type --TenantId $TENANT_ID --EmployeeTypeCreateDto '{
-  "name": "Full-Time",
-  "description": "Standard full-time employment"
-}'
-
-absuite hrms update employee-type --TenantId $TENANT_ID --EmployeeTypeId <type-guid> --EmployeeTypeUpdateDto '{
-  "description": "Updated description"
-}'
-
-absuite hrms delete employee-type --TenantId $TENANT_ID --EmployeeTypeId <type-guid>
-```
-
-Fields (`EmployeeTypeCreateDto` / `EmployeeTypeUpdateDto`): `name`, `description`.
-
-## Employers
-
-```bash
-absuite hrms list employers --TenantId $TENANT_ID
-absuite hrms count employers --TenantId $TENANT_ID
-absuite hrms get employer-by-id --TenantId $TENANT_ID --EmployerId <employer-guid>
-
-absuite hrms create employer --TenantId $TENANT_ID --EmployerProfileCreateDto '{
-  "contactId": "<contact-guid>",
-  "type": "Organization",
-  "about": "Technology company",
-  "avatarUrl": "https://example.com/logo.png"
-}'
-
-absuite hrms update employer --TenantId $TENANT_ID --EmployerId <employer-guid> --EmployerProfileUpdateDto '{
-  "about": "Updated description"
-}'
-
-absuite hrms delete employer --TenantId $TENANT_ID --EmployerId <employer-guid>
-```
-
-Fields (`EmployerProfileCreateDto` / `EmployerProfileUpdateDto`): `type`, `contactId`, `about`, `avatarUrl`, `data`…`data9` + `*Label`.
-
-## Gigs
-
-Short-term or freelance work assignments.
-
-```bash
-absuite hrms list gigs --TenantId $TENANT_ID
-absuite hrms count gigs --TenantId $TENANT_ID
-absuite hrms get gig-by-id --TenantId $TENANT_ID --GigId <gig-guid>
-
-absuite hrms create gig --TenantId $TENANT_ID --GigCreateDto '{
-  "title": "Frontend Development Sprint",
-  "description": "Build checkout flow components",
-  "remote": true,
-  "type": "Project",
-  "expectedDeliveryDate": "2025-04-30",
-  "employerProfileId": "<employer-guid>",
-  "minBudget": 2000.00,
-  "maxBudget": 5000.00,
-  "currencyId": "USD",
-  "location": "Remote"
-}'
-
-absuite hrms update gig --TenantId $TENANT_ID --GigId <gig-guid> --GigUpdateDto '{
-  "maxBudget": 6000.00,
-  "currencyId": "USD"
-}'
-
-absuite hrms delete gig --TenantId $TENANT_ID --GigId <gig-guid>
-```
-
-Fields (`GigCreateDto` / `GigUpdateDto`): `remote`, `type`, `title`, `description`, `expectedDeliveryDate`, `employerProfileId`, `minBudget`, `maxBudget`, `currencyId`, `countryId`, `countryStateId`, `cityId`, `location`, `externalUrl`, `data`…`data9` + `*Label`.
-
-## Job Offers
-
-```bash
-absuite hrms list job-offers --TenantId $TENANT_ID
-absuite hrms count job-offers --TenantId $TENANT_ID
-absuite hrms get job-offer-by-id --TenantId $TENANT_ID --JobOfferId <offer-guid>
-
-absuite hrms create job-offer --TenantId $TENANT_ID --JobOfferCreateDto '{
-  "title": "Senior .NET Developer",
-  "description": "Remote position, full-time",
-  "remote": true,
-  "isOfficialJobOffer": true,
-  "isRemoteJobOffer": true,
-  "minOverallExperienceYears": 5,
-  "availiablePositionsCount": 2,
-  "minSalaryAmount": 90000.00,
-  "maxSalaryAmount": 120000.00,
-  "currencyId": "USD",
-  "jobFieldId": "<job-field-id>",
-  "employerProfileId": "<employer-guid>"
-}'
-
-absuite hrms update job-offer --TenantId $TENANT_ID --JobOfferId <offer-guid> --JobOfferUpdateDto '{
-  "maxSalaryAmount": 130000.00,
-  "currencyId": "USD"
-}'
-
-absuite hrms delete job-offer --TenantId $TENANT_ID --JobOfferId <offer-guid>
-```
-
-Fields (`JobOfferCreateDto` / `JobOfferUpdateDto`): `remote`, `expectedHireDate`, `title`, `description`, `technicalSkills`, `nonTechnicalSkills`, `certifications`, `projectExperience`, `technologies`, `benefits`, `isOfficialJobOffer`, `isRemoteJobOffer`, `isMidTimeJobOffer`, `isUndergraduateOption`, `minOverallExperienceYears`, `availiablePositionsCount` (sic), `minSalaryAmount`, `maxSalaryAmount`, `currencyId`, `jobFieldId`, `employerProfileId`, `countryId`, `countryStateId`, `cityId`, `imageUrl`, `location`, `externalUrl`, `data`…`data9` + `*Label`.
-
-## Compensation
-
-### Job Titles
-
-```bash
-absuite hrms list job-titles --TenantId $TENANT_ID
-absuite hrms count job-titles --TenantId $TENANT_ID
-absuite hrms get job-title-by-id --TenantId $TENANT_ID --JobTitleId <title-guid>
-
-absuite hrms create job-title --TenantId $TENANT_ID --JobTitleCreateDto '{
-  "title": "Senior Software Engineer",
-  "description": "Senior-level engineering role",
-  "grossPay": 120000.00,
-  "netSalary": 90000.00,
-  "currencyId": "USD"
-}'
-
-absuite hrms update job-title --TenantId $TENANT_ID --JobTitleId <title-guid> --JobTitleUpdateDto '{
-  "grossPay": 140000.00,
-  "currencyId": "USD"
-}'
-
-absuite hrms delete job-title --TenantId $TENANT_ID --JobTitleId <title-guid>
-```
-
-Fields (`JobTitleCreateDto` / `JobTitleUpdateDto`): `title`, `description`, `grossPay`, `netSalary`, `currencyId`, `countryId`, `countryStateId`, `cityId`.
-
-### Salaries
-
-```bash
-absuite hrms list salaries --TenantId $TENANT_ID
-absuite hrms count salaries --TenantId $TENANT_ID
-absuite hrms get salary-by-id --TenantId $TENANT_ID --SalaryId <salary-guid>
-
-# Create  (amount, currencyId, employeeProfileId all required)
-absuite hrms create salary --TenantId $TENANT_ID --SalaryCreateDto '{
-  "amount": 85000.00,
-  "currencyId": "USD",
-  "employeeProfileId": "<employee-guid>"
-}'
-
-absuite hrms update salary --TenantId $TENANT_ID --SalaryId <salary-guid> --SalaryUpdateDto '{
-  "amount": 90000.00,
-  "currencyId": "USD",
-  "employeeProfileId": "<employee-guid>"
-}'
-
-absuite hrms delete salary --TenantId $TENANT_ID --SalaryId <salary-guid>
-```
-
-Fields (`SalaryCreateDto`): `amount` (required), `currencyId` (required), `employeeProfileId` (required). `SalaryUpdateDto`: same three fields.
-
-## Payrolls & Payroll Periods
-
-### Payrolls
-
-```bash
-absuite hrms list payrolls --TenantId $TENANT_ID
-absuite hrms count payrolls --TenantId $TENANT_ID
-absuite hrms get payroll-by-id --TenantId $TENANT_ID --PayrollId <payroll-guid>
-
-# Create  (payrollPeriodId required)
-absuite hrms create payroll --TenantId $TENANT_ID --PayrollCreateDto '{
-  "payrollPeriodId": "<period-guid>"
-}'
-
-absuite hrms update payroll --TenantId $TENANT_ID --PayrollId <payroll-guid> --PayrollUpdateDto '{
-  "payrollPeriodId": "<period-guid>"
-}'
-
-absuite hrms delete payroll --TenantId $TENANT_ID --PayrollId <payroll-guid>
-```
-
-Fields (`PayrollCreateDto`): `payrollPeriodId` (required). `PayrollUpdateDto`: `payrollPeriodId`.
-
-### Payroll Periods
-
-The delete/get/update path parameter is `--PeriodId`.
-
-```bash
-absuite hrms list payroll-periods --TenantId $TENANT_ID
-absuite hrms count payroll-periods --TenantId $TENANT_ID
-absuite hrms get payroll-period-by-id --TenantId $TENANT_ID --PeriodId <period-guid>
-
-# Create  (title, startDate, endDate required)
-absuite hrms create payroll-period --TenantId $TENANT_ID --PayrollPeriodCreateDto '{
-  "title": "January 2025",
-  "description": "Monthly payroll window",
-  "startDate": "2025-01-01",
-  "endDate": "2025-01-31"
-}'
-
-absuite hrms update payroll-period --TenantId $TENANT_ID --PeriodId <period-guid> --PayrollPeriodUpdateDto '{
-  "title": "January 2025",
-  "startDate": "2025-01-01",
-  "endDate": "2025-01-31"
-}'
-
-absuite hrms delete payroll-period --TenantId $TENANT_ID --PeriodId <period-guid>
-```
-
-Fields (`PayrollPeriodCreateDto`): `title` (required), `description`, `startDate` (required), `endDate` (required). `PayrollPeriodUpdateDto`: `title`, `description`, `startDate`, `endDate`.
-
-## Shifts & Schedules
-
-### Shifts
-
-```bash
-absuite hrms list shifts --TenantId $TENANT_ID
-absuite hrms count shifts --TenantId $TENANT_ID
-absuite hrms get shift-by-id --TenantId $TENANT_ID --ShiftId <shift-guid>
-
-# Create  (title, start, end, employeeProfileId required)
-absuite hrms create shift --TenantId $TENANT_ID --ShiftCreateDto '{
-  "title": "Morning Shift",
-  "description": "Standard morning block",
-  "start": "2025-02-01T08:00:00Z",
-  "end": "2025-02-01T16:00:00Z",
-  "isBreak": false,
-  "repeatEvery": 1,
-  "repetitionCriteria": "WorkWeek",
-  "dayOfTheWeek": "All",
-  "scheduleId": "<schedule-guid>",
-  "employeeProfileId": "<employee-guid>"
-}'
-
-absuite hrms update shift --TenantId $TENANT_ID --ShiftId <shift-guid> --ShiftUpdateDto '{
-  "start": "2025-02-01T07:00:00Z",
-  "end": "2025-02-01T15:00:00Z"
-}'
-
-absuite hrms delete shift --TenantId $TENANT_ID --ShiftId <shift-guid>
-```
-
-Fields (`ShiftCreateDto`): `title` (required), `description`, `start` (required), `end` (required), `isBreak`, `occustOnMonday`…`occustOnSunday` (sic), `repeatEvery`, `repetitionCriteria`, `recurrenceStart`, `recurrenceEnd`, `dayOfTheWeek`, `scheduleId`, `parentTimeIntervalId`, `employeeProfileId` (required).
-
-- `repetitionCriteria` enum: `NotRepeat` | `WorkWeek` | `Day` | `Month` | `Year`
-- `dayOfTheWeek` enum: `All` | `Sunday` | `Monday` | `Tuesday` | `Wednesday` | `Thursday` | `Friday` | `Saturday`
-
-### Schedules
-
-```bash
-absuite hrms list schedules --TenantId $TENANT_ID
-absuite hrms count schedules --TenantId $TENANT_ID
-absuite hrms get schedule-by-id --TenantId $TENANT_ID --ScheduleId <schedule-guid>
-
-# Create  (name required)
-absuite hrms create schedule --TenantId $TENANT_ID --ScheduleCreateDto '{
-  "name": "Standard Week",
-  "description": "Mon-Fri 9 to 5",
-  "monday": true, "tuesday": true, "wednesday": true, "thursday": true, "friday": true,
-  "saturday": false, "sunday": false,
-  "start": "09:00",
-  "end": "17:00",
-  "timezoneId": "<timezone-id>"
-}'
-
-absuite hrms update schedule --TenantId $TENANT_ID --ScheduleId <schedule-guid> --ScheduleUpdateDto '{
-  "saturday": true
-}'
-
-absuite hrms delete schedule --TenantId $TENANT_ID --ScheduleId <schedule-guid>
-```
-
-Fields (`ScheduleCreateDto` / `ScheduleUpdateDto`): `name` (required on create), `description`, `disabled`, `sunday`, `monday`, `tuesday`, `wednesday`, `thursday`, `friday`, `saturday`, `uniqueInterval`, `is24x7Interval`, `start`, `end`, `timezoneId`, `fiscalYearId`, `holidayScheduleId`.
-
-## Time Intervals
-
-```bash
-absuite hrms list time-intervals --TenantId $TENANT_ID
-absuite hrms count time-intervals --TenantId $TENANT_ID
-absuite hrms get time-interval-by-id --TenantId $TENANT_ID --TimeIntervalId <interval-guid>
-
-# Create  (title, scheduleId required)
-absuite hrms create time-interval --TenantId $TENANT_ID --TimeIntervalCreateDto '{
-  "title": "Lunch Break",
-  "description": "Midday break",
-  "isBreak": true,
-  "start": "12:00",
-  "end": "13:00",
-  "repeatEvery": 1,
-  "scheduleId": "<schedule-guid>"
-}'
-
-absuite hrms update time-interval --TenantId $TENANT_ID --TimeIntervalId <interval-guid> --TimeIntervalUpdateDto '{
-  "start": "12:30",
-  "end": "13:30"
-}'
-
-absuite hrms delete time-interval --TenantId $TENANT_ID --TimeIntervalId <interval-guid>
-```
-
-Fields (`TimeIntervalCreateDto`): `title` (required), `description`, `isBreak`, `occustOnMonday`…`occustOnSunday` (sic), `start`, `end`, `repeatEvery`, `scheduleId` (required), `parentTimeIntervalId`. `TimeIntervalUpdateDto`: same fields **without** `scheduleId`.
-
-## Leave Management
-
-### Leave Types
-
-```bash
-absuite hrms list leave-types --TenantId $TENANT_ID
-absuite hrms count leave-types --TenantId $TENANT_ID
-absuite hrms get leave-type-by-id --TenantId $TENANT_ID --LeaveTypeId <type-guid>
-
-# Create  (title required)
-absuite hrms create leave-type --TenantId $TENANT_ID --LeaveTypeCreateDto '{
-  "title": "Annual Leave",
-  "description": "Paid annual vacation days"
-}'
-
-absuite hrms update leave-type --TenantId $TENANT_ID --LeaveTypeId <type-guid> --LeaveTypeUpdateDto '{
-  "description": "Updated"
-}'
-
-absuite hrms delete leave-type --TenantId $TENANT_ID --LeaveTypeId <type-guid>
-```
-
-Fields (`LeaveTypeCreateDto`): `title` (required), `description`. `LeaveTypeUpdateDto`: `title`, `description`.
-
-### Leave Applications
-
-```bash
-absuite hrms list leave-applications --TenantId $TENANT_ID
-absuite hrms count leave-applications --TenantId $TENANT_ID
-absuite hrms get leave-application-by-id --TenantId $TENANT_ID --LeaveApplicationId <application-guid>
-
-# Create  (leaveTypeId, employeeProfileId required)
-absuite hrms create leave-application --TenantId $TENANT_ID --LeaveApplicationCreateDto '{
-  "justification": "Family vacation",
-  "approved": false,
-  "onReview": true,
-  "leaveTypeId": "<type-guid>",
-  "employeeProfileId": "<employee-guid>"
-}'
-
-absuite hrms update leave-application --TenantId $TENANT_ID --LeaveApplicationId <application-guid> --LeaveApplicationUpdateDto '{
-  "approved": true,
-  "onReview": false
-}'
-
-absuite hrms delete leave-application --TenantId $TENANT_ID --LeaveApplicationId <application-guid>
-```
-
-Fields (`LeaveApplicationCreateDto`): `justification`, `approved`, `onReview`, `leaveTypeId` (required), `employeeProfileId` (required). `LeaveApplicationUpdateDto`: `justification`, `approved`, `onReview`, `leaveTypeId`, `employeeProfileId`.
-
-## Training Programs
-
-### Training Programs
-
-```bash
-absuite hrms list training-programs --TenantId $TENANT_ID
-absuite hrms count training-programs --TenantId $TENANT_ID
-absuite hrms get training-program-by-id --TenantId $TENANT_ID --ProgramId <program-guid>
-
-# Create  (title required)
-absuite hrms create training-program --TenantId $TENANT_ID --TrainingProgramCreateDto '{
-  "title": "Onboarding Program",
-  "description": "New employee onboarding and orientation"
-}'
-
-absuite hrms update training-program --TenantId $TENANT_ID --ProgramId <program-guid> --TrainingProgramUpdateDto '{
-  "description": "Updated"
-}'
-
-absuite hrms delete training-program --TenantId $TENANT_ID --ProgramId <program-guid>
-```
-
-Fields (`TrainingProgramCreateDto`): `title` (required), `description`. `TrainingProgramUpdateDto`: `title`, `description`. Path parameter is `--ProgramId`.
-
-### Training Program Courses
-
-Links a course to a program. The get/update/delete path parameter is `--CourseId` (the join-record id).
-
-```bash
-absuite hrms list training-program-courses --TenantId $TENANT_ID
-absuite hrms count training-program-courses --TenantId $TENANT_ID
-absuite hrms get training-program-course-by-id --TenantId $TENANT_ID --CourseId <course-guid>
-
-# Create  (trainingProgramId, courseId required)
-absuite hrms create training-program-course --TenantId $TENANT_ID --TrainingProgramCourseCreateDto '{
-  "trainingProgramId": "<program-guid>",
-  "courseId": "<course-guid>"
-}'
-
-absuite hrms update training-program-course --TenantId $TENANT_ID --CourseId <course-guid> --TrainingProgramCourseUpdateDto '{
-  "courseId": "<course-guid>"
-}'
-
-absuite hrms delete training-program-course --TenantId $TENANT_ID --CourseId <course-guid>
-```
-
-Fields (`TrainingProgramCourseCreateDto`): `trainingProgramId` (required), `courseId` (required). `TrainingProgramCourseUpdateDto`: `trainingProgramId`, `courseId`.
-
-### Training Program Events
-
-The get/update/delete path parameter is `--EventId`.
-
-```bash
-absuite hrms list training-program-events --TenantId $TENANT_ID
-absuite hrms count training-program-events --TenantId $TENANT_ID
-absuite hrms get training-program-event-by-id --TenantId $TENANT_ID --EventId <event-guid>
-
-# Create  (title, start, end, trainingProgramId required)
-absuite hrms create training-program-event --TenantId $TENANT_ID --TrainingProgramEventCreateDto '{
-  "title": "Q1 Training Session",
-  "description": "Quarterly skills workshop",
-  "start": "2025-03-15T09:00:00Z",
-  "end": "2025-03-15T12:00:00Z",
-  "repetitionCriteria": "Month",
-  "dayOfTheWeek": "Saturday",
-  "trainingProgramId": "<program-guid>"
-}'
-
-absuite hrms update training-program-event --TenantId $TENANT_ID --EventId <event-guid> --TrainingProgramEventUpdateDto '{
-  "start": "2025-03-15T10:00:00Z",
-  "end": "2025-03-15T13:00:00Z"
-}'
-
-absuite hrms delete training-program-event --TenantId $TENANT_ID --EventId <event-guid>
-```
-
-Fields (`TrainingProgramEventCreateDto`): `title` (required), `description`, `start` (required), `end` (required), `isBreak`, `occustOnMonday`…`occustOnSunday` (sic), `repeatEvery`, `repetitionCriteria`, `recurrenceStart`, `recurrenceEnd`, `dayOfTheWeek`, `scheduleId`, `parentTimeIntervalId`, `trainingProgramId` (required). Same enums as Shifts.
-
-## Performance Appraisals
-
-### Appraisal Workflows
-
-The get/update/delete path parameter is `--WorkflowId`.
-
-```bash
-absuite hrms list appraisal-workflows --TenantId $TENANT_ID
-absuite hrms count appraisal-workflows --TenantId $TENANT_ID
-absuite hrms get appraisal-workflow-by-id --TenantId $TENANT_ID --WorkflowId <workflow-guid>
-
-# Create  (name required)
-absuite hrms create appraisal-workflow --TenantId $TENANT_ID --AppraisalWorkflowCreateDto '{
-  "name": "Annual Performance Review",
-  "description": "Standard annual review process"
-}'
-
-absuite hrms update appraisal-workflow --TenantId $TENANT_ID --WorkflowId <workflow-guid> --AppraisalWorkflowUpdateDto '{
-  "description": "Updated"
-}'
-
-absuite hrms delete appraisal-workflow --TenantId $TENANT_ID --WorkflowId <workflow-guid>
-```
-
-Fields (`AppraisalWorkflowCreateDto`): `name` (required), `description`. `AppraisalWorkflowUpdateDto`: `name`, `description`.
-
-### Appraisal Stages
-
-The get/update/delete path parameter is `--StageId`.
-
-```bash
-absuite hrms list appraisal-stages --TenantId $TENANT_ID
-absuite hrms count appraisal-stages --TenantId $TENANT_ID
-absuite hrms get appraisal-stage-by-id --TenantId $TENANT_ID --StageId <stage-guid>
-
-# Create  (name, appraisalWorkflowId, stageOrder required)
-absuite hrms create appraisal-stage --TenantId $TENANT_ID --AppraisalStageCreateDto '{
-  "name": "Self Assessment",
-  "description": "Employee completes self-review",
-  "appraisalWorkflowId": "<workflow-guid>",
-  "stageOrder": 1
-}'
-
-absuite hrms update appraisal-stage --TenantId $TENANT_ID --StageId <stage-guid> --AppraisalStageUpdateDto '{
-  "stageOrder": 2
-}'
-
-absuite hrms delete appraisal-stage --TenantId $TENANT_ID --StageId <stage-guid>
-```
-
-Fields (`AppraisalStageCreateDto`): `name` (required), `description`, `appraisalWorkflowId` (required), `stageOrder` (required, integer). `AppraisalStageUpdateDto`: `name`, `description`, `appraisalWorkflowId`, `stageOrder`.
-
-### Employee Appraisal Sessions
-
-The get/update/delete path parameter is `--SessionId`.
-
-```bash
-absuite hrms list employee-appraisal-sessions --TenantId $TENANT_ID
-absuite hrms count employee-appraisal-sessions --TenantId $TENANT_ID
-absuite hrms get employee-appraisal-session-by-id --TenantId $TENANT_ID --SessionId <session-guid>
-
-# Create  (employeeProfileId, appraisalWorkflowId required)
-absuite hrms create employee-appraisal-session --TenantId $TENANT_ID --EmployeeAppraisalSessionCreateDto '{
-  "employeeProfileId": "<employee-guid>",
-  "appraisalWorkflowId": "<workflow-guid>",
-  "appraisalStageId": "<stage-guid>"
-}'
-
-absuite hrms update employee-appraisal-session --TenantId $TENANT_ID --SessionId <session-guid> --EmployeeAppraisalSessionUpdateDto '{
-  "appraisalStageId": "<stage-guid>"
-}'
-
-absuite hrms delete employee-appraisal-session --TenantId $TENANT_ID --SessionId <session-guid>
-```
-
-Fields (`EmployeeAppraisalSessionCreateDto`): `employeeProfileId` (required), `appraisalWorkflowId` (required), `appraisalStageId`. `EmployeeAppraisalSessionUpdateDto`: `employeeProfileId`, `appraisalWorkflowId`, `appraisalStageId`.
-
-## Example workflow: onboard an employee and run an appraisal
-
-```bash
-# 1. Create an employee type and a job title
-absuite hrms create employee-type --TenantId $TENANT_ID --EmployeeTypeCreateDto '{ "name": "Full-Time" }'
-absuite hrms create job-title --TenantId $TENANT_ID --JobTitleCreateDto '{ "title": "Software Engineer", "grossPay": 95000.00, "netSalary": 72000.00, "currencyId": "USD" }'
-
-# 2. Create the employee profile (use the ids from step 1)
-absuite hrms create employee --TenantId $TENANT_ID --EmployeeProfileCreateDto '{ "contactId": "<contact-guid>", "employeeTypeId": "<type-guid>", "jobTitleId": "<title-guid>", "grossPay": 95000.00, "payrollCurrency": "USD" }'
-
-# 3. Record the salary
-absuite hrms create salary --TenantId $TENANT_ID --SalaryCreateDto '{ "amount": 95000.00, "currencyId": "USD", "employeeProfileId": "<employee-guid>" }'
-
-# 4. Create an appraisal workflow, its first stage, and a session
-absuite hrms create appraisal-workflow --TenantId $TENANT_ID --AppraisalWorkflowCreateDto '{ "name": "Annual Review" }'
-absuite hrms create appraisal-stage --TenantId $TENANT_ID --AppraisalStageCreateDto '{ "name": "Self Assessment", "appraisalWorkflowId": "<workflow-guid>", "stageOrder": 1 }'
-absuite hrms create employee-appraisal-session --TenantId $TENANT_ID --EmployeeAppraisalSessionCreateDto '{ "employeeProfileId": "<employee-guid>", "appraisalWorkflowId": "<workflow-guid>", "appraisalStageId": "<stage-guid>" }'
-
-# 5. Advance the session to the next stage (CLI update = full PUT; for an atomic single-field change use the REST PATCH in absuite-hrms)
-absuite hrms update employee-appraisal-session --TenantId $TENANT_ID --SessionId <session-guid> --EmployeeAppraisalSessionUpdateDto '{ "employeeProfileId": "<employee-guid>", "appraisalWorkflowId": "<workflow-guid>", "appraisalStageId": "<next-stage-guid>" }'
-```
-
-## CLI Commands Quick Reference
-
-| Action | CLI command |
-|---|---|
-| List employees | `absuite hrms list employees --TenantId <guid>` |
-| Count employees | `absuite hrms count employees --TenantId <guid>` |
-| Get employee | `absuite hrms get employee-by-id --TenantId <guid> --EmployeeId <guid>` |
-| Create employee | `absuite hrms create employee --TenantId <guid> --EmployeeProfileCreateDto '{...}'` |
-| Update employee | `absuite hrms update employee --TenantId <guid> --EmployeeId <guid> --EmployeeProfileUpdateDto '{...}'` |
-| Delete employee | `absuite hrms delete employee --TenantId <guid> --EmployeeId <guid>` |
-| List employee types | `absuite hrms list employee-types --TenantId <guid>` |
-| Create employee type | `absuite hrms create employee-type --TenantId <guid> --EmployeeTypeCreateDto '{...}'` |
-| List employers | `absuite hrms list employers --TenantId <guid>` |
-| Create employer | `absuite hrms create employer --TenantId <guid> --EmployerProfileCreateDto '{...}'` |
-| List gigs | `absuite hrms list gigs --TenantId <guid>` |
-| Create gig | `absuite hrms create gig --TenantId <guid> --GigCreateDto '{...}'` |
-| List job offers | `absuite hrms list job-offers --TenantId <guid>` |
-| Create job offer | `absuite hrms create job-offer --TenantId <guid> --JobOfferCreateDto '{...}'` |
-| List job titles | `absuite hrms list job-titles --TenantId <guid>` |
-| Create job title | `absuite hrms create job-title --TenantId <guid> --JobTitleCreateDto '{...}'` |
-| List salaries | `absuite hrms list salaries --TenantId <guid>` |
-| Create salary | `absuite hrms create salary --TenantId <guid> --SalaryCreateDto '{...}'` |
-| List payrolls | `absuite hrms list payrolls --TenantId <guid>` |
-| Create payroll | `absuite hrms create payroll --TenantId <guid> --PayrollCreateDto '{...}'` |
-| List payroll periods | `absuite hrms list payroll-periods --TenantId <guid>` |
-| Create payroll period | `absuite hrms create payroll-period --TenantId <guid> --PayrollPeriodCreateDto '{...}'` |
-| List shifts | `absuite hrms list shifts --TenantId <guid>` |
-| Create shift | `absuite hrms create shift --TenantId <guid> --ShiftCreateDto '{...}'` |
-| List schedules | `absuite hrms list schedules --TenantId <guid>` |
-| Create schedule | `absuite hrms create schedule --TenantId <guid> --ScheduleCreateDto '{...}'` |
-| List time intervals | `absuite hrms list time-intervals --TenantId <guid>` |
-| Create time interval | `absuite hrms create time-interval --TenantId <guid> --TimeIntervalCreateDto '{...}'` |
-| List leave types | `absuite hrms list leave-types --TenantId <guid>` |
-| Create leave type | `absuite hrms create leave-type --TenantId <guid> --LeaveTypeCreateDto '{...}'` |
-| List leave applications | `absuite hrms list leave-applications --TenantId <guid>` |
-| Create leave application | `absuite hrms create leave-application --TenantId <guid> --LeaveApplicationCreateDto '{...}'` |
-| List training programs | `absuite hrms list training-programs --TenantId <guid>` |
-| Create training program | `absuite hrms create training-program --TenantId <guid> --TrainingProgramCreateDto '{...}'` |
-| List training courses | `absuite hrms list training-program-courses --TenantId <guid>` |
-| Create training course | `absuite hrms create training-program-course --TenantId <guid> --TrainingProgramCourseCreateDto '{...}'` |
-| List training events | `absuite hrms list training-program-events --TenantId <guid>` |
-| Create training event | `absuite hrms create training-program-event --TenantId <guid> --TrainingProgramEventCreateDto '{...}'` |
-| List appraisal workflows | `absuite hrms list appraisal-workflows --TenantId <guid>` |
-| Create appraisal workflow | `absuite hrms create appraisal-workflow --TenantId <guid> --AppraisalWorkflowCreateDto '{...}'` |
-| List appraisal stages | `absuite hrms list appraisal-stages --TenantId <guid>` |
-| Create appraisal stage | `absuite hrms create appraisal-stage --TenantId <guid> --AppraisalStageCreateDto '{...}'` |
-| List appraisal sessions | `absuite hrms list employee-appraisal-sessions --TenantId <guid>` |
-| Create appraisal session | `absuite hrms create employee-appraisal-session --TenantId <guid> --EmployeeAppraisalSessionCreateDto '{...}'` |
-
-## Critical Rules
-
-- **Authenticate first.** Run `absuite login` (see `absuite-login-cli`) before any HRMS command.
-- **Always provide a tenant.** Pass `--TenantId <guid>` or set a default with `absuite config set --tenant-id <guid>`.
-- **DTO flags use the full DTO type name** (e.g. `--EmployeeProfileCreateDto`, `--SalaryCreateDto`) and take a single-quoted JSON string whose field names match the API (camelCase).
-- **Create dependencies first**: an `Employer` before gigs/job-offers; an `EmployeeType` / `JobTitle` before employees; an `AppraisalWorkflow` before its stages and sessions; a `Schedule` before its time intervals.
-- **No PATCH in the CLI.** For atomic single-field updates use the REST PATCH endpoints documented in `absuite-hrms`.
-- **Use `--help`** on any command for the authoritative DTO schema and parameter list.
