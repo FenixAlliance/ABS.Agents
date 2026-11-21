@@ -24,6 +24,8 @@ const NOT_IN_CLI = {
   "absuite-users-cli": "The CLI's only user command is `absuite me`. UsersServiceClient's calls are not workspace-scoped, and this CLI's generic commands take exactly one workspace (TenantId).",
   "absuite-onboarding-cli": "The CLI has no onboarding commands. Sign-in and the workspace choice are covered below; the onboarding flow itself runs in Studio or over the REST API.",
 };
+// The platform installs only manifests that declare this apiVersion and their kind (DefinitionManifestParser).
+const MANIFEST_API_VERSION = "apiVersion: abs.fenixalliance.com/v1alpha1";
 const DROP_HEADINGS = /^(prerequisites|command structure|cli commands quick reference|quick reference|end-to-end workflow|api usage essentials|authentication|output|global options|common flags)/i;
 
 const titleCase = s => s.replace(/(^|-)([a-z])/g, (_, a, b) => (a ? " " : "") + b.toUpperCase());
@@ -136,7 +138,7 @@ for (const d of fs.readdirSync(skillsDir).filter(d => /^absuite-.+-cli$/.test(d)
   const desc = why && paths.length === 0
     ? `How the ${titleCase(area)} area relates to the absuite CLI: the CLI has no ${area} commands today, so this skill says what the CLI does cover and points to the ${twinName ?? "REST"} skill for the rest.`
     : `Drive the Alliance Business Suite (ABS) ${titleCase(area)} area with the absuite CLI: ${paths.length} commands (${reads} read, ${paths.length - reads} write) under ${groupsTxt}, each generated from the platform's ServiceClients and checked against \`absuite commands -o json\`.${twinName ? ` For routes the CLI does not cover, use the ${twinName} REST skill.` : ""}`;
-  const fm = ["---", `name: ${s.name}`, `key: ${s.key}`, `version: ${version}`, "description: >", ...desc.match(/.{1,100}(\s|$)/g).map(l => "  " + l.trim()), "---", ""].join("\n");
+  const fm = ["---", MANIFEST_API_VERSION, "kind: Skill", `name: ${s.name}`, `key: ${s.key}`, `version: ${version}`, "description: >", ...desc.match(/.{1,100}(\s|$)/g).map(l => "  " + l.trim()), "---", ""].join("\n");
   const head = [`# Alliance Business Suite — ${titleCase(area)} Skill (CLI)`, "",
     `Generated from the absuite CLI at Platform ${cliSha} (\`absuite commands -o json\`). The commands, arguments and options below are the CLI's own; re-run \`absuite commands -o json\` before relying on one.`, ""];
   if (why) head.push("> **Not in the CLI:** " + why + (twinName ? ` Use the \`${twinName}\` REST skill for this area.` : ""), "");
@@ -189,7 +191,7 @@ const SESSION_PATHS = all.map(c => c.path).filter(p => /^(login|logout|me|accoun
 const CONFIG_PATHS = all.map(c => c.path).filter(p => /^(config|interactive|completion|commands)( |$)/.test(p));
 function writeWhole(dir, desc, title, bodyParts) {
   const src = parseSkill(fs.readFileSync(path.join(skillsDir, dir, "SKILL.md"), "utf8"));
-  const fm = ["---", `name: ${src.name}`, `key: ${src.key}`, `version: ${bumpMinor(src.version)}`, "description: >", ...desc.match(/.{1,100}(\s|$)/g).map(l => "  " + l.trim()), "---", ""].join("\n");
+  const fm = ["---", MANIFEST_API_VERSION, "kind: Skill", `name: ${src.name}`, `key: ${src.key}`, `version: ${bumpMinor(src.version)}`, "description: >", ...desc.match(/.{1,100}(\s|$)/g).map(l => "  " + l.trim()), "---", ""].join("\n");
   const text = [fm, `# ${title}`, "", `Generated from the absuite CLI at Platform ${cliSha} (\`absuite commands -o json\` and \`absuite --help\`). Re-run \`absuite commands -o json\` before relying on a command.`, "", ...bodyParts].join("\n");
   fs.mkdirSync(path.join(outDir, dir), { recursive: true });
   fs.writeFileSync(path.join(outDir, dir, "SKILL.md"), text.replace(/\n{3,}/g, "\n\n").replace(/\n*$/, "\n"));

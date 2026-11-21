@@ -1,4 +1,6 @@
 ---
+apiVersion: abs.fenixalliance.com/v1alpha1
+kind: Skill
 name: absuite-contacts
 key: fenixalliance.absuite.contacts
 version: 1.1.0

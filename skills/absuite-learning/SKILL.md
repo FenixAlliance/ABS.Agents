@@ -1,4 +1,6 @@
 ---
+apiVersion: abs.fenixalliance.com/v1alpha1
+kind: Skill
 name: absuite-learning
 description: >
   Manage learning and e-learning in the Alliance Business Suite (ABS) via the REST API.

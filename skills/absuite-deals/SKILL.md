@@ -1,4 +1,6 @@
 ---
+apiVersion: abs.fenixalliance.com/v1alpha1
+kind: Skill
 name: absuite-deals
 key: fenixalliance.absuite.deals
 version: 1.1.0

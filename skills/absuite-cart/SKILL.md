@@ -1,4 +1,6 @@
 ---
+apiVersion: abs.fenixalliance.com/v1alpha1
+kind: Skill
 name: absuite-cart
 key: fenixalliance.absuite.cart
 version: 1.1.0

@@ -1,4 +1,6 @@
 ---
+apiVersion: abs.fenixalliance.com/v1alpha1
+kind: Skill
 name: absuite-system
 description: >
   Manage system administration in the Alliance Business Suite (ABS) via the REST API.

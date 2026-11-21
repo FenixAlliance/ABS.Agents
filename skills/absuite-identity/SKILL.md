@@ -1,4 +1,6 @@
 ---
+apiVersion: abs.fenixalliance.com/v1alpha1
+kind: Skill
 name: absuite-identity
 key: fenixalliance.absuite.identity
 version: 1.1.0
