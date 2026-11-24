@@ -1,4 +1,6 @@
 ---
+apiVersion: abs.fenixalliance.com/v1alpha1
+kind: Skill
 name: absuite-system-cli
 key: fenixalliance.absuite.system-cli
 version: 1.1.0

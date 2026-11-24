@@ -17,7 +17,9 @@
       McpServer mcp-servers/<name>/MCPSERVER.json  (MCP-Gallery section 3; a gallery entry must pass the M8 rules below)
 
     Field extraction:
-      .md manifests  -> YAML frontmatter (key, name, version, description).
+      .md manifests  -> YAML frontmatter (key, name, version, description). apiVersion
+                        (abs.fenixalliance.com/v1alpha1) and kind (the file name's kind) are
+                        REQUIRED, as the platform parser requires them: a miss fails generation.
                         name falls back to the first Markdown H1, then the dir name.
                         key  is REQUIRED: a manifest without an explicit key fails generation
                         (there is no path-derived fallback).
@@ -61,6 +63,8 @@ $ScriptDir    = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoRoot     = Split-Path -Parent $ScriptDir
 $IndexPath    = Join-Path $ScriptDir 'gallery-index.json'
 $SchemaVersion = 1
+# The one manifest schema the platform installs (DefinitionManifestParser.SupportedApiVersion).
+$SupportedApiVersion = 'abs.fenixalliance.com/v1alpha1'
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -123,7 +127,7 @@ function Get-FirstH1 {
 function ConvertFrom-Frontmatter {
     param([string]$Text)
 
-    $result = [ordered]@{ key = $null; name = $null; version = $null; description = $null; hasFrontmatter = $false }
+    $result = [ordered]@{ apiVersion = $null; kind = $null; key = $null; name = $null; version = $null; description = $null; hasFrontmatter = $false }
     $lines = $Text.Split([char]10)
     if ($lines.Count -lt 1 -or $lines[0].TrimEnd() -ne '---') { return $result }
 
@@ -136,7 +140,7 @@ function ConvertFrom-Frontmatter {
     $result.hasFrontmatter = $true
     if ($end -le 1) { return $result }
     $fm = $lines[1..($end - 1)]
-    $wanted = @('key', 'name', 'version', 'description')
+    $wanted = @('apiVersion', 'kind', 'key', 'name', 'version', 'description')
 
     for ($i = 0; $i -lt $fm.Count; $i++) {
         $line = $fm[$i]
@@ -294,6 +298,13 @@ function New-Definition {
         $version     = Coerce-String $fm.version
         $description = Coerce-String $fm.description
         if ($null -eq $name) { $name = Coerce-String (Get-FirstH1 $text) }
+        # The platform parser's own rule (DefinitionManifestParser): an .md manifest declares the one supported apiVersion
+        # and a kind that is its file name's kind, or the server refuses it. So the index never lists an item that cannot
+        # be installed (CEO 2026-11-17: 70 Skills without them were listed and every install was refused).
+        $apiVersion = Coerce-String $fm.apiVersion
+        if ($null -eq $apiVersion -or $apiVersion.Trim() -cne $SupportedApiVersion) { throw "Manifest '$relPath' must declare 'apiVersion: $SupportedApiVersion' in its frontmatter (found '$apiVersion')." }
+        $fmKind = Coerce-String $fm.kind
+        if ($null -eq $fmKind -or $fmKind.Trim() -ne $Kind) { throw "Manifest '$relPath' must declare 'kind: $Kind' in its frontmatter (found '$fmKind')." }
     }
 
     # Keys are identity, so every manifest declares its own. There is no path-derived fallback: a folder move

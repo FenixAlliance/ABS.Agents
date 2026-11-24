@@ -1,4 +1,6 @@
 ---
+apiVersion: abs.fenixalliance.com/v1alpha1
+kind: Skill
 name: absuite-security
 description: >
   Manage security roles, permissions, business applications, OAuth applications,

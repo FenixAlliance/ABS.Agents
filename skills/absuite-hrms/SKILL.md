@@ -1,4 +1,6 @@
 ---
+apiVersion: abs.fenixalliance.com/v1alpha1
+kind: Skill
 name: absuite-hrms
 key: fenixalliance.absuite.hrms
 version: 1.1.0

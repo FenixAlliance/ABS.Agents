@@ -1,4 +1,6 @@
 ---
+apiVersion: abs.fenixalliance.com/v1alpha1
+kind: Skill
 name: absuite-onboarding-cli
 key: fenixalliance.absuite.onboarding-cli
 version: 1.1.0

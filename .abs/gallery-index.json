@@ -277,7 +277,7 @@
       "name": "absuite-accounting",
       "version": "1.1.0",
       "description": "Manage the full accounting system in the Alliance Business Suite (ABS) via the REST API. Covers chart of accounts, account entries (debits/credits), account groups/types/relations, journals and journal entries, ledgers, financial books, tax classes/policies/rates, fiscal authorities/years/periods/regimes/responsibilities/identification-types, billing profiles, banks/bank-accounts/guarantees/transactions, budgets, cost centres, commissions, receipts, grants, loans, shares, expense claims/types, accounting periods, and invoice enumeration ranges, including atomic PATCH (JSON Patch) updates. All operations are tenant-scoped and require a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "3a5705c8b3aec453b30604b99723e96b099e8065dd739b774a47405d678cf966"
+      "contentHash": "c73735b1a6f3e9e9b6ee3129b6d727bf68273b776e53b70108569d1b77a6712f"
     },
     {
       "kind": "Skill",
@@ -286,7 +286,7 @@
       "name": "absuite-accounting-cli",
       "version": "1.1.0",
       "description": "Drive the Alliance Business Suite (ABS) Accounting area with the absuite CLI: 224 commands (127 read, 97 write) under `absuite accounting`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-accounting REST skill.",
-      "contentHash": "4ebd87959f8f4038361da05692d9fce8387e61692a1af5b139038b229ed378ee"
+      "contentHash": "b5c3b29ef8255316510b3833a5a369b32b552f749a3a5a6575dce0ff9770f028"
     },
     {
       "kind": "Skill",
@@ -295,7 +295,7 @@
       "name": "absuite-assets",
       "version": "1.1.0",
       "description": "Manage fixed and moveable assets in the Alliance Business Suite (ABS) via the REST API. Covers assets, asset categories, asset types, depreciation records, repairs, value amendments, and asset transfers, including atomic PATCH (JSON Patch) updates. All operations are tenant-scoped and require a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "97ec077d4eef456008c4ddcf65aee70d995ad15c82452bbbc49ffac39ba4f80e"
+      "contentHash": "5f63f3bed8aa5ac7899e5fb9dda16f2538f346ce6548bdb473b12fed75d9212c"
     },
     {
       "kind": "Skill",
@@ -304,7 +304,7 @@
       "name": "absuite-assets-cli",
       "version": "1.1.0",
       "description": "Drive the Alliance Business Suite (ABS) Assets area with the absuite CLI: 39 commands (21 read, 18 write) under `absuite assets`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-assets REST skill.",
-      "contentHash": "47863575eb9ed12270f60c172568baafe9078d74eddfa789f661156f8aacefaa"
+      "contentHash": "016a09ad0422652b8dc9633d4c7bc5cab08cc9d733111804f976d6b7765a480e"
     },
     {
       "kind": "Skill",
@@ -313,7 +313,7 @@
       "name": "absuite-blog",
       "version": "1.1.0",
       "description": "Manage blog content in the Alliance Business Suite (ABS) Content Service via the REST API (curl). Covers blog posts, categories, tags, comments, and authors, including atomic PATCH (JSON Patch) updates. Tenant scoping is per-endpoint: blog reads are public/optional-tenant; writes are tenant-scoped. Requires a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "88172c1a480ef66c1f1c9a7a49985930cdf8ad8de06d611009c799607e6f487e"
+      "contentHash": "7e361b461a639fec09865c0286ba8796b402334c6a3c24c56afb6d215a4464d7"
     },
     {
       "kind": "Skill",
@@ -322,7 +322,7 @@
       "name": "absuite-blog-cli",
       "version": "1.1.0",
       "description": "Drive the Alliance Business Suite (ABS) Blog area with the absuite CLI: 14 commands (9 read, 5 write) under `absuite content`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-blog REST skill.",
-      "contentHash": "dd7ff67e9f5936fb40130da48de79a9a5753e7457e0e52a0d19fd31c4136d1c0"
+      "contentHash": "8746b8c5818aeab9edfd3df49285831bc805b63d6b3bfb3516641bff60be163a"
     },
     {
       "kind": "Skill",
@@ -331,7 +331,7 @@
       "name": "absuite-cart",
       "version": "1.1.0",
       "description": "Manage shopping carts, cart records/lines, wish lists, and compare tables in the Alliance Business Suite (ABS) Cart Service via the REST API. Covers reading ambient carts (guest/user/acting/business), adding/removing items, updating quantities, submitting carts, wish lists, and product comparison, including atomic PATCH (JSON Patch) updates. CartService is HYBRID-scoped: most endpoints are anonymous, user-, or cart-id-scoped; only a few take a tenant. A bearer token is needed for the user cart and for submitting (see the absuite-login skill to authenticate).",
-      "contentHash": "903d6d2c02d6f89d641ac72bed3958bb332c5772a309835e18a40af29d0e8fa0"
+      "contentHash": "a0730b988e71e2a348f8ee9be28b8c6e820ebdccb94a3563c855dbc5327be708"
     },
     {
       "kind": "Skill",
@@ -340,7 +340,7 @@
       "name": "absuite-cart-cli",
       "version": "1.1.0",
       "description": "How the Cart area relates to the absuite CLI: the CLI has no cart commands today, so this skill says what the CLI does cover and points to the absuite-cart skill for the rest.",
-      "contentHash": "539f7835acc838541edf9bf280bd51d15c4440d2433276e5cff5324394349744"
+      "contentHash": "bf10974ef7bab0c73eaa71faf6444522aea2727dfd2aa9924252dc44c7d1865e"
     },
     {
       "kind": "Skill",
@@ -349,7 +349,7 @@
       "name": "absuite-catalog",
       "version": "1.1.0",
       "description": "Manage the product catalog in the Alliance Business Suite (ABS) via the REST API. Covers stock items (products), categories, types, families, brands, tags, images, attachments, attributes & options, bundles, reviews, questions, policy relationships (tax / shipping / return / refund / warranty), price-rule relationships, Google categories, and merchants, including atomic PATCH (JSON Patch) updates. Stock-item reads are anonymous (published items only) without a tenantId and a stock_items_read management read with one; writes require a tenantId, a stock_items_* permission and a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "376bd81dbe9a545e354a5e3281c0e94c87b65b5d781e17f006a3fa08a1c58c40"
+      "contentHash": "82b6dc5250b6a59c433627b1afba8d0118e1efe1ecc6e583db92cb945e5824f4"
     },
     {
       "kind": "Skill",
@@ -358,7 +358,7 @@
       "name": "absuite-catalog-cli",
       "version": "1.1.0",
       "description": "Drive the Alliance Business Suite (ABS) Catalog area with the absuite CLI: 85 commands (37 read, 48 write) under `absuite catalog`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-catalog REST skill.",
-      "contentHash": "dff3b1846aad1a834e595daf742a628160123d04f8943117a67316ed3532425e"
+      "contentHash": "3e072b37d70b8b9b3a20fb499d8f14d0ec3fccb12976ae3e364fb2292799ded8"
     },
     {
       "kind": "Skill",
@@ -367,7 +367,7 @@
       "name": "absuite-cli",
       "version": "1.1.0",
       "description": "The absuite command line for the Alliance Business Suite (ABS): install, sign in, pick a workspace, find commands, shape output with -o and JMESPath --query, read exit codes, and run as an agent with a run token. Start here; each area has its own absuite-<area>-cli skill.",
-      "contentHash": "19f1cdc64aa58a30f0cbc0e9cab4de9d4da50c67b8e3dcb20628713d34c96e3e"
+      "contentHash": "b308ccca12424225c37b499b3a2029b3fc3e8a35ed6812586e2d5f8ba005348d"
     },
     {
       "kind": "Skill",
@@ -376,7 +376,7 @@
       "name": "absuite-contacts",
       "version": "1.1.0",
       "description": "Create, read, update, patch, delete, and manage contacts in the Alliance Business Suite (ABS) CRM Service via the REST API. Covers contacts (individuals & organizations), extended views, relationship graphs, avatars, wallets, carts, social profiles, contact options (key-value metadata), contact emails, contact groups, contact profiles, contact relations, contact relation types, contact sources, and user/tenant sync, including atomic PATCH (JSON Patch) updates. All operations are tenant-scoped and require a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "28162d03e2e619719a621df960b399c1918240e5f4363da4799aba0b1a8beb77"
+      "contentHash": "eb06d198515cffadb85f559a52a96bdf8d1e0d54899535774129d6aa49da87da"
     },
     {
       "kind": "Skill",
@@ -385,7 +385,7 @@
       "name": "absuite-contacts-cli",
       "version": "1.1.0",
       "description": "Drive the Alliance Business Suite (ABS) Contacts area with the absuite CLI: 58 commands (39 read, 19 write) under `absuite crm`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-contacts REST skill.",
-      "contentHash": "ee95295c9da562e1ffd105d6fd4b0353aa6971f8a9f1f138fc6058441ee88865"
+      "contentHash": "28c851bab73ac4112c98a42a983492030415fe8f4339427f94a17ab29df606a4"
     },
     {
       "kind": "Skill",
@@ -394,7 +394,7 @@
       "name": "absuite-content",
       "version": "1.1.0",
       "description": "Manage web content in the Alliance Business Suite (ABS) via the REST API: web portals, web pages, web-page categories/tags, web content blocks, web templates, website themes, web components, menu contexts, localization strings, business domains, and the full blog system (posts, authors, categories, tags, comments). Includes atomic PATCH (JSON Patch RFC 6902) updates. Most operations are tenant-scoped and require a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "54921198aee56b966d6dfae41625470a7503817716b703df71321e190edc20d4"
+      "contentHash": "02bdb74d907b665a15ea4906fd1780105831976099e25fbc01c583963aa617bc"
     },
     {
       "kind": "Skill",
@@ -403,7 +403,7 @@
       "name": "absuite-content-cli",
       "version": "1.1.0",
       "description": "Drive the Alliance Business Suite (ABS) Content area with the absuite CLI: 74 commands (43 read, 31 write) under `absuite content`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-content REST skill.",
-      "contentHash": "9dd900d752848c62ff9acdbc8aed689c05912955761a457e63a14c2d9cb1b787"
+      "contentHash": "864e15ebff38bf96e7565dc372d916f90893e243d00d3493aa6d6a1fce6d95c8"
     },
     {
       "kind": "Skill",
@@ -412,7 +412,7 @@
       "name": "absuite-deals",
       "version": "1.1.0",
       "description": "Create, read, update, delete, calculate, close, and partially patch deal units (sales opportunities), deal unit lines, and deal unit flows (sales pipelines) with their stages, via the Alliance Business Suite (ABS) Deals REST API (DealsService). Covers list / count / get / create / update (PUT) / atomic PATCH (JSON Patch, RFC 6902) / delete / calculate / close operations. All operations are tenant-scoped and require a bearer token (see the `absuite-login` skill to authenticate first).",
-      "contentHash": "c60e72953e9b0e55a4056895e3071ee106e4cbe1ede040b6063058a3a5b5d25c"
+      "contentHash": "54b7b4c1127ab6b14f2215ea40d24f2b79241bd65e624de1440f9043fce7afa1"
     },
     {
       "kind": "Skill",
@@ -421,7 +421,7 @@
       "name": "absuite-deals-cli",
       "version": "1.1.0",
       "description": "Drive the Alliance Business Suite (ABS) Deals area with the absuite CLI: 29 commands (16 read, 13 write) under `absuite deals`, `absuite sales`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-deals REST skill.",
-      "contentHash": "50c20bf47348d5fa65e002bc425317eccfd478b6966e18b54708e72a291e9357"
+      "contentHash": "238b8cbcddf27b2cdf2a5ea0c0bad8b997ee8e8d2c978480daead68032019a48"
     },
     {
       "kind": "Skill",
@@ -430,7 +430,7 @@
       "name": "absuite-emails",
       "version": "1.1.0",
       "description": "Manage email templates and dispatch transactional emails via the Alliance Business Suite (ABS) REST API. Covers marketing email templates / groups / signatures / newsletters (MarketingService), and email sending & previewing to recipients, tenants, and users (SystemService), including atomic PATCH (JSON Patch) updates of email resources. All operations are tenant-scoped (per endpoint) and require a bearer token (see the absuite-login skill to authenticate). For the CLI equivalent, see `absuite-emails-cli`; for raw HTTP helpers see `absuite-rest`; for broad marketing campaigns/lists see `absuite-marketing`.",
-      "contentHash": "b8042907659ba7cb3914553dd573310111b883684c1607206770be0a02d4995d"
+      "contentHash": "01ba9f298f870aa9bd3464049cdde8c20ef2b5dcc743a43b11458ee09141e635"
     },
     {
       "kind": "Skill",
@@ -439,7 +439,7 @@
       "name": "absuite-emails-cli",
       "version": "1.1.0",
       "description": "Drive the Alliance Business Suite (ABS) Emails area with the absuite CLI: 20 commands (12 read, 8 write) under `absuite marketing`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-emails REST skill.",
-      "contentHash": "4467e2d517a61bf330c6f3b5f42c685c7a404ee36756bf0a1f20720bfafc1655"
+      "contentHash": "313f4443ec70a1a6adb16c3d3edd4aae8cedacae2e7bb7f952c21b0c5dd202c2"
     },
     {
       "kind": "Skill",
@@ -448,7 +448,7 @@
       "name": "absuite-forex",
       "version": "1.1.0",
       "description": "Retrieve foreign-exchange rates and perform currency conversions via the Alliance Business Suite (ABS) REST API. Covers latest and historical rate lookups (all currencies or a single currency) and currency-amount exchange at latest or historical rates, on both the v2 and v3 endpoints. ForexService is PUBLIC reference data: operations are NOT tenant-scoped. A bearer token is still recommended (see the absuite-login skill to authenticate).",
-      "contentHash": "0916e04da8f94a1e2a8b2e97db546a0b33e9bb42dbe05bc137178163f9c47b6d"
+      "contentHash": "7d268945b6b90bcb8f1b649937ac82b101a6c60e6516cd2179a12b4fff9bcf89"
     },
     {
       "kind": "Skill",
@@ -457,7 +457,7 @@
       "name": "absuite-forex-cli",
       "version": "1.1.0",
       "description": "How the Forex area relates to the absuite CLI: the CLI has no forex commands today, so this skill says what the CLI does cover and points to the absuite-forex skill for the rest.",
-      "contentHash": "4fd213e0210e76dc2292a28a550fe7d7e424ab6a620e8c587428f7b1b9a60667"
+      "contentHash": "2f1d7e47c482bf44d8c4065cfa4b87fc858bd3cc237566ebf6ed57aa4f5ab8b5"
     },
     {
       "kind": "Skill",
@@ -466,7 +466,7 @@
       "name": "absuite-globe",
       "version": "1.1.0",
       "description": "Look up global reference data (countries, states, cities, currencies, languages, timezones, calling codes, and top-level domains) via the Alliance Business Suite (ABS) REST API. This is PUBLIC, read-only reference data: endpoints are NOT tenant-scoped and take no tenantId. Send a bearer token for consistency (see the absuite-login skill).",
-      "contentHash": "c56ed9288807553d2c91d607235333b8446f1d11c6c800904c5a715af6534ca2"
+      "contentHash": "ed2d5ac640c815227c4511f8c44eb3ebd236becf085d44830a54db427d7abf66"
     },
     {
       "kind": "Skill",
@@ -475,7 +475,7 @@
       "name": "absuite-globe-cli",
       "version": "1.1.0",
       "description": "How the Globe area relates to the absuite CLI: the CLI has no globe commands today, so this skill says what the CLI does cover and points to the absuite-globe skill for the rest.",
-      "contentHash": "e531c1e8ddb6caea99ba2bfef7ac7b286ec01582f98dc5cfa325720e25bd8bea"
+      "contentHash": "7c92f887b6d2c8828c781abc1bec0c6572981d29b5a1c6586e5767beb00beb92"
     },
     {
       "kind": "Skill",
@@ -484,7 +484,7 @@
       "name": "absuite-hrms",
       "version": "1.1.0",
       "description": "Manage human resources in the Alliance Business Suite (ABS) via the REST API. Covers employees, employers, employee types, job titles, salaries, payrolls, payroll periods, gigs, gig applications, job offers, job applicants, job applications, job fields, required skills, shifts, schedules, time intervals, leave management, training programs, performance appraisals, and position seats, including atomic PATCH (JSON Patch) updates. All operations are tenant-scoped and require a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "3a5558b9eb2a9764fb03cb6bad11de5f58d9a5f9fc9db5215dcaea73a03e7193"
+      "contentHash": "845b777388821917b6347d48377bfa5b3b1d8e3fa7fbc017975d8a10e8f5c36b"
     },
     {
       "kind": "Skill",
@@ -493,7 +493,7 @@
       "name": "absuite-hrms-cli",
       "version": "1.1.0",
       "description": "Drive the Alliance Business Suite (ABS) Hrms area with the absuite CLI: 150 commands (81 read, 69 write) under `absuite hrms`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-hrms REST skill.",
-      "contentHash": "77ca45660b9fa81b941e2a9ac807978319222d669ed56a0d21c71973a3d08af2"
+      "contentHash": "424d6802a532478f04c23144df99a8f200d3ee749458d6adc3edc723cff635ea"
     },
     {
       "kind": "Skill",
@@ -502,7 +502,7 @@
       "name": "absuite-identity",
       "version": "1.1.0",
       "description": "Manage OAuth, OpenID Connect, and user identity in the Alliance Business Suite (ABS) via the REST API. Covers password sign-in, OAuth tokens, WhoAmI, user permissions, OIDC discovery/JWKS, and application permission/role grants. Most identity/auth flows are NOT tenant-scoped; a few reads are. Requires a bearer token for protected reads (see the absuite-login skill to authenticate). The identity service exposes NO PATCH endpoints.",
-      "contentHash": "62955e3108bf00d55f6c80ec11549aca4ae1afef773f42988e05c5e41954be7c"
+      "contentHash": "2b5353f2f15fe14e46811a132fd4d17d5af58ad9580e28b510c356f832759696"
     },
     {
       "kind": "Skill",
@@ -511,7 +511,7 @@
       "name": "absuite-identity-cli",
       "version": "1.1.0",
       "description": "How the Identity area relates to the absuite CLI: the CLI has no identity commands today, so this skill says what the CLI does cover and points to the absuite-identity skill for the rest.",
-      "contentHash": "19bd6bb674528442f9e1f3f3d780a673459223e591f8218c9ac892422ce4be52"
+      "contentHash": "facc0c8dfd480d3ea79edc7f6a89e7c6e2a084311ee6ed9de6f0c1f9419eae1f"
     },
     {
       "kind": "Skill",
@@ -520,7 +520,7 @@
       "name": "absuite-invoicing",
       "version": "1.1.0",
       "description": "Create, read, update, patch, delete, and manage invoices in the Alliance Business Suite (ABS) Invoicing Service via the REST API. Covers invoices, invoice lines, line taxes, adjustments (discounts/surcharges), references (credit/debit notes), payments, calculations, aggregations, and transactional email notifications, including atomic PATCH (JSON Patch) updates. All operations are tenant-scoped and require a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "57de4ea5751f13ce970ba053d5aa972b9bfe452382e1e479bc0161d30aa24b70"
+      "contentHash": "6e444cf5c1a942c389dfb453004a8eb219c09741c3b9d11a2aac3ad90094aa40"
     },
     {
       "kind": "Skill",
@@ -529,7 +529,7 @@
       "name": "absuite-invoicing-cli",
       "version": "1.1.0",
       "description": "Drive the Alliance Business Suite (ABS) Invoicing area with the absuite CLI: 37 commands (21 read, 16 write) under `absuite invoicing`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-invoicing REST skill.",
-      "contentHash": "6d79b5627f28549943c4872c6d740591550fd5d608a73b45e5713470f21c70ac"
+      "contentHash": "43958cf2f19cee11adbd9d1471863a660953a5e1ee873f0b30b2be70cbbfb068"
     },
     {
       "kind": "Skill",
@@ -538,7 +538,7 @@
       "name": "absuite-learning",
       "version": "1.1.0",
       "description": "Manage learning and e-learning in the Alliance Business Suite (ABS) via the REST API. Covers courses and their full content tree (sections, units, unit components, content groups), assignments, problem sets, grading rubrics, cohorts, enrollments, certificates and templates, forums, wikis, articles, pages, updates, handouts, files, libraries, team memberships, instructor/student profiles, the public course catalog, and per-user \"Me\" reads, including atomic PATCH (JSON Patch) updates. Tenant scoping is per-endpoint and most operations require a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "a13a0c17af8cb2f271f584a9b28c33e3c78df3e433cf9db4018602693bfb98c2"
+      "contentHash": "c460070c9f32b4e57995c3cf4cb0b491532936baefa8058bb87cf7d623088445"
     },
     {
       "kind": "Skill",
@@ -547,7 +547,7 @@
       "name": "absuite-learning-cli",
       "version": "1.1.0",
       "description": "Drive the Alliance Business Suite (ABS) Learning area with the absuite CLI: 99 commands (75 read, 24 write) under `absuite learning`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-learning REST skill.",
-      "contentHash": "eea36dadb85b36d5bf166c651db8a64f70cd82c3c24bfd2174de0c569ccef100"
+      "contentHash": "ec989f78eb65e66171b02d39be049b873e72a2a1fa0f74426d5ef243a7a0c00c"
     },
     {
       "kind": "Skill",
@@ -556,7 +556,7 @@
       "name": "absuite-locations",
       "version": "1.1.0",
       "description": "Manage business locations and addresses in the Alliance Business Suite (ABS) via the REST API. Covers tenant-scoped Locations and wallet-scoped Locations, including atomic PATCH (JSON Patch) updates. Tenant Location calls require a tenantId and a Locations permission; wallet-location calls are gated on the caller owning the wallet and take an optional tenantId that selects the permission-checked business-wallet path. All calls require a bearer token; see the absuite-login skill to authenticate.",
-      "contentHash": "6f14f49b8d20f74f96f80467722c932ad2e975027f4b5b60ac883f5851e0ef72"
+      "contentHash": "b6c7f3125fcaf1d4cd913b42a1a3cdbe19a18fcb83be5d561684e46a1938d736"
     },
     {
       "kind": "Skill",
@@ -565,7 +565,7 @@
       "name": "absuite-locations-cli",
       "version": "1.1.0",
       "description": "Drive the Alliance Business Suite (ABS) Locations area with the absuite CLI: 6 commands (3 read, 3 write) under `absuite locations`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-locations REST skill.",
-      "contentHash": "9bcbdb6dcf90d4b2aae8ced3746398ee439e5c21bca15aa8b82dc5ce06f89c24"
+      "contentHash": "68d7c840211b13e59b9fc3879d7054ad4761ee35b2406350b206cc7539d654d8"
     },
     {
       "kind": "Skill",
@@ -574,7 +574,7 @@
       "name": "absuite-login",
       "version": "1.1.0",
       "description": "Authenticate with the Alliance Business Suite (ABS) over the REST API and verify your identity. Use when you need to log in with user credentials, obtain a bearer token, refresh it, or confirm your ABS identity via the WhoAmI endpoint using direct HTTP (curl). Do NOT use for domain-specific ABS operations (tenants, invoices, contacts, etc.), only for authentication and identity verification. For CLI-based login, see absuite-login-cli.",
-      "contentHash": "d9f46774ba792ba783feb5259633492abcc582693fd70f551515fe6a11b9b7bc"
+      "contentHash": "15e185529a6a0505e5aab26f4b2f0a62c56897a8ad2e649f132554bcc9b26f9d"
     },
     {
       "kind": "Skill",
@@ -583,7 +583,7 @@
       "name": "absuite-login-cli",
       "version": "1.1.0",
       "description": "Sign in to the Alliance Business Suite (ABS) with the absuite CLI: device-code login (the default), password login for a server on this computer, run tokens for agents, the workspace choice, sign-out, and the exit codes a script acts on.",
-      "contentHash": "2ac28cfaaccdc1cfada5d36c2b5fa38f4e2b4eaaaa8eb025fd0036be37ca5ee5"
+      "contentHash": "50daf29a9d5fe5896b45fe2b7dbdf449a193a07f1c2bb3d008d9e8a1c4a4b3fb"
     },
     {
       "kind": "Skill",
@@ -592,7 +592,7 @@
       "name": "absuite-marketing",
       "version": "1.1.0",
       "description": "Create, read, update, patch, and delete marketing records in the Alliance Business Suite (ABS) Marketing Service via the REST API. Covers marketing campaigns, marketing areas, marketing lists, marketing leads, newsletters, email groups, email signatures, email templates, social media posts, social post buckets, and tracking-pixel retrieval, including atomic PATCH (JSON Patch) updates. All operations are tenant-scoped (except the tracking pixel read) and require a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "ca6e9e5887de6364e3eba42a7194f444658cbfd9fcaa21ee173df2d98103dc29"
+      "contentHash": "8baf5ed7c0860d118e0ec9e3219e98d3b43cd0d5f632ac8aa26941e7e1f93f84"
     },
     {
       "kind": "Skill",
@@ -601,7 +601,7 @@
       "name": "absuite-marketing-cli",
       "version": "1.1.0",
       "description": "Drive the Alliance Business Suite (ABS) Marketing area with the absuite CLI: 56 commands (30 read, 26 write) under `absuite marketing`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-marketing REST skill.",
-      "contentHash": "2b49de58fd3f8e000acc9880575f29b393505790e92b59d0bc7bef1d98f0dcff"
+      "contentHash": "4930e27ecde604c107e8b42947fd6b2fab06f36e1fceb26123250a77a9ba41e6"
     },
     {
       "kind": "Skill",
@@ -610,7 +610,7 @@
       "name": "absuite-misc",
       "version": "1.1.0",
       "description": "Manage logistics, shipments, and sales resources via the Alliance Business Suite (ABS) REST API. Covers warehouses, ports, vessels, voyages, waybills (air/road/rail/sea), trucks, proofs of delivery, packing/pick/restock documents, shipments, bills of lading, shipping methods/couriers/zones/classes, stores, point-of-sales, loyalty programs and sales literature, including atomic PATCH (JSON Patch) updates. All working operations are tenant-scoped and require a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "b19107b53fccb14ca3990b2d0ca56a242fdd0aa397b39279237c87b161735323"
+      "contentHash": "09239ea5d93de879a198870232fd8528ee1e49c43e32e1eb372b08007a44ec18"
     },
     {
       "kind": "Skill",
@@ -619,7 +619,7 @@
       "name": "absuite-misc-cli",
       "version": "1.1.0",
       "description": "Drive the Alliance Business Suite (ABS) Misc area with the absuite CLI: 173 commands (87 read, 86 write) under `absuite logistics`, `absuite sales`, `absuite shipments`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-misc REST skill.",
-      "contentHash": "6fa38e1519e9040ebe9c2234c891698d4ad674705445c225e193a85727dff715"
+      "contentHash": "a7bc60518485daf5ab3a8a5bb0962dcfa010bb73369e4aa0d082f09703fc2b38"
     },
     {
       "kind": "Skill",
@@ -628,7 +628,7 @@
       "name": "absuite-onboarding",
       "version": "1.1.0",
       "description": "Onboard a user into an Alliance Business Suite (ABS) tenant over the REST API: authenticate, initialize the portal (which surfaces/stages the tenant invitation), accept the invitation, and verify enrollment. Use when an agent or user needs to join a tenant and initialize their portal for the first time. Encodes the correct Initialize-FIRST order and the domain-based auto-invitation rule. For the CLI version, see absuite-onboarding-cli.",
-      "contentHash": "6831390f79239180855751804256353ab5479caace0cc55e44573542390f985a"
+      "contentHash": "36806c59c399e30553777b0c6c3750fc47770db5649384e46fc8c410cf19db6e"
     },
     {
       "kind": "Skill",
@@ -637,7 +637,7 @@
       "name": "absuite-onboarding-cli",
       "version": "1.1.0",
       "description": "How the Onboarding area relates to the absuite CLI: the CLI has no onboarding commands today, so this skill says what the CLI does cover and points to the absuite-onboarding skill for the rest.",
-      "contentHash": "369cefc99bbaeb20be28e9aefa29216b86b704b1d37c97b97160fad24f6fcb93"
+      "contentHash": "ab4053777dca69b2b91de690d5e1d62c565daaaeec59ab42a2ac8c1173cfa8b4"
     },
     {
       "kind": "Skill",
@@ -646,7 +646,7 @@
       "name": "absuite-orders",
       "version": "1.1.0",
       "description": "Create, read, update, patch, delete, and calculate orders and order lines in the Alliance Business Suite (ABS) Orders Service via the REST API. Covers direct order creation, cart-to-order submission, line items, totals calculation, received orders, transactional email, and atomic PATCH (JSON Patch) updates. Workspace operations are tenant-scoped and every call requires a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "6c9117dc9ef3c041a1bc7b49627e78aa071cdf7685cb84b44a6016e7a801ed36"
+      "contentHash": "866dbe6c3a97c4868e886cf3a8c8dd3fd50ea8a74598f64a802fb3cab850c07b"
     },
     {
       "kind": "Skill",
@@ -655,7 +655,7 @@
       "name": "absuite-orders-cli",
       "version": "1.1.0",
       "description": "Drive the Alliance Business Suite (ABS) Orders area with the absuite CLI: 16 commands (11 read, 5 write) under `absuite orders`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-orders REST skill.",
-      "contentHash": "dbf3838e98196809ce2a47c6869b87fa5086b755cd8f30a34a50b27f1462ecb1"
+      "contentHash": "9f9dc274873a71dc86d4cdb621aa5ccc233687a67a4e0a0c0b5699b58bf58dee"
     },
     {
       "kind": "Skill",
@@ -664,7 +664,7 @@
       "name": "absuite-payments",
       "version": "1.1.0",
       "description": "Create, read, update, patch, delete, and manage payments in the Alliance Business Suite (ABS) Payments Service via the REST API. Covers payment records (whose status is server-owned), the supporting configuration (payment methods, payment modes, and payment terms) with atomic PATCH (JSON Patch) updates, provider registrations, provider operation review/reconcile/refund, and public payment links and references. All operations are tenant-scoped and require a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "a04d4115a5d4085a756d4a4731ae037b4a05370cd2abdd4f580fd10f12fb0017"
+      "contentHash": "df1cfa9a1fae8d064fa85adf5ab740d28dde07291fe87676afca890cea3b1fc9"
     },
     {
       "kind": "Skill",
@@ -673,7 +673,7 @@
       "name": "absuite-payments-cli",
       "version": "1.1.0",
       "description": "Drive the Alliance Business Suite (ABS) Payments area with the absuite CLI: 13 commands (13 read, 0 write) under `absuite payments`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-payments REST skill.",
-      "contentHash": "ae193627c0c28d9f82b931cb0667b069d63091619e406d3e806e51fabdb4da5a"
+      "contentHash": "9345630aeff74c6599bbe0e4cb9261829ed22c7198129250239ff9de9fe9e9c2"
     },
     {
       "kind": "Skill",
@@ -682,7 +682,7 @@
       "name": "absuite-pricing",
       "version": "1.1.0",
       "description": "Create, read, update, patch, and delete pricing data in the Alliance Business Suite (ABS) Pricing Service via the REST API. Covers price lists and their price entries, discount lists and their discount entries, pricing rules, rounding policies, and item price calculations, including atomic PATCH (JSON Patch) updates. Most operations are tenant-scoped and require a bearer token (see the absuite-login skill); the price calculation reads are public/user-scoped.",
-      "contentHash": "372af0165967698bea6bdcfd2a68a91a4327850be594a1825506f8940c93e05d"
+      "contentHash": "bd4ccd747d92d424940046c008b941c3fa3109aa3943406904625de139946d79"
     },
     {
       "kind": "Skill",
@@ -691,7 +691,7 @@
       "name": "absuite-pricing-cli",
       "version": "1.1.0",
       "description": "Drive the Alliance Business Suite (ABS) Pricing area with the absuite CLI: 35 commands (18 read, 17 write) under `absuite pricing`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-pricing REST skill.",
-      "contentHash": "228b37b64bee1d5574077c5dc4176b08a9888a42e6c88ddc05e5c48a9f3b430d"
+      "contentHash": "adcb837e70a8f74e2ce9ee4f0c73488eddda5e092d7ec1a4d79deeb76ed539f7"
     },
     {
       "kind": "Skill",
@@ -700,7 +700,7 @@
       "name": "absuite-projects",
       "version": "1.1.0",
       "description": "Manage projects, project tasks, task categories, task types, project periods, time logs, and time-log approvals in the Alliance Business Suite (ABS) via the ProjectsService REST API. Covers list/count/get/create/update (PUT)/delete plus atomic PATCH (JSON Patch) updates and approval workflow actions. All operations are tenant-scoped and require a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "f0eb8455f737238817d74fe1074c0bae47c31d927865f739fc61b42691b65128"
+      "contentHash": "fd38e03cc976e5f43bb0c328f5d4257688f5609effd0a05f28d80dbe9692e0b8"
     },
     {
       "kind": "Skill",
@@ -709,7 +709,7 @@
       "name": "absuite-projects-cli",
       "version": "1.1.0",
       "description": "Drive the Alliance Business Suite (ABS) Projects area with the absuite CLI: 7 commands (7 read, 0 write) under `absuite projects`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-projects REST skill.",
-      "contentHash": "5d406611e5e5aa9210fbfae9efa45924a18af8c90deed4bcad35098f5011ee89"
+      "contentHash": "e8f6a8e7fa1cf0caa49e521a1c82c52ac646ca1580bc08935a880f603dcf0734"
     },
     {
       "kind": "Skill",
@@ -718,7 +718,7 @@
       "name": "absuite-quotes",
       "version": "1.1.0",
       "description": "Create, read, update, patch, delete, and manage sales quotes in the Alliance Business Suite (ABS) Quotes Service via the REST API. Covers quotes, quote lines, calculations, lifecycle actions (close, reopen, convert to order, place an order as the receiver), received quotes, and transactional email, including atomic PATCH (JSON Patch) updates. Workspace operations are tenant-scoped and every call requires a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "7abdcb37e72c5f02cbce3ce1a9170c7ca338d84580030cccfb05dff2af6322b2"
+      "contentHash": "55c65d69176c838e4e0a442f6ca5490f77b65c88b9f4e27756fbce7fadd7b45c"
     },
     {
       "kind": "Skill",
@@ -727,7 +727,7 @@
       "name": "absuite-quotes-cli",
       "version": "1.1.0",
       "description": "Drive the Alliance Business Suite (ABS) Quotes area with the absuite CLI: 18 commands (13 read, 5 write) under `absuite quotes`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-quotes REST skill.",
-      "contentHash": "3d2d1952770be1bd5099a9415ec7d84dd17274ba5f2570dacff9514d1db3f737"
+      "contentHash": "143a71c41c187014e6b2b277b2418efa7929fd20560eaeece8f57e9795a79c65"
     },
     {
       "kind": "Skill",
@@ -736,7 +736,7 @@
       "name": "absuite-rest",
       "version": "1.1.0",
       "description": "General-purpose usage of the Alliance Business Suite (ABS) REST API over HTTP (curl / any HTTP client). Covers authentication, the base URL pattern, the response envelope, per-endpoint tenant scoping (query param vs header vs user/public scope), OData list queries, and atomic PATCH (JSON Patch) updates. Use for any ABS domain operation (invoices, contacts, catalog, tenants, etc.) via direct REST. For authentication only, see absuite-login. For the `absuite` CLI wrapper instead of raw HTTP, see absuite-cli.",
-      "contentHash": "2246dbfdc7d548258e15432173fd77ab74bea9aa0fe1b094db7fcc963f9e8b96"
+      "contentHash": "94bceb64ef67e17c4e4b1b1718ba5e19553fa35aa4c26003363f0bb643360f75"
     },
     {
       "kind": "Skill",
@@ -745,7 +745,7 @@
       "name": "absuite-security",
       "version": "1.1.0",
       "description": "Manage security roles, permissions, business applications, OAuth applications, OAuth authorizations, certificates, security/tenant logs, and webhook requests via the Alliance Business Suite (ABS) REST API. Covers full RBAC assignment/revocation across roles, permissions, enrollments, and applications, including atomic PATCH (JSON Patch) updates. All operations are tenant-scoped and require a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "e27d5b581ef48cfbdc293bbd97afd1bbe202f2957b2d6fb3d3c2a52198d7c9b6"
+      "contentHash": "e420d02aed62b0cf6f2181681473f82c2e7cced3edabbb353cc05368cb7130f4"
     },
     {
       "kind": "Skill",
@@ -754,7 +754,7 @@
       "name": "absuite-security-cli",
       "version": "1.1.0",
       "description": "How the Security area relates to the absuite CLI: the CLI has no security commands today, so this skill says what the CLI does cover and points to the absuite-security skill for the rest.",
-      "contentHash": "924097429aa82e5c1f373d6e4b51f302347bc015ed58423985cf1af8315044d9"
+      "contentHash": "db804c30da55b87cf25fe5213d3672a32bbddc435b43809ec4bd49e92f7f7ac7"
     },
     {
       "kind": "Skill",
@@ -763,7 +763,7 @@
       "name": "absuite-social",
       "version": "1.1.0",
       "description": "Manage the social network (profiles, posts, comments, reactions, attachments, groups, feeds, conversations, messages, notifications, follow relationships, and workspace Team conversations) in the Alliance Business Suite (ABS) via the REST API. Covers full CRUD plus atomic PATCH (JSON Patch) updates and social actions (follow, message, post, feed). Social endpoints are scoped by `socialProfileId`; SocialGroups and TeamConversations also take `tenantId`. Requires a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "52eb1b139967775bbb12b18593adcb36c952680a6899bab3540010879ef225b4"
+      "contentHash": "8ec62dbeb0f204cb0042c913bb80a4e93eb8027da5b3aaa51d6404f7e7c71d1f"
     },
     {
       "kind": "Skill",
@@ -772,7 +772,7 @@
       "name": "absuite-social-cli",
       "version": "1.1.0",
       "description": "Drive the Alliance Business Suite (ABS) Social area with the absuite CLI: 8 commands (5 read, 3 write) under `absuite social`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-social REST skill.",
-      "contentHash": "e818fcd773285cc645e3bca787a2f7de95a7e468d2fcbab0607d9e75a1c7bc57"
+      "contentHash": "13908a94ada4de83e03eab0eb75dc6060e787dd4ca4fdd6aefd3a54c9438f788"
     },
     {
       "kind": "Skill",
@@ -781,7 +781,7 @@
       "name": "absuite-storage",
       "version": "1.1.0",
       "description": "Manage file storage, uploads, downloads, and avatars in the Alliance Business Suite (ABS) via the REST API (StorageService). Covers file records, counts, thumbnails, raw downloads, blob browsing, rich-text editor uploads and editor assets, and avatars for social profiles, contacts, users, and tenants. PATCH is not available on this service. All operations require a bearer token (see the absuite-login skill to authenticate), except serving a published editor asset.",
-      "contentHash": "a604bf44c684818d55ae4f66a1e5bb7e7d8d5bfaf4f26e356b559a32bc5f1f2a"
+      "contentHash": "c074d1018ffb5482323948fe212504d279a23ec12fd7442abd218d362c85fdb0"
     },
     {
       "kind": "Skill",
@@ -790,7 +790,7 @@
       "name": "absuite-storage-cli",
       "version": "1.1.0",
       "description": "Drive the Alliance Business Suite (ABS) Storage area with the absuite CLI: 4 commands (3 read, 1 write) under `absuite storage`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-storage REST skill.",
-      "contentHash": "d8b50870fdfbc145bcf9baadd7d8cbcb0a6a61e6be3318f0b7f85aa59652e588"
+      "contentHash": "22aef1574a59676a1d6d21a287dbf7de722e7e32d572414ea9147c7823b4064d"
     },
     {
       "kind": "Skill",
@@ -799,7 +799,7 @@
       "name": "absuite-subscriptions",
       "version": "1.1.0",
       "description": "Manage subscription plans and customer subscriptions via the Alliance Business Suite (ABS) REST API. Covers subscription plans and subscriptions, including atomic PATCH (JSON Patch) updates. All operations are tenant-scoped and require a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "f90485dc4ae113df66d056ed42b1a1ebeaeb7a73a083bc09b12efa78ff1b808f"
+      "contentHash": "4bdb044400b5e54a81f26f494de9ba55094ae761abc7fadb24ce7b2d17d9e177"
     },
     {
       "kind": "Skill",
@@ -808,7 +808,7 @@
       "name": "absuite-subscriptions-cli",
       "version": "1.1.0",
       "description": "Drive the Alliance Business Suite (ABS) Subscriptions area with the absuite CLI: 6 commands (6 read, 0 write) under `absuite subscriptions`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-subscriptions REST skill.",
-      "contentHash": "0e6855ba01f5b44461d498f77ff8c7a91dd66ca4de17b7034925f564701d05e8"
+      "contentHash": "a1321a0a15ff467103818712c7b2f2eebd6984cac8b8b05a136668adca7e5c10"
     },
     {
       "kind": "Skill",
@@ -817,7 +817,7 @@
       "name": "absuite-support",
       "version": "1.1.0",
       "description": "Manage customer support (tickets, support requests, request attachments, ticket conversations, ticket priorities, ticket types, entitlements, refund/return/warranty requests and policies, knowledge articles, inquiry requests, and maintenance visits) via the Alliance Business Suite (ABS) REST API, including atomic PATCH (JSON Patch) updates. All operations are tenant-scoped and require a bearer token (see the absuite-login skill to authenticate). For the CLI equivalent, see `absuite-support-cli`.",
-      "contentHash": "074f29eeb03ac0675735c2002f78d38d8e36667e259c3d9ff44b6bb8972c9837"
+      "contentHash": "acff0f1411007d66b7b065c60914040301aa41c09601d0727b3d6b4ee21a86d9"
     },
     {
       "kind": "Skill",
@@ -826,7 +826,7 @@
       "name": "absuite-support-cli",
       "version": "1.1.0",
       "description": "Drive the Alliance Business Suite (ABS) Support area with the absuite CLI: 82 commands (48 read, 34 write) under `absuite support`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-support REST skill.",
-      "contentHash": "b6cf9ba403a975c8ff7496ec0b4e40d2b25873b9324dfd9f7887efb2bb595587"
+      "contentHash": "9bb8f3335c49629496d577576478be137122ed2821c3a4cba6e730fad4af0463"
     },
     {
       "kind": "Skill",
@@ -835,7 +835,7 @@
       "name": "absuite-system",
       "version": "1.1.0",
       "description": "Manage system administration in the Alliance Business Suite (ABS) via the REST API. Covers cross-tenant admin (tenants, users), system/tenant/user/contact options, licensing, system portals, overview, IP lookups, carts, business domains, system emails, migrations and antiforgery, including atomic PATCH (JSON Patch) updates. Most operations require an instance-administrator bearer token (business_owner of the root tenant; see the absuite-login skill to authenticate).",
-      "contentHash": "49f388e28046571c039077d40256af3578c4ccb8d13c3bf2ddf13d1c954e8bf7"
+      "contentHash": "083252a93e4251c6111357eae8600178a76b83f995f9e5cdfa8f79123b146579"
     },
     {
       "kind": "Skill",
@@ -844,7 +844,7 @@
       "name": "absuite-system-cli",
       "version": "1.1.0",
       "description": "How the System area relates to the absuite CLI: the CLI has no system commands today, so this skill says what the CLI does cover and points to the absuite-system skill for the rest.",
-      "contentHash": "42c6c1995cb119d8bbe68e20b31a2206d5da4e89d8b89965376fe06fe2b8d6da"
+      "contentHash": "f27c634aedd92b01338fa30436f39804f047e2ba2bc340390d3b513276557b5d"
     },
     {
       "kind": "Skill",
@@ -853,7 +853,7 @@
       "name": "absuite-tenants",
       "version": "1.1.0",
       "description": "Manage tenant configuration in the Alliance Business Suite (ABS) via the REST API. The largest service, covers tenant CRUD, departments, enrollments (standard, extended, and employee), industries, invitations, options, positions, segments, sizes, teams, team records, team contact/project enrollments, territories, types, units, unit groups, licenses, notifications, web portals, avatars, carts, wallets, and social profiles, including atomic PATCH (JSON Patch) updates. Most operations are tenant-scoped and require a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "8d75a817db5f1e18535cea381b08981e3ca37c872506dc4311e0491a2f3ccf3f"
+      "contentHash": "d262a290acdb4c159e309f9da1eaa3c6ca7a97910967614ebab7873907e25d39"
     },
     {
       "kind": "Skill",
@@ -862,7 +862,7 @@
       "name": "absuite-tenants-cli",
       "version": "1.1.0",
       "description": "Drive the Alliance Business Suite (ABS) Tenants area with the absuite CLI: 54 commands (0 read, 54 write) under `absuite tenants`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-tenants REST skill.",
-      "contentHash": "2d30110890278819d4b172b996cab0227712146dca9974bf59126a4d7cfeafbd"
+      "contentHash": "5eaa41ba1192dc84cb0716745f25ac019046650cc01c09d2f18172111ee9a2d7"
     },
     {
       "kind": "Skill",
@@ -871,7 +871,7 @@
       "name": "absuite-users",
       "version": "1.1.0",
       "description": "Read and manage the current user's account in the Alliance Business Suite (ABS) via the REST API. Covers the `/api/v2/Me` surface, profile, extended profile, avatar, settings, addresses, cart, wallet, social profile, followers/follows, notifications, tenant memberships, enrollments, invitations, and user options (key-value metadata), including atomic PATCH (JSON Patch) updates. These endpoints are USER-scoped (resolved from the bearer token); they take NO tenantId. Requires a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "0bc1cc7d2c8db5225e123c2832d9518365b64ec8fff4c2f84df78bdcdf1eaf8d"
+      "contentHash": "c79adaa34ce1d2e63e87ed436f794c146fa9ddc6c816791ed9ee51bcb597369e"
     },
     {
       "kind": "Skill",
@@ -880,7 +880,7 @@
       "name": "absuite-users-cli",
       "version": "1.1.0",
       "description": "How the Users area relates to the absuite CLI: the CLI has no users commands today, so this skill says what the CLI does cover and points to the absuite-users skill for the rest.",
-      "contentHash": "25e6ccdce33ba90c9312e4497e84bfee80ffed7a061db163157cf8cf9dfd2cef"
+      "contentHash": "cbac3dcd4fc61d2bd0a6b8e473389c341ca8c273e48f55cf94ba8d606a11397c"
     },
     {
       "kind": "Skill",
@@ -889,7 +889,7 @@
       "name": "absuite-wallets",
       "version": "1.1.0",
       "description": "Manage wallets and their sub-resources (bank accounts, payments, payment tokens, locations, withdraws/withdraw-requests) plus read access to orders, invoices, quotes, refunds and chargebacks, via the Alliance Business Suite (ABS) REST API. Covers create / read / update (PUT) / delete and PATCH (JSON Patch) where exposed. Wallets are addressed by walletId and gated on the caller owning the wallet; only bank accounts, tokens and locations take an optional tenantId. Agents cannot move money or add payment instruments. Every call requires a bearer token (see the absuite-login skill to authenticate).",
-      "contentHash": "a274665e7edc64834e769952dd75f66579b9043d26e8bbd43df6e1c8d9f1ca41"
+      "contentHash": "b513bec2084915c8095e5c81a7b790e63081a4e694820ffeb0fa7b955dfd7913"
     },
     {
       "kind": "Skill",
@@ -898,7 +898,7 @@
       "name": "absuite-wallets-cli",
       "version": "1.1.0",
       "description": "Drive the Alliance Business Suite (ABS) Wallets area with the absuite CLI: 6 commands (6 read, 0 write) under `absuite wallets`, each generated from the platform's ServiceClients and checked against `absuite commands -o json`. For routes the CLI does not cover, use the absuite-wallets REST skill.",
-      "contentHash": "2ac164deb55a29081315d1152a8a7ab794e25e099956902a005282a33ad976ea"
+      "contentHash": "b04423942c49e7626cef161d588e099e07d8688052ea458b17f8b27d172037ec"
     },
     {
       "kind": "Skill",
